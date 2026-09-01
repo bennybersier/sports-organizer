@@ -9,7 +9,7 @@ import type { Json } from "@/types/json";
 /**
  * Audit logging.
  *
- * Writes go through the service-role client because `audit_logs` has no INSERT
+ * Writes go through the secret-key client because `audit_logs` has no INSERT
  * grant for `authenticated` — an audit trail that a client could write is not
  * an audit trail. Rows are immutable at the database level too.
  *

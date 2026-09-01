@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../../src/types/database";
 
 /**
- * Service-role client for CLI scripts.
+ * Secret-key client for CLI scripts.
  *
  * Kept separate from src/lib/supabase/admin.ts because that module is
  * `server-only` and pulls in the Next.js request context. Scripts read
@@ -12,11 +12,11 @@ import type { Database } from "../../src/types/database";
  */
 export function adminClient(): SupabaseClient<Database> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const key = process.env.SUPABASE_SECRET_KEY;
 
   if (!url || !key) {
     console.error(
-      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY.\n" +
+      "Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SECRET_KEY.\n" +
         "Copy .env.example to .env.local and fill them in first.",
     );
     process.exit(1);

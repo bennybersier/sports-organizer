@@ -11,5 +11,5 @@ import type { Database } from "@/types/database";
  * subscriptions. Data reads happen in Server Components.
  */
 export function createBrowserSupabaseClient() {
-  return createBrowserClient<Database>(publicEnv.supabaseUrl, publicEnv.supabaseAnonKey);
+  return createBrowserClient<Database>(publicEnv.supabaseUrl, publicEnv.supabasePublishableKey);
 }

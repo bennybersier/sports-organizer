@@ -4,7 +4,7 @@
  * The product has no public sign-up: every account arrives through an
  * invitation, and an invitation has to come from someone who is already an
  * Owner. This script breaks that cycle once, at install time, from a machine
- * that already holds the service-role key.
+ * that already holds the secret key.
  *
  *   pnpm bootstrap:club --email you@club.example --name "Riverside Athletics"
  *

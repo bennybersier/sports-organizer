@@ -9,7 +9,7 @@ import type { Database } from "@/types/database";
 let cached: SupabaseClient<Database> | null = null;
 
 /**
- * Service-role client. **Bypasses RLS entirely.**
+ * Secret-key client. **Bypasses RLS entirely.**
  *
  * Legitimate uses, all of which perform their own authorization first:
  *   - reading/writing secret-bearing tables (AI keys, OAuth tokens, MCP keys),
@@ -24,7 +24,7 @@ let cached: SupabaseClient<Database> | null = null;
 export function createAdminClient(): SupabaseClient<Database> {
   cached ??= createClient<Database>(
     env.NEXT_PUBLIC_SUPABASE_URL,
-    env.SUPABASE_SERVICE_ROLE_KEY,
+    env.SUPABASE_SECRET_KEY,
     {
       auth: { autoRefreshToken: false, persistSession: false },
       global: { headers: { "x-application-name": "sport-club-organizer" } },

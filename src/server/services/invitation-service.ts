@@ -8,7 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
  *
  * An invitee has no membership yet, so RLS correctly hides the `invitations`
  * row from them. The token is the bearer credential: we look the row up by its
- * hash with the service-role client and return only what the accept screen
+ * hash with the secret-key client and return only what the accept screen
  * needs to render. No tenant data beyond the club's display name is exposed,
  * and the token hash itself never leaves the server.
  */

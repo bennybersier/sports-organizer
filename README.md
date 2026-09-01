@@ -25,8 +25,13 @@ generates a weekly training schedule the club can actually rely on.
 ### 1. Create a Supabase project
 
 At [supabase.com/dashboard](https://supabase.com/dashboard) → **New project**.
-Then in **Project Settings → API**, copy the project URL, the `anon` key and the
-`service_role` key.
+Then in **Project Settings → API Keys**, copy the project URL, the
+**publishable** key (`sb_publishable_…`) and the **secret** key (`sb_secret_…`).
+
+> The older `anon` / `service_role` JWT keys still work and are accepted, but
+> Supabase deprecates them at the end of 2026 — the app logs a warning if it
+> sees one. Prefer the new keys.
+
 
 ### 2. Configure the environment
 
@@ -61,7 +66,8 @@ URI in the Google Cloud console.
 ### 5. Create the first club and its owner
 
 There is no public sign-up, and invitations must come from an existing Owner —
-so the very first account is created from the command line:
+so the very first account is created from the command line, from a machine
+that already holds the secret key:
 
 ```bash
 pnpm bootstrap:club --email you@club.example --name "Riverside Athletics"
@@ -144,10 +150,10 @@ cookie, but the cookie only *selects* among clubs the user already belongs to �
 membership is re-resolved from `auth.uid()` on every request. A forged value
 resolves to nothing.
 
-### Where the service-role key is allowed
+### Where the secret key is allowed
 
-`createAdminClient()` bypasses RLS, so its uses are deliberately few, and each
-performs its own authorization first:
+`createAdminClient()` uses `SUPABASE_SECRET_KEY` and bypasses RLS, so its uses
+are deliberately few, and each performs its own authorization first:
 
 - reading and writing secret-bearing tables (`ai_provider_configurations`,
   `oauth_connections`, `mcp_api_keys`, `calendar_sync_links`, `email_outbox`),
