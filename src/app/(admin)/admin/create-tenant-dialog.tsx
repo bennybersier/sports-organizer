@@ -4,11 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle, Loader2, Plus } from "lucide-react";
+import { AlertCircle, Check, Copy, Loader2, Plus } from "lucide-react";
 import { z } from "zod";
 import { toast } from "sonner";
 
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,7 +29,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { createTenant } from "@/server/actions/platform-admin";
+import { createTenant, type CreateTenantResult } from "@/server/actions/platform-admin";
 
 const schema = z.object({
   name: z.string().trim().min(2, "Give the club a name.").max(200),
@@ -48,6 +48,8 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [created, setCreated] = useState<CreateTenantResult | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -80,13 +82,28 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
     }
 
     toast.success(`Created ${values.name}.`);
+    router.refresh();
+
+    // A brand-new owner has an account but no way to reach it until email is
+    // wired up, so hand the link over instead of closing on a silent success.
+    if (result.data.ownerInvited) {
+      setCreated(result.data);
+      return;
+    }
+
     setOpen(false);
     form.reset();
-    router.refresh();
+  }
+
+  function close() {
+    setOpen(false);
+    setCreated(null);
+    setCopied(false);
+    form.reset();
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>
       <DialogTrigger asChild>
         <Button>
           <Plus aria-hidden />
@@ -95,6 +112,52 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-md">
+        {created?.inviteLink ? (
+          <>
+            <DialogHeader>
+              <DialogTitle>Club created — send the owner their link</DialogTitle>
+              <DialogDescription>
+                {created.ownerEmail} had no account, so one was created and they were made
+                Owner. Email delivery isn&apos;t wired up yet, so pass this link on yourself.
+                It sets their password and expires.
+              </DialogDescription>
+            </DialogHeader>
+
+            <Alert>
+              <AlertCircle aria-hidden />
+              <AlertTitle>Single use</AlertTitle>
+              <AlertDescription>
+                This link signs them in once to choose a password. It won&apos;t be shown
+                again — if it&apos;s lost, they can use “Forgot password” instead.
+              </AlertDescription>
+            </Alert>
+
+            <div className="flex items-center gap-2">
+              <Input readOnly value={created.inviteLink} className="font-mono text-xs" />
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                aria-label="Copy invitation link"
+                onClick={async () => {
+                  await navigator.clipboard.writeText(created.inviteLink!);
+                  setCopied(true);
+                  toast.success("Link copied.");
+                  setTimeout(() => setCopied(false), 2000);
+                }}
+              >
+                {copied ? <Check aria-hidden /> : <Copy aria-hidden />}
+              </Button>
+            </div>
+
+            <DialogFooter>
+              <Button type="button" onClick={close}>
+                Done
+              </Button>
+            </DialogFooter>
+          </>
+        ) : (
+        <>
         <DialogHeader>
           <DialogTitle>Create a club</DialogTitle>
           <DialogDescription>
@@ -156,8 +219,8 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
                     <Input type="email" {...field} />
                   </FormControl>
                   <FormDescription>
-                    Must already have an account — creating a club never creates one. Defaults
-                    to you.
+                    Defaults to you. If this address has no account yet, one is created and
+                    you&apos;ll get an invitation link to pass on.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>
@@ -182,7 +245,7 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
             />
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
+              <Button type="button" variant="outline" onClick={close}>
                 Cancel
               </Button>
               <Button type="submit" disabled={form.formState.isSubmitting}>
@@ -198,6 +261,8 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
             </DialogFooter>
           </form>
         </Form>
+        </>
+        )}
       </DialogContent>
     </Dialog>
   );

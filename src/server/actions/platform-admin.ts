@@ -6,8 +6,9 @@ import { z } from "zod";
 
 import { env } from "@/env";
 import { runAction, parseInput, type ActionResult } from "@/lib/action";
-import { fromDatabaseError } from "@/lib/errors";
+import { fromDatabaseError, ValidationError } from "@/lib/errors";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ACTIVE_TENANT_COOKIE, requirePlatformAdmin } from "@/server/auth/context";
 import { recordAudit, AUDIT_ACTIONS } from "@/server/services/audit-service";
 
@@ -33,17 +34,71 @@ const createTenantSchema = z.object({
   timezone: z.string().min(1).default("Europe/Zurich"),
 });
 
+export interface CreateTenantResult {
+  tenantId: string;
+  /** True when the owner had no account and one was created for them. */
+  ownerInvited: boolean;
+  ownerEmail: string;
+  /**
+   * Set when an account was just created. Email delivery isn't wired up until
+   * Phase 7, so the link is handed back for the admin to pass on — better than
+   * silently creating an account nobody can reach.
+   */
+  inviteLink?: string;
+}
+
 /**
  * Creates a club and assigns its first Owner.
  *
- * Staff-only, and the authorization is enforced twice: here, and again inside
- * `admin_create_tenant`, which re-checks `app.is_platform_admin()` in the same
- * transaction that writes the rows.
+ * If the owner has no account yet, one is created here and an invitation link
+ * is issued. That is not a loophole in "no public sign-up": a platform admin is
+ * precisely the authority the rule defers to, and it resolves an otherwise
+ * unbreakable deadlock — a club needs an owner with an account, and an account
+ * needs an invitation, which until now needed a club.
+ *
+ * Staff-only, enforced twice: here, and again inside `admin_create_tenant`,
+ * which re-checks `app.is_platform_admin()` in the same transaction that writes
+ * the rows.
  */
-export async function createTenant(input: unknown): Promise<ActionResult<{ tenantId: string }>> {
+export async function createTenant(input: unknown): Promise<ActionResult<CreateTenantResult>> {
   return runAction(async () => {
     await requirePlatformAdmin();
     const values = parseInput(createTenantSchema, input);
+
+    const admin = createAdminClient();
+
+    // Does the owner already have an account?
+    const { data: existing } = await admin
+      .from("profiles")
+      .select("id")
+      .eq("email", values.ownerEmail)
+      .maybeSingle();
+
+    let ownerInvited = false;
+    let inviteLink: string | undefined;
+
+    if (!existing) {
+      // generateLink creates the account and returns a single-use link without
+      // depending on SMTP being configured, so this cannot half-succeed by
+      // creating an account whose invitation email silently failed to send.
+      const { data: link, error: linkError } = await admin.auth.admin.generateLink({
+        type: "invite",
+        email: values.ownerEmail,
+        options: {
+          redirectTo: new URL("/auth/callback?next=/reset-password", env.NEXT_PUBLIC_APP_URL).toString(),
+        },
+      });
+
+      if (linkError || !link?.properties?.action_link) {
+        throw new ValidationError(
+          `Couldn't create an account for ${values.ownerEmail}. ${linkError?.message ?? ""}`.trim(),
+          { fieldErrors: { ownerEmail: ["Could not create an account for this address."] } },
+        );
+      }
+
+      ownerInvited = true;
+      inviteLink = link.properties.action_link;
+    }
 
     const supabase = await createClient();
     const { data, error } = await supabase.rpc("admin_create_tenant", {
@@ -63,7 +118,12 @@ export async function createTenant(input: unknown): Promise<ActionResult<{ tenan
     }
 
     revalidatePath("/admin");
-    return { tenantId: data as unknown as string };
+    return {
+      tenantId: data as unknown as string,
+      ownerInvited,
+      ownerEmail: values.ownerEmail,
+      ...(inviteLink ? { inviteLink } : {}),
+    };
   });
 }
 

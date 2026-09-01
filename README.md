@@ -180,6 +180,26 @@ Verified against the live database: a signed-in non-admin cannot read or write
 `platform_admins` (403 both ways), `profiles` exposes no privilege column, and
 `admin_list_tenants()` returns nothing to anyone who isn't staff.
 
+### Bootstrapping: who invites the first person?
+
+There is no public sign-up, so account creation always traces back to an
+authority. That creates a chicken-and-egg problem at the very start — a club
+needs an Owner with an account, and an account needs an invitation, which needs
+a club — and it is broken in exactly two places:
+
+1. `pnpm bootstrap:club`, run from a machine holding the secret key.
+2. A platform admin creating a club. If the owner's address has no account, one
+   is created and an invitation link is issued in the same step.
+
+Neither is a loophole: both require an authority that already exists. Everything
+after that flows through ordinary club invitations.
+
+Until email lands in Phase 7, that invitation link is handed back in the UI for
+the admin to pass on. It is generated with `generateLink` rather than
+`inviteUserByEmail` deliberately — the latter depends on SMTP being configured,
+and would otherwise half-succeed by creating an account whose invitation email
+silently failed to send.
+
 ### Where the secret key is allowed
 
 `createAdminClient()` uses `SUPABASE_SECRET_KEY` and bypasses RLS, so its uses
