@@ -98,8 +98,8 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
         <DialogHeader>
           <DialogTitle>Create a club</DialogTitle>
           <DialogDescription>
-            The owner needs an account already — this assigns access, it never creates an
-            identity.
+            A club is a tenant — one organisation, with its own teams, athletes, gyms and
+            schedules, isolated from every other.
           </DialogDescription>
         </DialogHeader>
 
@@ -155,6 +155,10 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
                   <FormControl>
                     <Input type="email" {...field} />
                   </FormControl>
+                  <FormDescription>
+                    Must already have an account — creating a club never creates one. Defaults
+                    to you.
+                  </FormDescription>
                   <FormMessage />
                 </FormItem>
               )}

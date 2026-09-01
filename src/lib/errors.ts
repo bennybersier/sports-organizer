@@ -73,8 +73,8 @@ export class AuthorizationError extends AppError {
 }
 
 export class NotFoundError extends AppError {
-  constructor(resource = "record", options: AppErrorOptions = {}) {
-    super("NOT_FOUND", 404, `That ${resource} could not be found.`, options);
+  constructor(resource = "record", options: AppErrorOptions & { message?: string } = {}) {
+    super("NOT_FOUND", 404, options.message ?? `That ${resource} could not be found.`, options);
   }
 }
 
@@ -140,6 +140,19 @@ interface PostgrestLikeError {
   hint?: string | null;
 }
 
+/**
+ * Marker our own PL/pgSQL functions set on messages written for end users.
+ *
+ * Postgres never sets this hint itself, so it unambiguously separates
+ * "a constraint was violated" (message is technical — must not be shown) from
+ * "our function raised copy intended for a human". Without it, a precise
+ * message like "No account exists for that email" gets replaced by a generic
+ * one, which is worse than useless: it is wrong.
+ *
+ * Set in supabase/migrations/*_0012_error_messages_and_owner_guard.sql.
+ */
+const USER_MESSAGE_HINT = "SCO_USER_MESSAGE";
+
 function isPostgrestError(error: unknown): error is PostgrestLikeError {
   return typeof error === "object" && error !== null && "code" in error;
 }
@@ -163,6 +176,25 @@ export function fromDatabaseError(
   const constraintMatch = message.match(/constraint "([^"]+)"/);
   const constraint = constraintMatch?.[1];
   const mapped = constraint ? options.conflictMessages?.[constraint] : undefined;
+
+  // Our own functions write their own copy. Keep it: the SQLSTATE still picks
+  // the error type and status, the hint only decides whose words are shown.
+  if (error.hint === USER_MESSAGE_HINT && message) {
+    switch (code) {
+      case PG_INSUFFICIENT_PRIVILEGE:
+        return new AuthorizationError(message, { cause: error });
+      case PG_NO_DATA:
+        return new NotFoundError(resource, { message, cause: error });
+      case PG_CHECK_VIOLATION:
+        return new ValidationError(message, { cause: error });
+      case PG_FOREIGN_KEY_VIOLATION:
+      case PG_UNIQUE_VIOLATION:
+      case PG_EXCLUSION_VIOLATION:
+        return new ConflictError(message, { cause: error });
+      default:
+        return new ConflictError(message, { cause: error });
+    }
+  }
 
   switch (code) {
     case PG_UNIQUE_VIOLATION:

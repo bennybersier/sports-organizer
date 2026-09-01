@@ -224,7 +224,7 @@ way.
 
 ## Database
 
-36 tables across 11 versioned migrations in [`supabase/migrations/`](supabase/migrations/).
+36 tables across 12 versioned migrations in [`supabase/migrations/`](supabase/migrations/).
 
 | Migration | Contents |
 | --- | --- |
@@ -239,6 +239,7 @@ way.
 | `0009_rls_policies` | RLS on every table |
 | `0010_invariants_rpc` | Last-owner guard, tenant provisioning, invitation acceptance, transactional publish |
 | `0011_platform_admin` | System staff: the grant table, the bypass, and the admin console RPCs |
+| `0012_error_messages_and_owner_guard` | Owner guard no longer blocks club deletion; user-facing messages survive the error mapper |
 
 **Availability model.** Recurring weekly windows plus date-specific exceptions.
 Weekdays are ISO-8601 (1 = Monday … 7 = Sunday, matching `extract(isodow)`).
@@ -246,6 +247,14 @@ Times are wall-clock in the club's scheduling timezone; a window running to
 midnight uses `end_time = '24:00'`, and one that truly crosses midnight is stored
 as two rows, so every row satisfies `start < end`. Overlapping windows for the
 same owner are rejected by exclusion constraints rather than silently merged.
+
+**Error messages.** SQLSTATEs alone can't distinguish "Postgres rejected a
+constraint" (technical, must not be shown) from "our function raised copy
+written for a human". Deliberate raises therefore carry
+`HINT = 'SCO_USER_MESSAGE'`, which Postgres never sets itself; `fromDatabaseError`
+shows those messages verbatim and falls back to a generic one for everything
+else. Without it, "No account exists for that email" surfaced as "That club
+could not be found" — unhelpful, and untrue.
 
 **Delete behaviour.** Historical scheduling data is never destroyed to tidy up a
 roster. Entities soft-delete (`deleted_at`); seasons and schedule versions
