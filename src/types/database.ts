@@ -556,6 +556,15 @@ export interface McpApiKeyRow extends Timestamps {
   created_by: string | null;
 }
 
+export interface PlatformAdminRow {
+  user_id: string;
+  note: string;
+  granted_by: string | null;
+  granted_at: string;
+  revoked_at: string | null;
+  revoked_by: string | null;
+}
+
 export interface OnboardingProgressRow extends Timestamps {
   tenant_id: string;
   completed_steps: string[];
@@ -656,6 +665,7 @@ export type Database = {
         "tenant_id" | "user_id" | "name" | "secret_hash" | "key_prefix"
       >;
       onboarding_progress: Def<OnboardingProgressRow, "tenant_id">;
+      platform_admins: Def<PlatformAdminRow, "user_id" | "note">;
     };
     Views: Record<never, never>;
     Functions: {
@@ -682,6 +692,37 @@ export type Database = {
       };
       publish_schedule_version: {
         Args: { p_version_id: string };
+        Returns: string;
+      };
+      am_i_platform_admin: {
+        Args: Record<never, never>;
+        Returns: boolean;
+      };
+      admin_list_tenants: {
+        Args: Record<never, never>;
+        Returns: {
+          id: string;
+          name: string;
+          slug: string;
+          timezone: string;
+          status: TenantStatus;
+          created_at: string;
+          deleted_at: string | null;
+          member_count: number;
+          team_count: number;
+          athlete_count: number;
+          season_count: number;
+        }[];
+      };
+      admin_create_tenant: {
+        Args: {
+          p_name: string;
+          p_slug: string;
+          p_owner_email: string;
+          p_timezone?: string;
+          p_locale?: string;
+          p_week_start?: number;
+        };
         Returns: string;
       };
     };

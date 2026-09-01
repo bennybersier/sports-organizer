@@ -41,8 +41,10 @@ export default async function proxy(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (userId && (pathname === "/login" || pathname === "/")) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+  // "/" and "/login" resolve server-side, where membership and staff status are
+  // known — the proxy deliberately does not guess between /dashboard and /admin.
+  if (userId && pathname === "/login") {
+    return NextResponse.redirect(new URL("/", request.url));
   }
 
   return response;

@@ -11,7 +11,14 @@ import { isPermission } from "@/domain/permissions";
 export const ACTIVE_TENANT_COOKIE = "sco_active_tenant";
 
 /** How a request reached the domain layer. Recorded on every audit entry. */
-export type ActorType = "WEB" | "MCP" | "AI" | "JOB" | "INTEGRATION" | "SYSTEM";
+export type ActorType =
+  | "WEB"
+  | "PLATFORM_ADMIN"
+  | "MCP"
+  | "AI"
+  | "JOB"
+  | "INTEGRATION"
+  | "SYSTEM";
 
 export interface AuthUser {
   id: string;
@@ -55,9 +62,25 @@ export interface AuthContext {
   /** Fully resolved: role permissions with per-user overrides already applied. */
   permissions: ReadonlySet<Permission>;
   actorType: ActorType;
+  /** System staff, not a member of this club. See `isActingAsStaff`. */
+  isPlatformAdmin: boolean;
+  /**
+   * True when a platform admin is operating inside a club they do not belong
+   * to. Drives the banner in the app shell and the audit actor type — the
+   * bypass is never silent.
+   */
+  isActingAsStaff: boolean;
   /** Tenant-scoped database client. Under RLS for WEB contexts. */
   db: TypedSupabaseClient;
 }
+
+/** Synthetic role for staff acting inside a club without a membership. */
+export const PLATFORM_ADMIN_ROLE = {
+  key: "PLATFORM_ADMIN",
+  name: "Platform admin",
+  // Outranks Owner (rank 0) so assertOutranks lets staff act on anyone.
+  rank: -1,
+} as const;
 
 /**
  * The signed-in user, or null.
@@ -90,6 +113,23 @@ export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
     locale: profile?.locale ?? "en",
     timezone: profile?.timezone ?? "UTC",
   };
+});
+
+/**
+ * Whether the signed-in user is system staff.
+ *
+ * Resolved through a security-definer RPC: `platform_admins` has no grants for
+ * `authenticated`, so the flag cannot be read — let alone written — directly.
+ */
+export const getIsPlatformAdmin = cache(async (): Promise<boolean> => {
+  const user = await getCurrentUser();
+  if (!user) return false;
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc("am_i_platform_admin");
+  if (error) throw fromDatabaseError(error, { resource: "account" });
+
+  return data === true;
 });
 
 export async function requireUser(): Promise<AuthUser> {
@@ -129,9 +169,10 @@ export const getMemberships = cache(async (): Promise<MembershipSummary[]> => {
  * forged or stale value resolves to nothing and the user is sent to the tenant
  * picker; it can never widen access.
  */
-async function resolveActiveTenantId(memberships: MembershipSummary[]): Promise<string | null> {
-  if (memberships.length === 0) return null;
-
+async function resolveActiveTenantId(
+  memberships: MembershipSummary[],
+  isPlatformAdmin: boolean,
+): Promise<string | null> {
   const cookieStore = await cookies();
   const requested = cookieStore.get(ACTIVE_TENANT_COOKIE)?.value;
 
@@ -139,18 +180,30 @@ async function resolveActiveTenantId(memberships: MembershipSummary[]): Promise<
     return requested;
   }
 
-  return memberships.length === 1 ? memberships[0].tenantId : null;
+  // Staff may enter any club. The cookie still only *names* one — the club is
+  // then loaded through RLS, which is what actually authorises the access.
+  if (isPlatformAdmin && requested) return requested;
+
+  if (memberships.length === 1) return memberships[0].tenantId;
+  return null;
 }
 
 export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
   const user = await getCurrentUser();
   if (!user) return null;
 
-  const memberships = await getMemberships();
-  const tenantId = await resolveActiveTenantId(memberships);
+  const [memberships, isPlatformAdmin] = await Promise.all([
+    getMemberships(),
+    getIsPlatformAdmin(),
+  ]);
+
+  const tenantId = await resolveActiveTenantId(memberships, isPlatformAdmin);
   if (!tenantId) return null;
 
-  const membership = memberships.find((m) => m.tenantId === tenantId)!;
+  const membership = memberships.find((m) => m.tenantId === tenantId);
+  // Staff without a membership here are acting on the club, not in it.
+  if (!membership && !isPlatformAdmin) return null;
+
   const supabase = await createClient();
 
   // Both reads are RLS-scoped, so they double as a membership check.
@@ -186,13 +239,13 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
       locale: tenantResult.data.locale,
       weekStart: tenantResult.data.week_start,
     },
-    role: {
-      key: membership.roleKey,
-      name: membership.roleName,
-      rank: membership.roleRank,
-    },
+    role: membership
+      ? { key: membership.roleKey, name: membership.roleName, rank: membership.roleRank }
+      : { ...PLATFORM_ADMIN_ROLE },
     permissions,
-    actorType: "WEB",
+    actorType: membership ? "WEB" : "PLATFORM_ADMIN",
+    isPlatformAdmin,
+    isActingAsStaff: isPlatformAdmin && !membership,
     db: supabase,
   };
 });
@@ -212,4 +265,13 @@ export async function requireAuthContext(): Promise<AuthContext> {
     );
   }
   return context;
+}
+
+/** Asserts the caller is system staff. Guards the /admin console. */
+export async function requirePlatformAdmin(): Promise<AuthUser> {
+  const user = await requireUser();
+  if (!(await getIsPlatformAdmin())) {
+    throw new AuthorizationError("That area is restricted to platform administrators.");
+  }
+  return user;
 }

@@ -14,7 +14,8 @@
     "db:types": "supabase gen types typescript --linked --schema public > src/types/database.ts",
     "db:seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
     "bootstrap:club": "tsx --env-file-if-exists=.env.local scripts/bootstrap-club.ts",
-    "db:push:cli": "supabase db push"
+    "db:push:cli": "supabase db push",
+    "platform:admin": "tsx --env-file-if-exists=.env.local scripts/platform-admin.ts"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",

@@ -4,7 +4,7 @@ import { MailQuestion } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { getCurrentUser, getMemberships } from "@/server/auth/context";
+import { getCurrentUser, getIsPlatformAdmin, getMemberships } from "@/server/auth/context";
 import { signOut } from "@/server/actions/auth";
 
 export const metadata: Metadata = { title: "No club access" };
@@ -20,8 +20,12 @@ export default async function NoAccessPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const memberships = await getMemberships();
+  const [memberships, isPlatformAdmin] = await Promise.all([
+    getMemberships(),
+    getIsPlatformAdmin(),
+  ]);
   if (memberships.length > 0) redirect("/dashboard");
+  if (isPlatformAdmin) redirect("/admin");
 
   return (
     <Card>

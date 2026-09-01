@@ -72,6 +72,11 @@ export const AUDIT_ACTIONS = {
   GOOGLE_INTEGRATION_DISCONNECTED: "GOOGLE_INTEGRATION_DISCONNECTED",
   MCP_KEY_CREATED: "MCP_KEY_CREATED",
   MCP_KEY_REVOKED: "MCP_KEY_REVOKED",
+
+  // Platform staff entering a club is itself an event: club owners can always
+  // see when someone outside their club looked at their data.
+  PLATFORM_ADMIN_ENTERED_TENANT: "PLATFORM_ADMIN_ENTERED_TENANT",
+  PLATFORM_ADMIN_CREATED_TENANT: "PLATFORM_ADMIN_CREATED_TENANT",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];

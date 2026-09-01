@@ -108,6 +108,7 @@ pnpm dev
 | `pnpm db:types` | Regenerate `src/types/database.ts` from the live schema |
 | `pnpm db:seed` | Seed development data (`--reset` to wipe first) |
 | `pnpm bootstrap:club` | Create the first club and Owner |
+| `pnpm platform:admin` | Grant, revoke or list platform administrators |
 
 ---
 
@@ -149,6 +150,35 @@ the first cannot leak another club's data through a user-scoped client.
 cookie, but the cookie only *selects* among clubs the user already belongs to —
 membership is re-resolved from `auth.uid()` on every request. A forged value
 resolves to nothing.
+
+### Platform administrators
+
+A platform admin is staff of the *system*, not a member of any club: they hold
+no `tenant_membership` yet can administer every club, for support and
+operations. Granted only from the command line:
+
+```bash
+pnpm platform:admin --list
+pnpm platform:admin --email you@example.com --note "why they have this"
+pnpm platform:admin --email you@example.com --revoke
+```
+
+This deliberately punches a hole in tenant isolation, so it is built to be
+narrow and observable:
+
+- The grant lives in `platform_admins`, a table with **no privileges for
+  `authenticated`** — it is emphatically *not* a boolean on `profiles`, which
+  carries a self-update policy and would therefore make the flag
+  self-assignable.
+- The bypass is folded into `app.is_tenant_member()` and `app.has_permission()`,
+  so it takes effect in exactly one place rather than as a special case across
+  ~40 policies — and any policy added later inherits it automatically.
+- Entering a club is written to *that club's* audit log, and the app shows a
+  persistent banner while staff are inside a club they don't belong to.
+
+Verified against the live database: a signed-in non-admin cannot read or write
+`platform_admins` (403 both ways), `profiles` exposes no privilege column, and
+`admin_list_tenants()` returns nothing to anyone who isn't staff.
 
 ### Where the secret key is allowed
 
@@ -194,7 +224,7 @@ way.
 
 ## Database
 
-35 tables across 10 versioned migrations in [`supabase/migrations/`](supabase/migrations/).
+36 tables across 11 versioned migrations in [`supabase/migrations/`](supabase/migrations/).
 
 | Migration | Contents |
 | --- | --- |
@@ -208,6 +238,7 @@ way.
 | `0008_authorization` | `app.has_permission` and friends — the RLS primitives |
 | `0009_rls_policies` | RLS on every table |
 | `0010_invariants_rpc` | Last-owner guard, tenant provisioning, invitation acceptance, transactional publish |
+| `0011_platform_admin` | System staff: the grant table, the bypass, and the admin console RPCs |
 
 **Availability model.** Recurring weekly windows plus date-specific exceptions.
 Weekdays are ISO-8601 (1 = Monday … 7 = Sunday, matching `extract(isodow)`).

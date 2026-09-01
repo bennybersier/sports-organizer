@@ -3,7 +3,13 @@ import { redirect } from "next/navigation";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
-import { getAuthContext, getCurrentUser, getMemberships } from "@/server/auth/context";
+import { StaffBanner } from "@/components/layout/staff-banner";
+import {
+  getAuthContext,
+  getCurrentUser,
+  getIsPlatformAdmin,
+  getMemberships,
+} from "@/server/auth/context";
 
 /**
  * The authenticated app shell.
@@ -17,21 +23,40 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
-  const memberships = await getMemberships();
-  if (memberships.length === 0) redirect("/no-access");
+  const [memberships, isPlatformAdmin] = await Promise.all([
+    getMemberships(),
+    getIsPlatformAdmin(),
+  ]);
 
   const context = await getAuthContext();
-  // Belongs to several clubs but hasn't picked one (or the cookie is stale).
-  if (!context) redirect("/select-club");
+
+  if (!context) {
+    // Platform staff belong to no club, so the console — not the club picker —
+    // is their home.
+    if (isPlatformAdmin) redirect("/admin");
+    if (memberships.length === 0) redirect("/no-access");
+    // Belongs to several clubs but hasn't picked one (or the cookie is stale).
+    redirect("/select-club");
+  }
 
   return (
     <SidebarProvider>
       <AppSidebar
-        tenants={memberships.map((membership) => ({
-          id: membership.tenantId,
-          name: membership.tenantName,
-          roleName: membership.roleName,
-        }))}
+        tenants={
+          memberships.length > 0
+            ? memberships.map((membership) => ({
+                id: membership.tenantId,
+                name: membership.tenantName,
+                roleName: membership.roleName,
+              }))
+            : [
+                {
+                  id: context.tenant.id,
+                  name: context.tenant.name,
+                  roleName: context.role.name,
+                },
+              ]
+        }
         activeTenantId={context.tenant.id}
         user={{
           name: user.fullName ?? user.email,
@@ -42,6 +67,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       />
 
       <SidebarInset>
+        {context.isActingAsStaff ? <StaffBanner tenantName={context.tenant.name} /> : null}
         <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
