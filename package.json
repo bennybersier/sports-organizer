@@ -9,11 +9,12 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "db:link": "supabase link --project-ref",
-    "db:push": "supabase db push",
+    "db:push": "./scripts/db-push.sh",
     "db:diff": "supabase db diff -f",
     "db:types": "supabase gen types typescript --linked --schema public > src/types/database.ts",
     "db:seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
-    "bootstrap:club": "tsx --env-file-if-exists=.env.local scripts/bootstrap-club.ts"
+    "bootstrap:club": "tsx --env-file-if-exists=.env.local scripts/bootstrap-club.ts",
+    "db:push:cli": "supabase db push"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",

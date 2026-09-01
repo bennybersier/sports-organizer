@@ -2,10 +2,12 @@
  * Typed schema for the Supabase client.
  *
  * This mirrors supabase/migrations/*.sql exactly and is written in the same
- * shape `supabase gen types typescript` emits, so once a project is linked
- * `pnpm db:types` can regenerate it in place:
+ * shape `supabase gen types typescript` emits, so `pnpm db:types` can replace
+ * it wholesale once that command can run.
  *
- *     pnpm db:types
+ * Note: `supabase gen types` runs postgres-meta in a container, so it needs
+ * Docker (or OrbStack) installed. Without it, keep this file in step with the
+ * migrations by hand — it is verified by `pnpm typecheck`.
  *
  * `Def<Row, RequiredOnInsert>` keeps the file readable: every column is
  * optional on insert except the ones the database has no default for.
