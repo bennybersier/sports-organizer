@@ -1,0 +1,8 @@
+# pnpm blocks package build scripts by default. esbuild (pulled in by tsx, which
+# runs the seed and bootstrap scripts) needs its postinstall to produce a
+# working binary.
+allowBuilds:
+  esbuild: true
+  sharp: true
+  "@tailwindcss/oxide": true
+  unrs-resolver: true
