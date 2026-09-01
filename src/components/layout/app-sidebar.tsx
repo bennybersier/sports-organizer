@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { CalendarClock } from "lucide-react";
 
 import {
@@ -32,6 +33,7 @@ export interface AppSidebarProps {
 
 export function AppSidebar({ tenants, activeTenantId, user, permissions }: AppSidebarProps) {
   const pathname = usePathname();
+  const t = useTranslations("nav");
   const granted = new Set(permissions);
 
   const sections: NavSection[] = NAVIGATION.map((section) => ({
@@ -69,8 +71,8 @@ export function AppSidebar({ tenants, activeTenantId, user, permissions }: AppSi
 
       <SidebarContent>
         {sections.map((section) => (
-          <SidebarGroup key={section.label}>
-            <SidebarGroupLabel>{section.label}</SidebarGroupLabel>
+          <SidebarGroup key={section.labelKey}>
+            <SidebarGroupLabel>{t(section.labelKey)}</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {section.items.map((item) => {
@@ -81,11 +83,11 @@ export function AppSidebar({ tenants, activeTenantId, user, permissions }: AppSi
                       <SidebarMenuButton
                         asChild
                         isActive={isActive}
-                        tooltip={item.title}
+                        tooltip={t(item.titleKey)}
                       >
                         <Link href={item.href} aria-current={isActive ? "page" : undefined}>
                           <item.icon aria-hidden />
-                          <span>{item.title}</span>
+                          <span>{t(item.titleKey)}</span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>

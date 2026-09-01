@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { LogIn, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -32,6 +33,8 @@ export interface AdminTenant {
 
 export function TenantTable({ tenants }: { tenants: AdminTenant[] }) {
   const router = useRouter();
+  const t = useTranslations("admin");
+  const tErrors = useTranslations("errors");
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
 
@@ -40,7 +43,7 @@ export function TenantTable({ tenants }: { tenants: AdminTenant[] }) {
     startTransition(async () => {
       const result = await enterTenantAsStaff(tenant.id);
       if (!result.ok) {
-        toast.error(result.error.message);
+        toast.error(result.error.message || tErrors(result.error.code));
         setPendingId(null);
         return;
       }
@@ -54,13 +57,13 @@ export function TenantTable({ tenants }: { tenants: AdminTenant[] }) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Club</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead className="text-right">Members</TableHead>
-            <TableHead className="text-right">Seasons</TableHead>
-            <TableHead className="text-right">Teams</TableHead>
-            <TableHead className="text-right">Athletes</TableHead>
-            <TableHead className="sr-only">Actions</TableHead>
+            <TableHead>{t("club")}</TableHead>
+            <TableHead>{t("status")}</TableHead>
+            <TableHead className="text-right">{t("members")}</TableHead>
+            <TableHead className="text-right">{t("seasons")}</TableHead>
+            <TableHead className="text-right">{t("teams")}</TableHead>
+            <TableHead className="text-right">{t("athletes")}</TableHead>
+            <TableHead className="sr-only">{t("actions")}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -72,7 +75,7 @@ export function TenantTable({ tenants }: { tenants: AdminTenant[] }) {
               </TableCell>
               <TableCell>
                 <Badge variant={tenant.deleted_at ? "destructive" : "secondary"}>
-                  {tenant.deleted_at ? "Deleted" : tenant.status}
+                  {tenant.deleted_at ? t("deleted") : tenant.status}
                 </Badge>
               </TableCell>
               <TableCell className="text-right tabular-nums">{tenant.member_count}</TableCell>
@@ -91,7 +94,7 @@ export function TenantTable({ tenants }: { tenants: AdminTenant[] }) {
                   ) : (
                     <LogIn aria-hidden />
                   )}
-                  Enter
+                  {t("enter")}
                 </Button>
               </TableCell>
             </TableRow>

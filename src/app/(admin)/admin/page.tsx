@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { Building2, ShieldAlert } from "lucide-react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -10,7 +11,10 @@ import { fromDatabaseError } from "@/lib/errors";
 import { TenantTable } from "./tenant-table";
 import { CreateTenantDialog } from "./create-tenant-dialog";
 
-export const metadata: Metadata = { title: "System console" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("admin");
+  return { title: t("title") };
+}
 
 /**
  * The platform console.
@@ -21,6 +25,7 @@ export const metadata: Metadata = { title: "System console" };
  */
 export default async function AdminPage() {
   const user = await requirePlatformAdmin();
+  const t = await getTranslations("admin");
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("admin_list_tenants");
@@ -32,22 +37,16 @@ export default async function AdminPage() {
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 p-6 md:p-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">System console</h1>
-          <p className="text-sm text-muted-foreground">
-            Signed in as {user.email} — platform administrator.
-          </p>
+          <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("signedInAs", { email: user.email })}</p>
         </div>
         <CreateTenantDialog defaultOwnerEmail={user.email} />
       </div>
 
       <Alert>
         <ShieldAlert aria-hidden />
-        <AlertTitle>You have system-wide access</AlertTitle>
-        <AlertDescription>
-          You can read and administer every club here without being a member of any of
-          them. Entering a club is written to that club&apos;s audit log, and the app shows
-          a banner while you&apos;re inside one.
-        </AlertDescription>
+        <AlertTitle>{t("systemAccessTitle")}</AlertTitle>
+<AlertDescription>{t("systemAccessBody")}</AlertDescription>
       </Alert>
 
       {tenants.length === 0 ? (
@@ -56,11 +55,8 @@ export default async function AdminPage() {
             <div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
               <Building2 className="size-5" aria-hidden />
             </div>
-            <CardTitle>No clubs yet</CardTitle>
-            <CardDescription>
-              Create the first club to get started. You&apos;ll pick an Owner for it — that
-              person needs an account already, since accounts are never created implicitly.
-            </CardDescription>
+            <CardTitle>{t("noClubsTitle")}</CardTitle>
+<CardDescription>{t("noClubsBody")}</CardDescription>
           </CardHeader>
           <CardContent>
             <CreateTenantDialog defaultOwnerEmail={user.email} />

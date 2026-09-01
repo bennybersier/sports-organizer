@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { ChevronRight, Loader2 } from "lucide-react";
 
 import { CardContent } from "@/components/ui/card";
@@ -16,6 +17,7 @@ interface Club {
 
 export function ClubPicker({ clubs }: { clubs: Club[] }) {
   const router = useRouter();
+  const tErrors = useTranslations("errors");
   const [error, setError] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [, startTransition] = useTransition();
@@ -26,7 +28,7 @@ export function ClubPicker({ clubs }: { clubs: Club[] }) {
     startTransition(async () => {
       const result = await setActiveTenant(clubId);
       if (!result.ok) {
-        setError(result.error.message);
+        setError(result.error.message || tErrors(result.error.code));
         setPendingId(null);
         return;
       }

@@ -109,6 +109,7 @@ pnpm dev
 | `pnpm db:seed` | Seed development data (`--reset` to wipe first) |
 | `pnpm bootstrap:club` | Create the first club and Owner |
 | `pnpm platform:admin` | Grant, revoke or list platform administrators |
+| `pnpm i18n:check` | Verify every locale has every message key |
 
 ---
 
@@ -282,6 +283,44 @@ archive; team and trainer assignments keep `left_at` / `unassigned_at` so past
 squads remain reconstructable.
 
 ---
+
+## Internationalisation
+
+English and Italian, with no locale URL prefix. The whole app sits behind
+authentication and is marked `noindex`, so the SEO case for `/en/…` and `/it/…`
+does not apply — and language is a property of the person, not the URL, so a
+link shared between colleagues who read different languages still works for
+both.
+
+Locale resolves per request: the `sco_locale` cookie, then `Accept-Language`,
+then English. Choosing a language writes both the cookie (what every request
+reads, so no database round-trip per page) and the profile (what makes the
+choice follow someone to a new device — signing in seeds the cookie from it).
+
+```bash
+pnpm i18n:check   # every en key exists in every other locale, no extras
+```
+
+English is the reference catalogue and is what types the keys, so `t("nav.tems")`
+is a build error. TypeScript can't catch a key *missing from Italian* though —
+that is what `i18n:check` is for, and it runs 163 keys against each locale.
+
+One screen is deliberately untranslated: `global-error.tsx` renders when the
+root layout itself failed, which means the provider never mounted.
+
+Adding a language: drop `messages/<code>.json` in, add the code to `LOCALES` in
+`src/i18n/config.ts`, run `pnpm i18n:check`.
+
+## Theming
+
+Light, dark and system, via `next-themes` with a `class` strategy and tokens
+defined for both in `globals.css`. The picker sits in the account menu next to
+the language picker. `suppressHydrationWarning` on `<html>` is required and
+intentional: the theme class is applied by a blocking inline script before
+first paint, so the server-rendered markup cannot match.
+
+Fonts are the platform's own UI stack — nothing is downloaded, so there is no
+font request and no swap flash.
 
 ## Roadmap
 

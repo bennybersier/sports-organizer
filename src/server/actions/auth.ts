@@ -15,6 +15,7 @@ import {
   acceptInvitationSchema,
 } from "@/lib/validation/auth";
 import { ACTIVE_TENANT_COOKIE, getMemberships } from "@/server/auth/context";
+import { LOCALE_COOKIE, isLocale } from "@/i18n/config";
 
 const TENANT_COOKIE_OPTIONS = {
   httpOnly: true,
@@ -37,6 +38,7 @@ export async function signIn(input: unknown): Promise<ActionResult<{ redirectTo:
       throw new AuthenticationError("That email and password don't match an account.");
     }
 
+    await seedLocaleCookie(supabase);
     return { redirectTo: safeRedirect(next) };
   });
 }
@@ -153,6 +155,36 @@ export async function setActiveTenant(tenantId: string): Promise<ActionResult<nu
     const cookieStore = await cookies();
     cookieStore.set(ACTIVE_TENANT_COOKIE, tenantId, TENANT_COOKIE_OPTIONS);
     return null;
+  });
+}
+
+/**
+ * Copies the signed-in user's saved language into the locale cookie.
+ *
+ * The cookie is what every request reads, so this is what makes a language
+ * choice follow someone to a new browser or device rather than resetting to
+ * whatever Accept-Language says.
+ */
+async function seedLocaleCookie(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("locale")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (!isLocale(profile?.locale)) return;
+
+  const cookieStore = await cookies();
+  cookieStore.set(LOCALE_COOKIE, profile.locale, {
+    sameSite: "lax",
+    secure: env.APP_ENV !== "development",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 365,
   });
 }
 

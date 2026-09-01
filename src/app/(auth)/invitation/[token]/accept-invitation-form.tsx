@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { AlertCircle, Loader2, PartyPopper } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,8 @@ export function AcceptInvitationForm({
   roleName: string;
 }) {
   const router = useRouter();
+  const t = useTranslations("invitation");
+  const tErrors = useTranslations("errors");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
 
@@ -27,7 +30,7 @@ export function AcceptInvitationForm({
     startTransition(async () => {
       const result = await acceptInvitation({ token });
       if (!result.ok) {
-        setError(result.error.message);
+        setError(result.error.message || tErrors(result.error.code));
         return;
       }
       router.replace("/dashboard");
@@ -41,10 +44,8 @@ export function AcceptInvitationForm({
         <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
           <PartyPopper className="size-5" aria-hidden />
         </div>
-        <CardTitle className="text-xl">Join {tenantName}</CardTitle>
-        <CardDescription>
-          You&apos;ve been invited as <strong>{roleName}</strong>.
-        </CardDescription>
+        <CardTitle className="text-xl">{t("join", { club: tenantName })}</CardTitle>
+<CardDescription>{t("invitedAs", { role: roleName })}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {error ? (
@@ -57,10 +58,10 @@ export function AcceptInvitationForm({
           {isPending ? (
             <>
               <Loader2 className="animate-spin" aria-hidden />
-              Joining…
+              {t("joining")}
             </>
           ) : (
-            "Accept invitation"
+            t("accept")
           )}
         </Button>
       </CardContent>

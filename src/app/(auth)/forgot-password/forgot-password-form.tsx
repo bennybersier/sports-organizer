@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ArrowLeft, CheckCircle2, Loader2 } from "lucide-react";
 
@@ -16,6 +17,7 @@ import { forgotPasswordSchema, type ForgotPasswordInput } from "@/lib/validation
 
 export function ForgotPasswordForm() {
   const [sent, setSent] = useState(false);
+  const t = useTranslations("auth");
 
   const form = useForm<ForgotPasswordInput>({
     resolver: zodResolver(forgotPasswordSchema),
@@ -26,21 +28,18 @@ export function ForgotPasswordForm() {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl">Check your inbox</CardTitle>
+          <CardTitle className="text-xl">{t("checkInbox")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <Alert>
             <CheckCircle2 aria-hidden />
-            <AlertTitle>Reset link sent</AlertTitle>
-            <AlertDescription>
-              If an account exists for that address, a password reset link is on its way. The
-              link expires in one hour.
-            </AlertDescription>
+            <AlertTitle>{t("resetLinkSent")}</AlertTitle>
+<AlertDescription>{t("resetLinkSentBody")}</AlertDescription>
           </Alert>
           <Button asChild variant="outline" className="w-full">
             <Link href="/login">
               <ArrowLeft aria-hidden />
-              Back to sign in
+              {t("backToSignIn")}
             </Link>
           </Button>
         </CardContent>
@@ -51,10 +50,8 @@ export function ForgotPasswordForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl">Reset your password</CardTitle>
-        <CardDescription>
-          Enter your email and we&apos;ll send you a link to choose a new password.
-        </CardDescription>
+        <CardTitle className="text-xl">{t("resetTitle")}</CardTitle>
+<CardDescription>{t("resetSubtitle")}</CardDescription>
       </CardHeader>
       <CardContent>
         <Form {...form}>
@@ -73,7 +70,7 @@ export function ForgotPasswordForm() {
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>{t("email")}</FormLabel>
                   <FormControl>
                     <Input type="email" autoComplete="email" autoFocus {...field} />
                   </FormControl>
@@ -85,16 +82,16 @@ export function ForgotPasswordForm() {
               {form.formState.isSubmitting ? (
                 <>
                   <Loader2 className="animate-spin" aria-hidden />
-                  Sending…
+                  {t("sending")}
                 </>
               ) : (
-                "Send reset link"
+                t("sendResetLink")
               )}
             </Button>
             <Button asChild variant="ghost" className="w-full">
               <Link href="/login">
                 <ArrowLeft aria-hidden />
-                Back to sign in
+                {t("backToSignIn")}
               </Link>
             </Button>
           </form>

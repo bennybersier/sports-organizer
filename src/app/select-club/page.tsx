@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { CalendarClock } from "lucide-react";
 
@@ -7,9 +8,14 @@ import { getCurrentUser, getMemberships } from "@/server/auth/context";
 
 import { ClubPicker } from "./club-picker";
 
-export const metadata: Metadata = { title: "Choose a club" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("selectClub");
+  return { title: t("title") };
+}
 
 export default async function SelectClubPage() {
+  const t = await getTranslations("selectClub");
+  const tApp = await getTranslations("app");
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
@@ -23,13 +29,13 @@ export default async function SelectClubPage() {
         <span className="flex size-8 items-center justify-center rounded-md bg-primary text-primary-foreground">
           <CalendarClock className="size-4" aria-hidden />
         </span>
-        Sport Club Organizer
+        {tApp("name")}
       </div>
 
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-xl">Choose a club</CardTitle>
-          <CardDescription>You belong to more than one club. Pick one to continue.</CardDescription>
+          <CardTitle className="text-xl">{t("title")}</CardTitle>
+          <CardDescription>{t("subtitle")}</CardDescription>
         </CardHeader>
         <ClubPicker
           clubs={memberships.map((membership) => ({

@@ -2,7 +2,12 @@
 
 /**
  * Last-resort boundary for errors thrown in the root layout.
- * Must render its own <html>/<body>: the normal layout never mounted.
+ *
+ * Must render its own <html>/<body>, because the normal layout never mounted —
+ * which also means NextIntlClientProvider never mounted, so this is the one
+ * screen in the app that cannot be translated. It is deliberately plain English
+ * with inline styles: at this point neither the message catalogue nor the
+ * stylesheet can be assumed to have loaded.
  */
 export default function GlobalError({ reset }: { error: Error; reset: () => void }) {
   return (

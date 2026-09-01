@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useForm } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Loader2 } from "lucide-react";
 
@@ -34,6 +35,7 @@ export function LoginForm({ next, initialError }: { next?: string; initialError?
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(initialError ?? null);
   const [isGooglePending, startGoogle] = useTransition();
+  const t = useTranslations("auth");
 
   const form = useForm<SignInInput>({
     resolver: zodResolver(signInSchema),
@@ -58,8 +60,8 @@ export function LoginForm({ next, initialError }: { next?: string; initialError?
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl">Welcome back</CardTitle>
-        <CardDescription>Sign in to manage your club.</CardDescription>
+        <CardTitle className="text-xl">{t("signInTitle")}</CardTitle>
+        <CardDescription>{t("signInSubtitle")}</CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-4">
@@ -77,7 +79,7 @@ export function LoginForm({ next, initialError }: { next?: string; initialError?
               name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Email</FormLabel>
+                  <FormLabel>{t("email")}</FormLabel>
                   <FormControl>
                     <Input
                       type="email"
@@ -98,12 +100,12 @@ export function LoginForm({ next, initialError }: { next?: string; initialError?
               render={({ field }) => (
                 <FormItem>
                   <div className="flex items-center justify-between">
-                    <FormLabel>Password</FormLabel>
+                    <FormLabel>{t("password")}</FormLabel>
                     <Link
                       href="/forgot-password"
                       className="text-sm text-muted-foreground underline-offset-4 hover:underline"
                     >
-                      Forgot password?
+                      {t("forgotPassword")}
                     </Link>
                   </div>
                   <FormControl>
@@ -118,10 +120,10 @@ export function LoginForm({ next, initialError }: { next?: string; initialError?
               {form.formState.isSubmitting ? (
                 <>
                   <Loader2 className="animate-spin" aria-hidden />
-                  Signing in…
+                  {t("signingIn")}
                 </>
               ) : (
-                "Sign in"
+                t("signIn")
               )}
             </Button>
           </form>
@@ -130,7 +132,7 @@ export function LoginForm({ next, initialError }: { next?: string; initialError?
         <div className="relative">
           <Separator />
           <span className="absolute inset-0 -top-2 mx-auto w-fit bg-card px-2 text-xs text-muted-foreground">
-            or
+            {t("or")}
           </span>
         </div>
 
@@ -146,12 +148,12 @@ export function LoginForm({ next, initialError }: { next?: string; initialError?
           ) : (
             <GoogleIcon className="size-4" aria-hidden />
           )}
-          Continue with Google
+          {t("continueWithGoogle")}
         </Button>
       </CardContent>
 
       <div className="px-6 pb-6 text-center text-sm text-muted-foreground">
-        Clubs are invitation-only. Ask an administrator for an invite.
+        {t("inviteOnly")}
       </div>
     </Card>
   );

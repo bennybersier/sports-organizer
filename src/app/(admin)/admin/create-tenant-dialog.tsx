@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Check, Copy, Loader2, Plus } from "lucide-react";
 import { z } from "zod";
@@ -50,6 +51,8 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
   const [formError, setFormError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreateTenantResult | null>(null);
   const [copied, setCopied] = useState(false);
+  const t = useTranslations("admin");
+  const tCommon = useTranslations("common");
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -81,7 +84,7 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
       return;
     }
 
-    toast.success(`Created ${values.name}.`);
+    toast.success(t("created", { name: values.name }));
     router.refresh();
 
     // A brand-new owner has an account but no way to reach it until email is
@@ -107,7 +110,7 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
       <DialogTrigger asChild>
         <Button>
           <Plus aria-hidden />
-          New club
+          {t("newClub")}
         </Button>
       </DialogTrigger>
 
@@ -115,21 +118,14 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
         {created?.inviteLink ? (
           <>
             <DialogHeader>
-              <DialogTitle>Club created — send the owner their link</DialogTitle>
-              <DialogDescription>
-                {created.ownerEmail} had no account, so one was created and they were made
-                Owner. Email delivery isn&apos;t wired up yet, so pass this link on yourself.
-                It sets their password and expires.
-              </DialogDescription>
+              <DialogTitle>{t("invitedTitle")}</DialogTitle>
+<DialogDescription>{t("invitedBody", { email: created.ownerEmail })}</DialogDescription>
             </DialogHeader>
 
             <Alert>
               <AlertCircle aria-hidden />
-              <AlertTitle>Single use</AlertTitle>
-              <AlertDescription>
-                This link signs them in once to choose a password. It won&apos;t be shown
-                again — if it&apos;s lost, they can use “Forgot password” instead.
-              </AlertDescription>
+              <AlertTitle>{t("singleUse")}</AlertTitle>
+<AlertDescription>{t("singleUseBody")}</AlertDescription>
             </Alert>
 
             <div className="flex items-center gap-2">
@@ -138,11 +134,11 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
                 type="button"
                 variant="outline"
                 size="icon"
-                aria-label="Copy invitation link"
+                aria-label={t("copyLink")}
                 onClick={async () => {
                   await navigator.clipboard.writeText(created.inviteLink!);
                   setCopied(true);
-                  toast.success("Link copied.");
+                  toast.success(tCommon("copied"));
                   setTimeout(() => setCopied(false), 2000);
                 }}
               >
@@ -152,18 +148,15 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
 
             <DialogFooter>
               <Button type="button" onClick={close}>
-                Done
+                {tCommon("done")}
               </Button>
             </DialogFooter>
           </>
         ) : (
         <>
         <DialogHeader>
-          <DialogTitle>Create a club</DialogTitle>
-          <DialogDescription>
-            A club is a tenant — one organisation, with its own teams, athletes, gyms and
-            schedules, isolated from every other.
-          </DialogDescription>
+          <DialogTitle>{t("createTitle")}</DialogTitle>
+<DialogDescription>{t("createSubtitle")}</DialogDescription>
         </DialogHeader>
 
         {formError ? (
@@ -180,7 +173,7 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
               name="name"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Club name</FormLabel>
+                  <FormLabel>{t("clubName")}</FormLabel>
                   <FormControl>
                     <Input
                       {...field}
@@ -199,11 +192,11 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
               name="slug"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>URL name</FormLabel>
+                  <FormLabel>{t("urlName")}</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="riverside-athletics" />
                   </FormControl>
-                  <FormDescription>Lowercase letters, numbers and hyphens.</FormDescription>
+                  <FormDescription>{t("urlNameHint")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -214,14 +207,11 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
               name="ownerEmail"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Owner email</FormLabel>
+                  <FormLabel>{t("ownerEmail")}</FormLabel>
                   <FormControl>
                     <Input type="email" {...field} />
                   </FormControl>
-                  <FormDescription>
-                    Defaults to you. If this address has no account yet, one is created and
-                    you&apos;ll get an invitation link to pass on.
-                  </FormDescription>
+<FormDescription>{t("ownerEmailHint")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -232,13 +222,11 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
               name="timezone"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Timezone</FormLabel>
+                  <FormLabel>{t("timezone")}</FormLabel>
                   <FormControl>
                     <Input {...field} placeholder="Europe/Zurich" />
                   </FormControl>
-                  <FormDescription>
-                    Recurring availability is interpreted in this timezone.
-                  </FormDescription>
+<FormDescription>{t("timezoneHint")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -246,16 +234,16 @@ export function CreateTenantDialog({ defaultOwnerEmail }: { defaultOwnerEmail: s
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={close}>
-                Cancel
+                {tCommon("cancel")}
               </Button>
               <Button type="submit" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting ? (
                   <>
                     <Loader2 className="animate-spin" aria-hidden />
-                    Creating…
+                    {tCommon("creating")}
                   </>
                 ) : (
-                  "Create club"
+                  t("createClub")
                 )}
               </Button>
             </DialogFooter>

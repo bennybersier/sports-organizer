@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from "next";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getTranslations } from "next-intl/server";
 
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,15 +8,14 @@ import { ThemeProvider } from "@/components/theme-provider";
 
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: {
-    default: "Sport Club Organizer",
-    template: "%s · Sport Club Organizer",
-  },
-  description:
-    "Plan seasons, teams, trainers and gyms — and generate a training schedule your club can rely on.",
-  robots: { index: false, follow: false },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("app");
+  return {
+    title: { default: t("name"), template: `%s · ${t("name")}` },
+    description: t("tagline"),
+    robots: { index: false, follow: false },
+  };
+}
 
 export const viewport: Viewport = {
   themeColor: [
@@ -23,14 +24,18 @@ export const viewport: Viewport = {
   ],
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Resolved per request from the locale cookie, then Accept-Language.
+  const locale = await getLocale();
+
   return (
     <html
-      lang="en"
+      lang={locale}
       suppressHydrationWarning
       className="h-full antialiased"
     >
       <body className="flex min-h-full flex-col">
+        <NextIntlClientProvider>
         <ThemeProvider>
           {/*
             Radix tooltips need a provider above every Tooltip. SidebarMenuButton
@@ -44,6 +49,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <Toaster richColors closeButton position="bottom-right" />
           </TooltipProvider>
         </ThemeProvider>
+        </NextIntlClientProvider>
       </body>
     </html>
   );

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronsUpDown, LogOut, Settings2, UserRound } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { ChevronsUpDown, Languages, LogOut, Palette, Settings2, UserRound } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -9,7 +10,11 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuPortal,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -19,6 +24,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { signOut } from "@/server/actions/auth";
+import { LocaleToggle } from "./locale-toggle";
+import { ThemeToggle } from "./theme-toggle";
 
 export interface UserMenuUser {
   name: string;
@@ -28,6 +35,7 @@ export interface UserMenuUser {
 
 export function UserMenu({ user }: { user: UserMenuUser }) {
   const { isMobile } = useSidebar();
+  const t = useTranslations("common");
 
   return (
     <SidebarMenu>
@@ -37,7 +45,7 @@ export function UserMenu({ user }: { user: UserMenuUser }) {
             <SidebarMenuButton
               size="lg"
               className="data-[state=open]:bg-sidebar-accent"
-              aria-label="Account menu"
+              aria-label={t("accountMenu")}
             >
               <Avatar className="size-8 rounded-lg">
                 {user.avatarUrl ? <AvatarImage src={user.avatarUrl} alt="" /> : null}
@@ -67,22 +75,49 @@ export function UserMenu({ user }: { user: UserMenuUser }) {
             <DropdownMenuItem asChild>
               <Link href="/account">
                 <UserRound aria-hidden />
-                Your profile
+                {t("yourProfile")}
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <Link href="/account/preferences">
                 <Settings2 aria-hidden />
-                Preferences
+                {t("preferences")}
               </Link>
             </DropdownMenuItem>
+
+            <DropdownMenuSeparator />
+
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Palette aria-hidden />
+                {t("theme")}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuSubContent>
+                  <ThemeToggle />
+                </DropdownMenuSubContent>
+              </DropdownMenuPortal>
+            </DropdownMenuSub>
+
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Languages aria-hidden />
+                {t("language")}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuPortal>
+                <DropdownMenuSubContent>
+                  <LocaleToggle />
+                </DropdownMenuSubContent>
+              </DropdownMenuPortal>
+            </DropdownMenuSub>
+
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>
               {/* A form post, so signing out is never triggered by a prefetch. */}
               <form action={signOut}>
                 <button type="submit" className="flex w-full items-center gap-2">
                   <LogOut aria-hidden />
-                  Sign out
+                  {t("signOut")}
                 </button>
               </form>
             </DropdownMenuItem>

@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Check, ChevronsUpDown, Loader2, CalendarClock } from "lucide-react";
 
 import {
@@ -41,6 +42,8 @@ export function TenantSwitcher({
 }) {
   const router = useRouter();
   const { isMobile } = useSidebar();
+  const t = useTranslations("tenantSwitcher");
+  const tErrors = useTranslations("errors");
   const [isPending, startTransition] = useTransition();
 
   const active = tenants.find((tenant) => tenant.id === activeTenantId) ?? tenants[0];
@@ -50,7 +53,7 @@ export function TenantSwitcher({
     startTransition(async () => {
       const result = await setActiveTenant(tenantId);
       if (!result.ok) {
-        toast.error(result.error.message);
+        toast.error(result.error.message || tErrors(result.error.code));
         return;
       }
       // Land on the dashboard: the current page may not exist for this club.
@@ -68,7 +71,7 @@ export function TenantSwitcher({
               size="lg"
               disabled={isPending}
               className="data-[state=open]:bg-sidebar-accent"
-              aria-label={`Current club: ${active?.name}. Switch club`}
+              aria-label={t("currentClub", { name: active?.name ?? "" })}
             >
               <span className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                 {isPending ? (
@@ -92,13 +95,13 @@ export function TenantSwitcher({
             sideOffset={4}
           >
             <DropdownMenuLabel className="text-xs text-muted-foreground">
-              Your clubs
+              {t("yourClubs")}
             </DropdownMenuLabel>
             {tenants.map((tenant) => (
               <DropdownMenuItem key={tenant.id} onSelect={() => switchTo(tenant.id)}>
                 <span className="flex-1 truncate">{tenant.name}</span>
                 {tenant.id === activeTenantId ? (
-                  <Check className="size-4" aria-label="Current club" />
+                  <Check className="size-4" aria-label={t("current")} />
                 ) : null}
               </DropdownMenuItem>
             ))}

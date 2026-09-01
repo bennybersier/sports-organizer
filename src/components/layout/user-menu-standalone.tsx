@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, LogOut, UserRound } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { ChevronDown, Languages, LogOut, Palette, UserRound } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -10,19 +11,27 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuPortal,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { signOut } from "@/server/actions/auth";
+import { LocaleToggle } from "./locale-toggle";
+import { ThemeToggle } from "./theme-toggle";
 
 import type { UserMenuUser } from "./user-menu";
 
 /** The account menu outside the sidebar — used by the platform console header. */
 export function UserMenuStandalone({ user }: { user: UserMenuUser }) {
+  const t = useTranslations("common");
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="gap-2" aria-label="Account menu">
+        <Button variant="ghost" size="sm" className="gap-2" aria-label={t("accountMenu")}>
           <Avatar className="size-6">
             {user.avatarUrl ? <AvatarImage src={user.avatarUrl} alt="" /> : null}
             <AvatarFallback className="text-xs">{initials(user.name)}</AvatarFallback>
@@ -43,15 +52,42 @@ export function UserMenuStandalone({ user }: { user: UserMenuUser }) {
         <DropdownMenuItem asChild>
           <Link href="/account">
             <UserRound aria-hidden />
-            Your profile
+            {t("yourProfile")}
           </Link>
         </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Palette aria-hidden />
+            {t("theme")}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuSubContent>
+              <ThemeToggle />
+            </DropdownMenuSubContent>
+          </DropdownMenuPortal>
+        </DropdownMenuSub>
+
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Languages aria-hidden />
+            {t("language")}
+          </DropdownMenuSubTrigger>
+          <DropdownMenuPortal>
+            <DropdownMenuSubContent>
+              <LocaleToggle />
+            </DropdownMenuSubContent>
+          </DropdownMenuPortal>
+        </DropdownMenuSub>
+
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
           <form action={signOut}>
             <button type="submit" className="flex w-full items-center gap-2">
               <LogOut aria-hidden />
-              Sign out
+              {t("signOut")}
             </button>
           </form>
         </DropdownMenuItem>

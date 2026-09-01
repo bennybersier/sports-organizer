@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { ArrowRight, CalendarDays, Dumbbell, MapPin, Trophy, Users } from "lucide-react";
 
@@ -7,8 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { requireAuthContext } from "@/server/auth/context";
 import { hasPermission } from "@/server/auth/authorization";
+import { roleLabel } from "@/i18n/roles";
 
-export const metadata: Metadata = { title: "Dashboard" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("dashboard");
+  return { title: t("title") };
+}
 
 /**
  * Phase 1 dashboard.
@@ -21,6 +26,8 @@ export const metadata: Metadata = { title: "Dashboard" };
 export default async function DashboardPage() {
   const context = await requireAuthContext();
   const { db, tenant } = context;
+  const t = await getTranslations("dashboard");
+  const tRoles = await getTranslations("roles");
 
   const [seasons, teams, athletes, trainers, gyms, activeSeason] = await Promise.all([
     db.from("seasons").select("id", { count: "exact", head: true }).eq("tenant_id", tenant.id),
@@ -53,10 +60,10 @@ export default async function DashboardPage() {
   ]);
 
   const stats = [
-    { label: "Teams", value: teams.count ?? 0, icon: Users, href: "/teams", permission: "teams.read" as const },
-    { label: "Athletes", value: athletes.count ?? 0, icon: Dumbbell, href: "/athletes", permission: "athletes.read" as const },
-    { label: "Trainers", value: trainers.count ?? 0, icon: CalendarDays, href: "/trainers", permission: "trainers.read" as const },
-    { label: "Gyms", value: gyms.count ?? 0, icon: MapPin, href: "/gyms", permission: "gyms.read" as const },
+    { label: t("teams"), value: teams.count ?? 0, icon: Users, href: "/teams", permission: "teams.read" as const },
+    { label: t("athletes"), value: athletes.count ?? 0, icon: Dumbbell, href: "/athletes", permission: "athletes.read" as const },
+    { label: t("trainers"), value: trainers.count ?? 0, icon: CalendarDays, href: "/trainers", permission: "trainers.read" as const },
+    { label: t("gyms"), value: gyms.count ?? 0, icon: MapPin, href: "/gyms", permission: "gyms.read" as const },
   ].filter((stat) => hasPermission(context, stat.permission));
 
   const needsSetup = (seasons.count ?? 0) === 0;
@@ -67,16 +74,12 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{tenant.name}</h1>
           <p className="text-sm text-muted-foreground">
-            {activeSeason.data ? (
-              <>
-                Active season: <strong>{activeSeason.data.name}</strong>
-              </>
-            ) : (
-              "No active season yet."
-            )}
+            {activeSeason.data
+              ? t("activeSeason", { name: activeSeason.data.name })
+              : t("noActiveSeason")}
           </p>
         </div>
-        <Badge variant="secondary">{context.role.name}</Badge>
+        <Badge variant="secondary">{roleLabel(tRoles, context.role.key, context.role.name)}</Badge>
       </div>
 
       {needsSetup ? (
@@ -85,23 +88,21 @@ export default async function DashboardPage() {
             <div className="flex size-10 items-center justify-center rounded-full bg-primary/10 text-primary">
               <Trophy className="size-5" aria-hidden />
             </div>
-            <CardTitle>Set up your first season</CardTitle>
-            <CardDescription>
-              Seasons hold your teams, availability and schedules. Create one to get started.
-            </CardDescription>
+            <CardTitle>{t("setupTitle")}</CardTitle>
+<CardDescription>{t("setupBody")}</CardDescription>
           </CardHeader>
           {hasPermission(context, "seasons.create") ? (
             <CardContent>
               <Button asChild>
                 <Link href="/seasons/new">
-                  Create a season
+                  {t("createSeason")}
                   <ArrowRight aria-hidden />
                 </Link>
               </Button>
             </CardContent>
           ) : (
             <CardContent className="text-sm text-muted-foreground">
-              Ask a club organizer to create the first season.
+              {t("askOrganizer")}
             </CardContent>
           )}
         </Card>
@@ -121,7 +122,7 @@ export default async function DashboardPage() {
                   href={stat.href}
                   className="text-xs text-muted-foreground underline-offset-4 hover:underline"
                 >
-                  View all
+                  {t("viewAll")}
                 </Link>
               </CardContent>
             </Card>

@@ -15,7 +15,8 @@
     "db:seed": "tsx --env-file-if-exists=.env.local scripts/seed.ts",
     "bootstrap:club": "tsx --env-file-if-exists=.env.local scripts/bootstrap-club.ts",
     "db:push:cli": "supabase db push",
-    "platform:admin": "tsx --env-file-if-exists=.env.local scripts/platform-admin.ts"
+    "platform:admin": "tsx --env-file-if-exists=.env.local scripts/platform-admin.ts",
+    "i18n:check": "node scripts/check-i18n.mjs"
   },
   "dependencies": {
     "@date-fns/tz": "^1.5.0",
@@ -28,6 +29,7 @@
     "date-fns": "^4.4.0",
     "lucide-react": "^1.38.0",
     "next": "16.3.4",
+    "next-intl": "^4.14.1",
     "next-themes": "^0.4.6",
     "radix-ui": "^1.6.7",
     "react": "19.2.8",

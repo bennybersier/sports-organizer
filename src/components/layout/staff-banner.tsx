@@ -2,6 +2,7 @@
 
 import { useTransition } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import { Loader2, LogOut, ShieldAlert } from "lucide-react";
 import { toast } from "sonner";
 
@@ -16,6 +17,8 @@ import { leaveTenantAsStaff } from "@/server/actions/platform-admin";
  */
 export function StaffBanner({ tenantName }: { tenantName: string }) {
   const router = useRouter();
+  const t = useTranslations("staffBanner");
+  const tErrors = useTranslations("errors");
   const [isPending, startTransition] = useTransition();
 
   return (
@@ -25,8 +28,10 @@ export function StaffBanner({ tenantName }: { tenantName: string }) {
     >
       <ShieldAlert className="size-4 shrink-0" aria-hidden />
       <span>
-        You&apos;re viewing <strong>{tenantName}</strong> as a platform administrator. You
-        aren&apos;t a member of this club, and this visit is in its audit log.
+        {t.rich("message", {
+          club: tenantName,
+          strong: (chunks) => <strong>{chunks}</strong>,
+        })}
       </span>
       <Button
         size="sm"
@@ -37,7 +42,7 @@ export function StaffBanner({ tenantName }: { tenantName: string }) {
           startTransition(async () => {
             const result = await leaveTenantAsStaff();
             if (!result.ok) {
-              toast.error(result.error.message);
+              toast.error(result.error.message || tErrors(result.error.code));
               return;
             }
             router.push("/admin");
@@ -46,7 +51,7 @@ export function StaffBanner({ tenantName }: { tenantName: string }) {
         }
       >
         {isPending ? <Loader2 className="animate-spin" aria-hidden /> : <LogOut aria-hidden />}
-        Leave club
+        {t("leave")}
       </Button>
     </div>
   );

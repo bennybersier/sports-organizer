@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { Clock, MailQuestion, ShieldX } from "lucide-react";
 
@@ -9,7 +10,10 @@ import { describeInvitation } from "@/server/services/invitation-service";
 
 import { AcceptInvitationForm } from "./accept-invitation-form";
 
-export const metadata: Metadata = { title: "Club invitation" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("invitation");
+  return { title: t("accept") };
+}
 
 export default async function InvitationPage({
   params,
@@ -17,6 +21,7 @@ export default async function InvitationPage({
   params: Promise<{ token: string }>;
 }) {
   const { token } = await params;
+  const t = await getTranslations("invitation");
   const [invitation, user] = await Promise.all([describeInvitation(token), getCurrentUser()]);
 
   if (invitation.status !== "VALID") {
@@ -28,15 +33,15 @@ export default async function InvitationPage({
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-xl">You&apos;re invited to {invitation.tenantName}</CardTitle>
+          <CardTitle className="text-xl">{t("invitedTo", { club: invitation.tenantName ?? "" })}</CardTitle>
           <CardDescription>
-            Sign in as <strong>{invitation.email}</strong> to join as {invitation.roleName}.
+            {t("signInAs", { email: invitation.email ?? "", role: invitation.roleName ?? "" })}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button asChild className="w-full">
             <Link href={`/login?next=${encodeURIComponent(`/invitation/${token}`)}`}>
-              Sign in to accept
+              {t("signInToAccept")}
             </Link>
           </Button>
         </CardContent>
@@ -52,15 +57,14 @@ export default async function InvitationPage({
           <div className="flex size-10 items-center justify-center rounded-full bg-amber-500/10 text-amber-600">
             <MailQuestion className="size-5" aria-hidden />
           </div>
-          <CardTitle className="text-xl">This invitation is for someone else</CardTitle>
+          <CardTitle className="text-xl">{t("wrongAccountTitle")}</CardTitle>
           <CardDescription>
-            It was sent to <strong>{invitation.email}</strong>, but you&apos;re signed in as{" "}
-            <strong>{user.email}</strong>. Sign out and sign back in with the invited address.
+            {t("wrongAccountBody", { invited: invitation.email ?? "", current: user.email })}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Button asChild variant="outline" className="w-full">
-            <Link href="/dashboard">Go to your dashboard</Link>
+            <Link href="/dashboard">{t("goToDashboard")}</Link>
           </Button>
         </CardContent>
       </Card>
@@ -76,26 +80,29 @@ export default async function InvitationPage({
   );
 }
 
-function InvitationProblem({ status }: { status: string }) {
+async function InvitationProblem({ status }: { status: string }) {
+  const t = await getTranslations("invitation");
+  const tAuth = await getTranslations("auth");
+
   const copy: Record<string, { title: string; description: string; icon: React.ReactNode }> = {
     EXPIRED: {
-      title: "This invitation has expired",
-      description: "Ask a club administrator to send you a new one.",
+      title: t("expiredTitle"),
+      description: t("expiredBody"),
       icon: <Clock className="size-5" aria-hidden />,
     },
     ALREADY_USED: {
-      title: "This invitation has already been used",
-      description: "If it was you, just sign in. Otherwise ask for a new invitation.",
+      title: t("usedTitle"),
+      description: t("usedBody"),
       icon: <ShieldX className="size-5" aria-hidden />,
     },
     REVOKED: {
-      title: "This invitation was withdrawn",
-      description: "A club administrator revoked it. Get in touch with them if that's unexpected.",
+      title: t("revokedTitle"),
+      description: t("revokedBody"),
       icon: <ShieldX className="size-5" aria-hidden />,
     },
     NOT_FOUND: {
-      title: "We couldn't find that invitation",
-      description: "The link may be incomplete. Copy it from your email again, in full.",
+      title: t("notFoundTitle"),
+      description: t("notFoundBody"),
       icon: <MailQuestion className="size-5" aria-hidden />,
     },
   };
@@ -113,7 +120,7 @@ function InvitationProblem({ status }: { status: string }) {
       </CardHeader>
       <CardContent>
         <Button asChild variant="outline" className="w-full">
-          <Link href="/login">Back to sign in</Link>
+          <Link href="/login">{tAuth("backToSignIn")}</Link>
         </Button>
       </CardContent>
     </Card>

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { MailQuestion } from "lucide-react";
 
@@ -7,7 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { getCurrentUser, getIsPlatformAdmin, getMemberships } from "@/server/auth/context";
 import { signOut } from "@/server/actions/auth";
 
-export const metadata: Metadata = { title: "No club access" };
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("noAccess");
+  return { title: t("title") };
+}
 
 /**
  * Signed in, but not a member of any club.
@@ -17,6 +21,8 @@ export const metadata: Metadata = { title: "No club access" };
  * membership, and no club membership is ever created implicitly.
  */
 export default async function NoAccessPage() {
+  const t = await getTranslations("noAccess");
+  const tCommon = await getTranslations("common");
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
@@ -33,17 +39,13 @@ export default async function NoAccessPage() {
         <div className="flex size-10 items-center justify-center rounded-full bg-muted text-muted-foreground">
           <MailQuestion className="size-5" aria-hidden />
         </div>
-        <CardTitle className="text-xl">You&apos;re not in a club yet</CardTitle>
-        <CardDescription>
-          You&apos;re signed in as <strong>{user.email}</strong>, but you don&apos;t belong to any
-          club. Clubs are invitation-only — ask an administrator to invite this address, then open
-          the link in the invitation email.
-        </CardDescription>
+        <CardTitle className="text-xl">{t("title")}</CardTitle>
+<CardDescription>{t("body", { email: user.email })}</CardDescription>
       </CardHeader>
       <CardContent>
         <form action={signOut}>
           <Button type="submit" variant="outline" className="w-full">
-            Sign out
+            {tCommon("signOut")}
           </Button>
         </form>
       </CardContent>

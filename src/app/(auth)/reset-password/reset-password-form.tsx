@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
+import { useTranslations } from "next-intl";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AlertCircle, Loader2 } from "lucide-react";
 
@@ -17,6 +18,8 @@ import { resetPasswordSchema, type ResetPasswordInput } from "@/lib/validation/a
 export function ResetPasswordForm() {
   const router = useRouter();
   const [formError, setFormError] = useState<string | null>(null);
+  const t = useTranslations("auth");
+  const tCommon = useTranslations("common");
 
   const form = useForm<ResetPasswordInput>({
     resolver: zodResolver(resetPasswordSchema),
@@ -26,8 +29,8 @@ export function ResetPasswordForm() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl">Choose a new password</CardTitle>
-        <CardDescription>You&apos;ll be signed in once it&apos;s saved.</CardDescription>
+        <CardTitle className="text-xl">{t("newPasswordTitle")}</CardTitle>
+        <CardDescription>{t("newPasswordSubtitle")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {formError ? (
@@ -57,11 +60,11 @@ export function ResetPasswordForm() {
               name="password"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>New password</FormLabel>
+                  <FormLabel>{t("newPassword")}</FormLabel>
                   <FormControl>
                     <Input type="password" autoComplete="new-password" autoFocus {...field} />
                   </FormControl>
-                  <FormDescription>At least 10 characters.</FormDescription>
+                  <FormDescription>{t("passwordHint")}</FormDescription>
                   <FormMessage />
                 </FormItem>
               )}
@@ -71,7 +74,7 @@ export function ResetPasswordForm() {
               name="confirmPassword"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Confirm password</FormLabel>
+                  <FormLabel>{t("confirmPassword")}</FormLabel>
                   <FormControl>
                     <Input type="password" autoComplete="new-password" {...field} />
                   </FormControl>
@@ -83,10 +86,10 @@ export function ResetPasswordForm() {
               {form.formState.isSubmitting ? (
                 <>
                   <Loader2 className="animate-spin" aria-hidden />
-                  Saving…
+                  {tCommon("saving")}
                 </>
               ) : (
-                "Save password"
+                t("savePassword")
               )}
             </Button>
           </form>
