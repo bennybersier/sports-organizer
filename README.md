@@ -311,6 +311,39 @@ satisfy from **preferences** it should try to — the distinction the optimizer 
 built around, and one an organizer needs to already understand when reading a
 conflict explanation later.
 
+## Calendar and conflicts
+
+Day, week, month and agenda views, all filtered server-side through the URL.
+The week view is a time grid — "what's free on Tuesday evening" is a spatial
+question — and drops back to the agenda on small screens, because a shrunken
+time grid is unreadable rather than merely smaller.
+
+`src/domain/scheduling/conflicts.ts` decides whether a placement is valid, and
+the calendar, the manual editor and the Phase 5 optimizer all call it, so they
+cannot disagree. It emits stable codes, never prose, so the same conflict reads
+correctly in both languages. Severity is graded, and the grading matters:
+
+| | |
+| --- | --- |
+| `INVALID` | Structurally impossible — ends before it starts |
+| `CONFLICT` | A hard rule broken — double-booked hall, outside opening hours |
+| `WARNING` | A preference unmet, or no trainer assigned yet |
+| `VALID` | Nothing wrong |
+
+Manual moves are refused only for `CONFLICT` and `INVALID`. An organizer knows
+things the optimizer does not, so a move is never blocked merely because the
+optimizer would have chosen differently — and every manual move is audited with
+its before and after, so a schedule that drifts can still be explained.
+
+**Timezones.** Events are `timestamptz`; availability is wall-clock in the
+club's timezone. Every conversion goes through `TZDate`, because an offset is
+not a constant — it is a function of the instant. `pnpm test` covers the DST
+boundaries directly: an 18:00 session stays at 18:00 for the people attending
+it on both sides of the October change, even though the UTC instant shifts.
+Every formatter call is given the club's timezone explicitly; a formatter
+without one silently falls back to whatever the *server* is set to, which was a
+real bug caught in testing.
+
 ## Collections
 
 Every list page works the same way, and all of it happens in Postgres:
@@ -378,8 +411,8 @@ font request and no swap flash.
 | 1 | Foundation: schema, RLS, auth, tenancy, RBAC, app shell | **Done** |
 | 2 | Seasons, teams, athletes, trainers, gyms | **Done** |
 | 3 | Availability editors, exceptions, team preferences | **Done** |
-| 4 | Calendar: views, filters, drag/drop, conflict detection | Next |
-| 5 | Scheduling engine: constraints, candidates, optimizer, explanations | |
+| 4 | Calendar: views, filters, drag/drop, conflict detection | **Done** |
+| 5 | Scheduling engine: constraints, candidates, optimizer, explanations | Next |
 | 6 | Review and publishing workflow | |
 | 7 | Invitations, notifications, audit UI, settings, onboarding | |
 | 8 | Google Calendar sync, AI provider configuration | |
