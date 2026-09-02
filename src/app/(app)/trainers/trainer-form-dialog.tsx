@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useFormDialog } from "@/hooks/use-form-dialog";
 import { createTrainerAction, updateTrainerAction } from "@/server/actions/trainers";
 
 export interface TrainerFormValues {
@@ -76,11 +77,17 @@ export function TrainerFormDialog({
   const router = useRouter();
   const t = useTranslations("trainers");
   const tCommon = useTranslations("common");
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const open = controlledOpen ?? uncontrolledOpen;
-  const setOpen = onOpenChange ?? setUncontrolledOpen;
+  const blank: Values = {
+    firstName: "",
+    lastName: "",
+    email: "",
+    phone: "",
+    qualificationsText: "",
+    color: "",
+    notes: "",
+  };
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -92,6 +99,15 @@ export function TrainerFormDialog({
       qualificationsText: (trainer?.qualifications ?? []).join("\n"),
       color: trainer?.color ?? "",
       notes: trainer?.notes ?? "",
+    },
+  });
+
+  const [open, setOpen] = useFormDialog({
+    open: controlledOpen,
+    onOpenChange,
+    onOpen: () => {
+      setFormError(null);
+      if (mode === "create") form.reset(blank);
     },
   });
 

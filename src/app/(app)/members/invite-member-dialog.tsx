@@ -65,13 +65,19 @@ export function InviteMemberDialog({
   const [roleId, setRoleId] = useState(roles.at(-1)?.id ?? "");
   const [message, setMessage] = useState("");
 
-  function close() {
-    setOpen(false);
+  function reset() {
     setIssued(null);
     setError(null);
     setEmail("");
     setMessage("");
     setCopied(false);
+    // Back to the least privileged role, so a slip grants the least.
+    setRoleId(roles.at(-1)?.id ?? "");
+  }
+
+  function close() {
+    setOpen(false);
+    reset();
   }
 
   async function submit() {
@@ -91,7 +97,17 @@ export function InviteMemberDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={(next) => (next ? setOpen(true) : close())}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (next) {
+          reset();
+          setOpen(true);
+        } else {
+          close();
+        }
+      }}
+    >
       <DialogTrigger asChild>
         <Button>
           <UserPlus aria-hidden />

@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useFormDialog } from "@/hooks/use-form-dialog";
 import { createSeasonAction, updateSeasonAction } from "@/server/actions/seasons";
 
 export interface SeasonFormValues {
@@ -69,11 +70,7 @@ export function SeasonFormDialog({
   const router = useRouter();
   const t = useTranslations("seasons");
   const tCommon = useTranslations("common");
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
-
-  const open = controlledOpen ?? uncontrolledOpen;
-  const setOpen = onOpenChange ?? setUncontrolledOpen;
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -82,6 +79,24 @@ export function SeasonFormDialog({
       startDate: season?.startDate ?? defaultStart(),
       endDate: season?.endDate ?? defaultEnd(),
       description: season?.description ?? "",
+    },
+  });
+
+  // Every open starts clean: cancelling, Escape and clicking outside would
+  // otherwise leave the last attempt sitting there.
+  const [open, setOpen] = useFormDialog({
+    open: controlledOpen,
+    onOpenChange,
+    onOpen: () => {
+      setFormError(null);
+      if (mode === "create") {
+        form.reset({
+          name: "",
+          startDate: defaultStart(),
+          endDate: defaultEnd(),
+          description: "",
+        });
+      }
     },
   });
 
@@ -106,7 +121,6 @@ export function SeasonFormDialog({
         : t("updated", { name: result.data.name }),
     );
     setOpen(false);
-    form.reset(mode === "create" ? undefined : values);
     router.refresh();
   }
 

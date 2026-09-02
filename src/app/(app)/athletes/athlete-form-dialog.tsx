@@ -29,7 +29,6 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -39,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect, type MultiSelectOption } from "@/components/data/multi-select";
+import { useFormDialog } from "@/hooks/use-form-dialog";
 import { createAthleteAction, updateAthleteAction } from "@/server/actions/athletes";
 
 export interface AthleteFormValues {
@@ -101,12 +101,8 @@ export function AthleteFormDialog({
   const tCommon = useTranslations("common");
   const tGender = useTranslations("gender");
   const tMembership = useTranslations("membershipState");
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [teamIds, setTeamIds] = useState<string[]>(currentTeamIds ?? []);
-
-  const open = controlledOpen ?? uncontrolledOpen;
-  const setOpen = onOpenChange ?? setUncontrolledOpen;
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -125,6 +121,35 @@ export function AthleteFormDialog({
       emergencyContactRelation: athlete?.emergencyContactRelation ?? "",
       membershipStatus: (athlete?.membershipStatus as (typeof MEMBERSHIP)[number]) ?? "ACTIVE",
       notes: athlete?.notes ?? "",
+    },
+  });
+
+  // Squad selection is separate state, so clearing the form alone would leave
+  // the previous athlete's teams ticked.
+  const [open, setOpen] = useFormDialog({
+    open: controlledOpen,
+    onOpenChange,
+    onOpen: () => {
+      setFormError(null);
+      if (mode === "create") {
+        form.reset({
+          firstName: "",
+          lastName: "",
+          dateOfBirth: "",
+          gender: "UNSPECIFIED",
+          email: "",
+          phone: "",
+          addressLine1: "",
+          postalCode: "",
+          city: "",
+          emergencyContactName: "",
+          emergencyContactPhone: "",
+          emergencyContactRelation: "",
+          membershipStatus: "ACTIVE",
+          notes: "",
+        });
+        setTeamIds([]);
+      }
     },
   });
 
@@ -193,8 +218,7 @@ export function AthleteFormDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            <ScrollArea className="max-h-[60vh] pr-4">
-              <div className="space-y-4">
+            <div className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   {text("firstName", t("firstName"))}
                   {text("lastName", t("lastName"))}
@@ -304,7 +328,6 @@ export function AthleteFormDialog({
                   )}
                 />
               </div>
-            </ScrollArea>
 
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>

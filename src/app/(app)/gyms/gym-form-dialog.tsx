@@ -30,8 +30,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
+import { useFormDialog } from "@/hooks/use-form-dialog";
 import { createGymAction, updateGymAction } from "@/server/actions/gyms";
 
 export interface GymFormValues {
@@ -85,11 +85,20 @@ export function GymFormDialog({
   const router = useRouter();
   const t = useTranslations("gyms");
   const tCommon = useTranslations("common");
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  const open = controlledOpen ?? uncontrolledOpen;
-  const setOpen = onOpenChange ?? setUncontrolledOpen;
+  const blank: Values = {
+    name: "",
+    description: "",
+    addressLine1: "",
+    postalCode: "",
+    city: "",
+    capacity: "",
+    sportTypesText: "",
+    equipmentText: "",
+    color: "",
+    notes: "",
+  };
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -104,6 +113,15 @@ export function GymFormDialog({
       equipmentText: (gym?.equipment ?? []).join("\n"),
       color: gym?.color ?? "",
       notes: gym?.notes ?? "",
+    },
+  });
+
+  const [open, setOpen] = useFormDialog({
+    open: controlledOpen,
+    onOpenChange,
+    onOpen: () => {
+      setFormError(null);
+      if (mode === "create") form.reset(blank);
     },
   });
 
@@ -166,8 +184,7 @@ export function GymFormDialog({
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} noValidate>
-            <ScrollArea className="max-h-[60vh] pr-4">
-              <div className="space-y-4">
+            <div className="space-y-4">
                 <FormField
                   control={form.control}
                   name="name"
@@ -303,7 +320,6 @@ export function GymFormDialog({
                   )}
                 />
               </div>
-            </ScrollArea>
 
             <DialogFooter className="pt-4">
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>

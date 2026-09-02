@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect, type MultiSelectOption } from "@/components/data/multi-select";
+import { useFormDialog } from "@/hooks/use-form-dialog";
 import { createTeamAction, updateTeamAction } from "@/server/actions/teams";
 
 export interface TeamFormValues {
@@ -90,14 +91,10 @@ export function TeamFormDialog({
   const t = useTranslations("teams");
   const tCommon = useTranslations("common");
   const tGender = useTranslations("gender");
-  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   // The row menu fetches current assignments before mounting this dialog, so
   // the initial state is already correct — no effect needed to sync it.
   const [trainerIds, setTrainerIds] = useState<string[]>(initialTrainerIds ?? []);
-
-  const open = controlledOpen ?? uncontrolledOpen;
-  const setOpen = onOpenChange ?? setUncontrolledOpen;
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -110,6 +107,29 @@ export function TeamFormDialog({
       gender: (team?.gender as (typeof GENDERS)[number]) ?? "UNSPECIFIED",
       color: team?.color ?? "#2563eb",
       notes: team?.notes ?? "",
+    },
+  });
+
+  // Trainer assignments are separate state, so clearing the form alone would
+  // leave the previous team's coaches selected.
+  const [open, setOpen] = useFormDialog({
+    open: controlledOpen,
+    onOpenChange,
+    onOpen: () => {
+      setFormError(null);
+      if (mode === "create") {
+        form.reset({
+          seasonId: defaultSeasonId ?? "",
+          name: "",
+          sport: "",
+          category: "",
+          ageGroup: "",
+          gender: "UNSPECIFIED",
+          color: "#2563eb",
+          notes: "",
+        });
+        setTrainerIds([]);
+      }
     },
   });
 

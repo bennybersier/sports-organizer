@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -29,6 +28,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MultiSelect, type MultiSelectOption } from "@/components/data/multi-select";
+import { useFormDialog } from "@/hooks/use-form-dialog";
 import { createEventAction } from "@/server/actions/calendar";
 
 const TYPES = [
@@ -62,7 +62,6 @@ export function NewEventButton({
   const router = useRouter();
   const t = useTranslations("calendar");
   const tCommon = useTranslations("common");
-  const [open, setOpen] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -78,6 +77,24 @@ export function NewEventButton({
   const [allDay, setAllDay] = useState(false);
   const [sharing, setSharing] = useState(false);
   const [blocking, setBlocking] = useState(false);
+
+  const [open, setOpen] = useFormDialog({
+    onOpen: () => {
+      setError(null);
+      setType("MATCH");
+      setTitle("");
+      setSeasonId(seasons[0]?.value ?? "");
+      setGymId("");
+      setTrainerId("");
+      setTeamIds([]);
+      setDate("");
+      setStart("18:00");
+      setEnd("20:00");
+      setAllDay(false);
+      setSharing(false);
+      setBlocking(false);
+    },
+  });
 
   async function submit() {
     setError(null);
@@ -136,8 +153,7 @@ export function NewEventButton({
           </Alert>
         ) : null}
 
-        <ScrollArea className="max-h-[60vh] pr-4">
-          <div className="space-y-4">
+        <div className="space-y-4">
             <div className="grid gap-1">
               <Label htmlFor="event-title">{t("eventTitle")}</Label>
               <Input
@@ -312,7 +328,6 @@ export function NewEventButton({
               </div>
             </div>
           </div>
-        </ScrollArea>
 
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>

@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { ConfirmDialog } from "@/components/data/confirm-dialog";
 import { useAction } from "@/hooks/use-action";
 import {
@@ -194,8 +193,7 @@ export function McpKeyList({
             <DialogDescription>{t("explainer")}</DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="max-h-[55vh] pr-4">
-            <div className="space-y-4">
+          <div className="space-y-4">
               <div className="grid gap-1">
                 <Label htmlFor="mcp-name">{t("name")}</Label>
                 <Input
@@ -245,7 +243,6 @@ export function McpKeyList({
                 <p className="text-xs text-muted-foreground">{t("expiresHint")}</p>
               </div>
             </div>
-          </ScrollArea>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setCreating(false)}>
