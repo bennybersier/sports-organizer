@@ -528,7 +528,14 @@
     "whyThisSlot": "Why this slot?",
     "noIssues": "No issues with this slot.",
     "dragHint": "Drag a session to move it. Conflicts are checked before it's saved.",
-    "weekOf": "Week of {date}"
+    "weekOf": "Week of {date}",
+    "delete": "Delete event",
+    "deleteConfirmTitle": "Delete this event permanently?",
+    "deleteConfirmBody": "It is removed for good. If the event is real but isn't happening, cancel it instead — that keeps it visible to everyone who was told about it.",
+    "deleted": "Event deleted.",
+    "edit": "Edit event",
+    "cancelVsDelete": "Cancelling keeps the event on the calendar, marked cancelled. Deleting removes it entirely.",
+    "trainingNotEditable": "This training belongs to a published schedule. Change it in the Smart Organizer, or move it on the calendar."
   },
   "conflicts": {
     "VALID": "Valid",

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { CalendarClock, MapPin, Trash2, UserCog, Users } from "lucide-react";
+import { CalendarClock, MapPin, Pencil, Trash2, UserCog, Users, XCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,16 @@ import {
 } from "@/components/ui/sheet";
 import { ConfirmDialog } from "@/components/data/confirm-dialog";
 import { useAction } from "@/hooks/use-action";
-import { cancelEventAction } from "@/server/actions/calendar";
+import {
+  cancelEventAction,
+  deleteEventAction,
+  getEventAction,
+} from "@/server/actions/calendar";
+import {
+  NewEventButton,
+  type EventDialogOptions,
+  type EventFormValues,
+} from "@/app/(app)/calendar/new-event-button";
 import type { CalendarItem } from "@/server/services/calendar-service";
 import type { Finding, PlacementSeverity } from "@/domain/scheduling/conflicts";
 
@@ -34,21 +43,39 @@ export function EventSheet({
   item,
   open,
   onOpenChange,
+  canEdit,
   canDelete,
+  options,
   formatRange,
 }: {
   item: CalendarItem | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  canEdit: boolean;
   canDelete: boolean;
+  /** Pickers for the edit form. */
+  options: EventDialogOptions;
   formatRange: (item: CalendarItem) => string;
 }) {
   const t = useTranslations("calendar");
   const tCommon = useTranslations("common");
   const { run, isPending } = useAction();
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [editing, setEditing] = useState<EventFormValues | null>(null);
 
   if (!item) return null;
+
+  // Only manual events can be edited or removed here. Training belongs to a
+  // schedule version, and changing it out from under that version would leave
+  // the schedule's history describing something that no longer exists.
+  const isManualEvent = item.source === "EVENT";
+  const isCancelled = item.status === "CANCELLED";
+
+  async function openEditor() {
+    const result = await getEventAction(item!.id);
+    if (result.ok) setEditing(result.data as EventFormValues);
+  }
 
   const findings = ((item as unknown as { validationDetails?: { findings?: Finding[] } })
     .validationDetails?.findings ?? []) as Finding[];
@@ -100,23 +127,80 @@ export function EventSheet({
               )}
             </div>
 
-            {canDelete && item.source === "EVENT" && item.status !== "CANCELLED" ? (
+            {isManualEvent ? (
               <>
                 <Separator />
-                <Button
-                  variant="outline"
-                  className="text-destructive"
-                  disabled={isPending}
-                  onClick={() => setCancelOpen(true)}
-                >
-                  <Trash2 aria-hidden />
-                  {t("cancel")}
-                </Button>
+
+                <div className="flex flex-wrap gap-2">
+                  {canEdit && !isCancelled ? (
+                    <Button variant="outline" onClick={() => void openEditor()}>
+                      <Pencil aria-hidden />
+                      {t("edit")}
+                    </Button>
+                  ) : null}
+
+                  {canDelete && !isCancelled ? (
+                    <Button
+                      variant="outline"
+                      disabled={isPending}
+                      onClick={() => setCancelOpen(true)}
+                    >
+                      <XCircle aria-hidden />
+                      {t("cancel")}
+                    </Button>
+                  ) : null}
+
+                  {canDelete ? (
+                    <Button
+                      variant="ghost"
+                      className="text-destructive"
+                      disabled={isPending}
+                      onClick={() => setDeleteOpen(true)}
+                    >
+                      <Trash2 aria-hidden />
+                      {t("delete")}
+                    </Button>
+                  ) : null}
+                </div>
+
+                {canDelete ? (
+                  <p className="text-xs text-muted-foreground">{t("cancelVsDelete")}</p>
+                ) : null}
               </>
-            ) : null}
+            ) : (
+              <>
+                <Separator />
+                <p className="text-xs text-muted-foreground">{t("trainingNotEditable")}</p>
+              </>
+            )}
           </div>
         </SheetContent>
       </Sheet>
+
+      {editing ? (
+        <NewEventButton
+          {...options}
+          event={editing}
+          open={editing !== null}
+          onOpenChange={(next) => {
+            if (!next) setEditing(null);
+          }}
+        />
+      ) : null}
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={t("deleteConfirmTitle")}
+        description={t("deleteConfirmBody")}
+        confirmLabel={t("delete")}
+        onConfirm={() =>
+          run(() => deleteEventAction(item.id), {
+            success: () => t("deleted"),
+            onSuccess: () => onOpenChange(false),
+          })
+        }
+      />
 
       <ConfirmDialog
         open={cancelOpen}

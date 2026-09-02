@@ -14,6 +14,8 @@ import { checkPlacement } from "@/server/services/calendar-service";
 import {
   cancelEvent,
   createEvent,
+  deleteEvent,
+  getEvent,
   moveCalendarItem,
   updateEvent,
 } from "@/server/services/event-service";
@@ -48,6 +50,56 @@ export async function cancelEventAction(input: unknown): Promise<ActionResult<nu
     await cancelEvent(context, values.id, values.reason);
     revalidatePath("/calendar");
     return null;
+  });
+}
+
+/**
+ * Removes an event permanently.
+ *
+ * For a mistake. To record that a real event is not happening, cancel it
+ * instead — that keeps it visible to everyone who was told about it.
+ */
+export async function deleteEventAction(id: string): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const context = await requirePermission("calendar.delete");
+    await deleteEvent(context, id);
+    revalidatePath("/calendar");
+    return null;
+  });
+}
+
+/** Loads one event for the edit form, on demand. */
+export async function getEventAction(id: string): Promise<ActionResult<{
+  id: string;
+  seasonId: string | null;
+  type: string;
+  title: string;
+  gymId: string | null;
+  trainerId: string | null;
+  teamIds: string[];
+  startAt: string;
+  endAt: string;
+  allDay: boolean;
+  allowsGymSharing: boolean;
+  blocksScheduling: boolean;
+}>> {
+  return runAction(async () => {
+    const context = await requirePermission("calendar.read");
+    const event = await getEvent(context, id);
+    return {
+      id: event.id,
+      seasonId: event.season_id,
+      type: event.type,
+      title: event.title,
+      gymId: event.gym_id,
+      trainerId: event.trainer_id,
+      teamIds: event.teamIds,
+      startAt: event.start_at,
+      endAt: event.end_at,
+      allDay: event.all_day,
+      allowsGymSharing: event.allows_gym_sharing,
+      blocksScheduling: event.blocks_scheduling,
+    };
   });
 }
 

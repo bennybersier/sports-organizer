@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { MultiSelect, type MultiSelectOption } from "@/components/data/multi-select";
 import { useFormDialog } from "@/hooks/use-form-dialog";
-import { createEventAction } from "@/server/actions/calendar";
+import { createEventAction, updateEventAction } from "@/server/actions/calendar";
 
 const TYPES = [
   "MATCH",
@@ -40,8 +40,30 @@ const TYPES = [
   "MEETING",
 ] as const;
 
+export interface EventFormValues {
+  id: string;
+  seasonId: string | null;
+  type: string;
+  title: string;
+  gymId: string | null;
+  trainerId: string | null;
+  teamIds: string[];
+  startAt: string;
+  endAt: string;
+  allDay: boolean;
+  allowsGymSharing: boolean;
+  blocksScheduling: boolean;
+}
+
+export interface EventDialogOptions {
+  seasons: MultiSelectOption[];
+  gyms: MultiSelectOption[];
+  trainers: MultiSelectOption[];
+  teams: MultiSelectOption[];
+}
+
 /**
- * Manual event creation.
+ * Manual events, created and edited.
  *
  * Deliberately not for training: training belongs to a schedule version and is
  * created by the organizer workflow. This covers everything else a club puts on
@@ -53,33 +75,53 @@ export function NewEventButton({
   gyms,
   trainers,
   teams,
-}: {
-  seasons: MultiSelectOption[];
-  gyms: MultiSelectOption[];
-  trainers: MultiSelectOption[];
-  teams: MultiSelectOption[];
+  event,
+  open: controlledOpen,
+  onOpenChange,
+}: EventDialogOptions & {
+  /** Present when editing an existing event. */
+  event?: EventFormValues;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
   const router = useRouter();
   const t = useTranslations("calendar");
   const tCommon = useTranslations("common");
+  const isEdit = event !== undefined;
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [type, setType] = useState<(typeof TYPES)[number]>("MATCH");
-  const [title, setTitle] = useState("");
-  const [seasonId, setSeasonId] = useState(seasons[0]?.value ?? "");
-  const [gymId, setGymId] = useState("");
-  const [trainerId, setTrainerId] = useState("");
-  const [teamIds, setTeamIds] = useState<string[]>([]);
-  const [date, setDate] = useState("");
-  const [start, setStart] = useState("18:00");
-  const [end, setEnd] = useState("20:00");
-  const [allDay, setAllDay] = useState(false);
-  const [sharing, setSharing] = useState(false);
-  const [blocking, setBlocking] = useState(false);
+  // An existing event's instants are split back into the date and times the
+  // form works in, using the browser's zone — the same one the inputs use.
+  const local = (iso: string) => {
+    const value = new Date(iso);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return {
+      date: `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`,
+      time: `${pad(value.getHours())}:${pad(value.getMinutes())}`,
+    };
+  };
+
+  const [type, setType] = useState<(typeof TYPES)[number]>(
+    (event?.type as (typeof TYPES)[number]) ?? "MATCH",
+  );
+  const [title, setTitle] = useState(event?.title ?? "");
+  const [seasonId, setSeasonId] = useState(event?.seasonId ?? seasons[0]?.value ?? "");
+  const [gymId, setGymId] = useState(event?.gymId ?? "");
+  const [trainerId, setTrainerId] = useState(event?.trainerId ?? "");
+  const [teamIds, setTeamIds] = useState<string[]>(event?.teamIds ?? []);
+  const [date, setDate] = useState(event ? local(event.startAt).date : "");
+  const [start, setStart] = useState(event ? local(event.startAt).time : "18:00");
+  const [end, setEnd] = useState(event ? local(event.endAt).time : "20:00");
+  const [allDay, setAllDay] = useState(event?.allDay ?? false);
+  const [sharing, setSharing] = useState(event?.allowsGymSharing ?? false);
+  const [blocking, setBlocking] = useState(event?.blocksScheduling ?? false);
 
   const [open, setOpen] = useFormDialog({
+    open: controlledOpen,
+    onOpenChange,
     onOpen: () => {
+      if (isEdit) return;
       setError(null);
       setType("MATCH");
       setTitle("");
@@ -104,7 +146,7 @@ export function NewEventButton({
     // the club's timezone, which is what actually governs scheduling.
     const toIso = (time: string) => new Date(`${date}T${time}:00`).toISOString();
 
-    const result = await createEventAction({
+    const payload = {
       seasonId,
       type,
       title,
@@ -116,7 +158,11 @@ export function NewEventButton({
       allDay,
       allowsGymSharing: sharing,
       blocksScheduling: blocking,
-    });
+    };
+
+    const result = isEdit
+      ? await updateEventAction({ ...payload, id: event.id })
+      : await createEventAction(payload);
 
     setPending(false);
     if (!result.ok) {
@@ -124,25 +170,29 @@ export function NewEventButton({
       return;
     }
 
-    toast.success(t("created", { title: result.data.title }));
+    toast.success(
+      isEdit
+        ? t("updated", { title: result.data.title })
+        : t("created", { title: result.data.title }),
+    );
     setOpen(false);
-    setTitle("");
-    setDate("");
     router.refresh();
   }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <Plus aria-hidden />
-          {t("newEvent")}
-        </Button>
-      </DialogTrigger>
+      {isEdit ? null : (
+        <DialogTrigger asChild>
+          <Button>
+            <Plus aria-hidden />
+            {t("newEvent")}
+          </Button>
+        </DialogTrigger>
+      )}
 
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>{t("newEvent")}</DialogTitle>
+          <DialogTitle>{isEdit ? t("editEvent") : t("newEvent")}</DialogTitle>
           <DialogDescription>{t("subtitle")}</DialogDescription>
         </DialogHeader>
 
@@ -340,7 +390,7 @@ export function NewEventButton({
                 {tCommon("saving")}
               </>
             ) : (
-              t("createEvent")
+              isEdit ? t("saveEvent") : t("createEvent")
             )}
           </Button>
         </DialogFooter>

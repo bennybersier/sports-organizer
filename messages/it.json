@@ -528,7 +528,14 @@
     "whyThisSlot": "Perché questo orario?",
     "noIssues": "Nessun problema con questo orario.",
     "dragHint": "Trascina un allenamento per spostarlo. I conflitti vengono verificati prima del salvataggio.",
-    "weekOf": "Settimana del {date}"
+    "weekOf": "Settimana del {date}",
+    "delete": "Elimina evento",
+    "deleteConfirmTitle": "Eliminare definitivamente questo evento?",
+    "deleteConfirmBody": "Viene rimosso per sempre. Se l'evento è reale ma non si terrà, annullalo invece: così resta visibile a tutti coloro che ne erano stati informati.",
+    "deleted": "Evento eliminato.",
+    "edit": "Modifica evento",
+    "cancelVsDelete": "Annullare mantiene l'evento nel calendario, contrassegnato come annullato. Eliminare lo rimuove del tutto.",
+    "trainingNotEditable": "Questo allenamento appartiene a un calendario pubblicato. Modificalo nell'Organizzatore intelligente, oppure spostalo nel calendario."
   },
   "conflicts": {
     "VALID": "Valido",

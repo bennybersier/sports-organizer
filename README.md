@@ -556,6 +556,15 @@ things the optimizer does not, so a move is never blocked merely because the
 optimizer would have chosen differently — and every manual move is audited with
 its before and after, so a schedule that drifts can still be explained.
 
+**Cancelling and deleting are different things**, and the calendar offers both.
+Cancelling records that something real is not happening — people were told about
+it, so it stays on the calendar struck through. Deleting is for an event that
+should never have existed: a typo, a duplicate, the wrong date. Only manual
+events can be removed either way; training belongs to a schedule version and is
+changed by discarding or republishing that version, so the schedule's history
+stays coherent. A deletion is audited with what the event was, since the audit
+entry becomes the only remaining record of it.
+
 **Timezones.** Events are `timestamptz`; availability is wall-clock in the
 club's timezone. Every conversion goes through `TZDate`, because an offset is
 not a constant — it is a function of the instant. `pnpm test` covers the DST

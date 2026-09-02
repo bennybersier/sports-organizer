@@ -9,12 +9,15 @@ import { WeekGrid } from "./week-grid";
 import { EventSheet } from "./event-sheet";
 import type { CalendarView } from "./calendar-toolbar";
 import type { CalendarItem } from "@/server/services/calendar-service";
+import type { EventDialogOptions } from "@/app/(app)/calendar/new-event-button";
 
 export interface CalendarShellProps {
   view: CalendarView;
   timeZone: string;
   canEdit: boolean;
   canDelete: boolean;
+  /** Pickers the event editor needs. */
+  eventOptions: EventDialogOptions;
   days: { date: string; label: string; isToday: boolean }[];
   positioned: (CalendarItem & { startMinutes: number; endMinutes: number; date: string })[];
   groups: { date: string; label: string; isToday: boolean; items: CalendarItem[] }[];
@@ -82,7 +85,9 @@ export function CalendarShell(props: CalendarShellProps) {
         item={selected}
         open={selected !== null}
         onOpenChange={(open) => !open && setSelected(null)}
+        canEdit={props.canEdit}
         canDelete={props.canDelete}
+        options={props.eventOptions}
         formatRange={(item) =>
           item.allDay
             ? t("allDay")

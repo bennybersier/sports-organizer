@@ -149,6 +149,72 @@ export async function cancelEvent(
 }
 
 /**
+ * Deletes an event outright.
+ *
+ * Deliberately separate from cancelling, because they mean different things.
+ * Cancelling records that something real is not happening — people were told
+ * about it, so the record stays. Deleting is for an event that should never
+ * have existed: a typo, a duplicate, the wrong date. Keeping those around as
+ * struck-through clutter helps nobody.
+ *
+ * Only `calendar_events` can be deleted this way. Training belongs to a
+ * schedule version and is removed by discarding or republishing that version,
+ * which keeps the schedule's history coherent.
+ */
+export async function deleteEvent(context: AuthContext, id: string): Promise<void> {
+  assertPermission(context, "calendar.delete");
+
+  const { data: event } = await context.db
+    .from("calendar_events")
+    .select("title, type, start_at")
+    .eq("tenant_id", context.tenant.id)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!event) throw new NotFoundError("event");
+
+  const { error } = await context.db
+    .from("calendar_events")
+    .delete()
+    .eq("tenant_id", context.tenant.id)
+    .eq("id", id);
+
+  if (error) throw fromDatabaseError(error, { resource: "event" });
+
+  // The event is gone, so the audit entry is the only remaining record of it —
+  // which is exactly why it carries what the event was.
+  await recordAudit(context, {
+    action: AUDIT_ACTIONS.CALENDAR_EVENT_DELETED,
+    resourceType: "calendar_event",
+    resourceId: id,
+    oldValue: { title: event.title, type: event.type, start_at: event.start_at },
+  });
+}
+
+/** The full event, for the edit form. */
+export async function getEvent(context: AuthContext, id: string) {
+  assertPermission(context, "calendar.read");
+
+  const { data, error } = await context.db
+    .from("calendar_events")
+    .select("*")
+    .eq("tenant_id", context.tenant.id)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error) throw fromDatabaseError(error, { resource: "event" });
+  if (!data) throw new NotFoundError("event");
+
+  const { data: teams } = await context.db
+    .from("calendar_event_teams")
+    .select("team_id")
+    .eq("tenant_id", context.tenant.id)
+    .eq("event_id", id);
+
+  return { ...data, teamIds: (teams ?? []).map((row) => row.team_id) };
+}
+
+/**
  * Moves or resizes something on the calendar.
  *
  * Manual changes are validated but not vetoed on preference grounds: an

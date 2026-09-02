@@ -80,6 +80,17 @@ export default async function CalendarPage({
     hasPermission(context, "seasons.read") ? listSeasonOptions(context) : Promise.resolve([]),
   ]);
 
+  // One set of pickers, shared by the create button and the edit form.
+  const eventOptions = {
+    seasons: seasons.map((season) => ({ value: season.id, label: season.name })),
+    gyms: gyms.map((gym) => ({ value: gym.id, label: gym.name })),
+    trainers: trainers.map((trainer) => ({
+      value: trainer.id,
+      label: `${trainer.first_name} ${trainer.last_name}`,
+    })),
+    teams: teams.map((team) => ({ value: team.id, label: team.name })),
+  };
+
   // Position every item on the club's wall clock, once, on the server.
   const positioned = items.map((item) => {
     const start = toWallClock(item.startAt, zone);
@@ -98,6 +109,7 @@ export default async function CalendarPage({
   const usedEnd = Math.max(...positioned.map((item) => item.endMinutes), 22 * 60);
   const dayStartHour = Math.max(0, Math.floor(usedStart / 60) - 1);
   const dayEndHour = Math.min(24, Math.ceil(usedEnd / 60) + 1);
+
 
   const dates = eachDay(from, to);
   const days = dates.map((date) => ({
@@ -130,15 +142,7 @@ export default async function CalendarPage({
         description={t("subtitle")}
         action={
           hasPermission(context, "calendar.create") ? (
-            <NewEventButton
-              seasons={seasons.map((season) => ({ value: season.id, label: season.name }))}
-              gyms={gyms.map((gym) => ({ value: gym.id, label: gym.name }))}
-              trainers={trainers.map((trainer) => ({
-                value: trainer.id,
-                label: `${trainer.first_name} ${trainer.last_name}`,
-              }))}
-              teams={teams.map((team) => ({ value: team.id, label: team.name }))}
-            />
+            <NewEventButton {...eventOptions} />
           ) : null
         }
       />
@@ -169,6 +173,7 @@ export default async function CalendarPage({
         timeZone={zone}
         canEdit={hasPermission(context, "calendar.update")}
         canDelete={hasPermission(context, "calendar.delete")}
+        eventOptions={eventOptions}
         days={days}
         positioned={positioned}
         groups={groups}
@@ -246,6 +251,7 @@ function buildMonthWeeks(
   zone: string,
 ) {
   const month = anchor.slice(0, 7);
+
   const dates = eachDay(from, to);
   const weeks: {
     date: string;
