@@ -97,6 +97,38 @@ export async function getSeason(context: AuthContext, id: string): Promise<Seaso
   return data;
 }
 
+/**
+ * The date a newly entered weekly pattern should take effect from.
+ *
+ * Availability is entered against a season, so it must be in force from that
+ * season's start — not from the day it happened to be typed. Stamping "today"
+ * makes the pattern invisible to any week before it, which is exactly what
+ * happens when a club sets up a season that starts earlier in the year.
+ *
+ * Prefers the active season, then the earliest season that has not ended, and
+ * only falls back to today when the club has no season at all.
+ */
+export async function getAvailabilityAnchorDate(context: AuthContext): Promise<string> {
+  assertPermission(context, "seasons.read");
+  const today = new Date().toISOString().slice(0, 10);
+
+  const { data } = await context.db
+    .from("seasons")
+    .select("start_date, end_date, status")
+    .eq("tenant_id", context.tenant.id)
+    .neq("status", "ARCHIVED")
+    .order("start_date");
+
+  const seasons = data ?? [];
+  if (seasons.length === 0) return today;
+
+  const active = seasons.find((season) => season.status === "ACTIVE");
+  if (active) return active.start_date;
+
+  const current = seasons.find((season) => season.end_date >= today);
+  return (current ?? seasons[0]).start_date;
+}
+
 /** Seasons for pickers — id and name only, no paging. */
 export async function listSeasonOptions(context: AuthContext) {
   assertPermission(context, "seasons.read");

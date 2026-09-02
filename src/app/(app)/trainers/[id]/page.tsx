@@ -16,7 +16,7 @@ import { isAppError } from "@/lib/errors";
 import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
 import { listAvailability, listExceptions } from "@/server/services/availability-service";
-import { listSeasonOptions } from "@/server/services/season-service";
+import { getAvailabilityAnchorDate } from "@/server/services/season-service";
 import { getTrainer } from "@/server/services/trainer-service";
 
 export async function generateMetadata({
@@ -63,16 +63,13 @@ export default async function TrainerDetailPage({
   const canReadAvailability = hasPermission(context, "availability.read");
 
   const today = new Date().toISOString().slice(0, 10);
-  const [windows, exceptions, seasons] = await Promise.all([
+  const [windows, exceptions, seasonStart] = await Promise.all([
     canReadAvailability ? listAvailability(context, "trainer", id) : Promise.resolve([]),
     canReadAvailability
       ? listExceptions(context, "trainer", id, { from: today })
       : Promise.resolve([]),
-    listSeasonOptions(context),
+    getAvailabilityAnchorDate(context),
   ]);
-
-  const activeSeason = seasons.find((season) => season.status === "ACTIVE");
-  const seasonStart = activeSeason?.start_date ?? today;
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">

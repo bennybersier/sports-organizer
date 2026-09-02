@@ -164,14 +164,24 @@ export function diagnoseNoCandidates(
   if (usableGyms.length === 0) {
     reasons.push("NO_ELIGIBLE_GYM");
   } else if (usableGyms.every((gym) => Object.keys(gym.availability).length === 0)) {
-    reasons.push("NO_GYM_AVAILABILITY");
+    // Hours may exist and simply not apply to the week being scheduled. Saying
+    // "no hours set" to a club that just entered them is worse than unhelpful.
+    reasons.push(
+      usableGyms.some((gym) => gym.hasConfiguredAvailability)
+        ? "GYM_AVAILABILITY_NOT_IN_FORCE"
+        : "NO_GYM_AVAILABILITY",
+    );
   }
 
   const eligible = trainers.filter((trainer) => trainer.teamIds.includes(team.id));
   if (trainers.length > 0 && eligible.length === 0) {
     reasons.push("NO_ASSIGNED_TRAINER");
   } else if (eligible.length > 0 && eligible.every((t) => Object.keys(t.availability).length === 0)) {
-    reasons.push("NO_TRAINER_AVAILABILITY");
+    reasons.push(
+      eligible.some((trainer) => trainer.hasConfiguredAvailability)
+        ? "TRAINER_AVAILABILITY_NOT_IN_FORCE"
+        : "NO_TRAINER_AVAILABILITY",
+    );
   }
 
   const window = team.latestEnd - team.earliestStart;

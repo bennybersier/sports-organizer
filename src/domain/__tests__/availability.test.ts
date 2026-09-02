@@ -143,6 +143,30 @@ describe("resolveAvailability", () => {
     expect(resolveAvailability("2026-09-07", 1, recurring, exceptions)).toEqual([]);
   });
 
+  it("ignores a pattern that is not yet in force", () => {
+    /*
+      The bug this encodes: a club whose season starts in August enters its
+      opening hours in September. Resolving the season's first week finds
+      nothing, and the scheduler reports that no hours are set at all.
+    */
+    const notYet: RecurringWindow[] = [
+      { isoWeekday: 1, startTime: "18:00", endTime: "20:00", validFrom: "2026-09-02", validUntil: null },
+    ];
+    // 2026-08-03 is a Monday, before the pattern takes effect.
+    expect(resolveAvailability("2026-08-03", 1, notYet, [])).toEqual([]);
+    // The same weekday, once it is in force.
+    expect(resolveAvailability("2026-09-07", 1, notYet, [])).toEqual([{ start: 1080, end: 1200 }]);
+  });
+
+  it("applies a pattern from the exact day it takes effect", () => {
+    // Inclusive on the boundary: valid_from is the first day it counts.
+    const fromToday: RecurringWindow[] = [
+      { isoWeekday: 3, startTime: "18:00", endTime: "20:00", validFrom: "2026-09-02", validUntil: null },
+    ];
+    expect(resolveAvailability("2026-09-02", 3, fromToday, [])).toEqual([{ start: 1080, end: 1200 }]);
+    expect(resolveAvailability("2026-09-01", 2, fromToday, [])).toEqual([]);
+  });
+
   it("ignores exceptions dated to another day", () => {
     const exceptions: AvailabilityException[] = [
       { date: "2026-09-14", startTime: null, endTime: null, type: "UNAVAILABLE" },

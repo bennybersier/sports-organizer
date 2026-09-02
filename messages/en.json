@@ -612,7 +612,9 @@
     "NO_ASSIGNED_TRAINER": "No trainer is assigned to this team.",
     "NO_TRAINER_AVAILABILITY": "The assigned trainers have no availability set.",
     "SESSION_LONGER_THAN_WINDOW": "The session is longer than the hours the team is allowed to train.",
-    "NO_OVERLAPPING_AVAILABILITY": "The team, its trainers and the gyms are never free at the same time."
+    "NO_OVERLAPPING_AVAILABILITY": "The team, its trainers and the gyms are never free at the same time.",
+    "GYM_AVAILABILITY_NOT_IN_FORCE": "The gyms have opening hours, but none of them apply to the week being scheduled — check the date they take effect from.",
+    "TRAINER_AVAILABILITY_NOT_IN_FORCE": "The assigned trainers have availability, but none of it applies to the week being scheduled — check the date it takes effect from."
   },
   "members": {
     "title": "Members",

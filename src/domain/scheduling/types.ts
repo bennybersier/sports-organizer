@@ -20,12 +20,22 @@ export interface EngineGym {
   name: string;
   /** Availability per weekday, already resolved from recurring + exceptions. */
   availability: Record<number, MinuteWindow[]>;
+  /**
+   * Whether any weekly pattern exists at all, in force this week or not.
+   *
+   * Lets the engine distinguish "nobody set opening hours" from "the hours that
+   * exist do not apply to the week being scheduled" — the same empty result,
+   * but entirely different things for a club to go and fix.
+   */
+  hasConfiguredAvailability?: boolean;
 }
 
 export interface EngineTrainer {
   id: string;
   name: string;
   availability: Record<number, MinuteWindow[]>;
+  /** See `EngineGym.hasConfiguredAvailability`. */
+  hasConfiguredAvailability?: boolean;
   /** Teams this trainer coaches. A team can only use a trainer assigned to it. */
   teamIds: string[];
 }

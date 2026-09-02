@@ -20,7 +20,7 @@ import {
   listExceptions,
 } from "@/server/services/availability-service";
 import { getGym } from "@/server/services/gym-service";
-import { listSeasonOptions } from "@/server/services/season-service";
+import { getAvailabilityAnchorDate } from "@/server/services/season-service";
 
 export async function generateMetadata({
   params,
@@ -58,18 +58,13 @@ export default async function GymDetailPage({ params }: { params: Promise<{ id: 
   const canReadAvailability = hasPermission(context, "availability.read");
 
   const today = new Date().toISOString().slice(0, 10);
-  const [windows, exceptions, seasons] = await Promise.all([
+  const [windows, exceptions, seasonStart] = await Promise.all([
     canReadAvailability ? listAvailability(context, "gym", id) : Promise.resolve([]),
     canReadAvailability
       ? listExceptions(context, "gym", id, { from: today })
       : Promise.resolve([]),
-    listSeasonOptions(context),
+    getAvailabilityAnchorDate(context),
   ]);
-
-  // New windows take effect from the active season's start, or today if the
-  // club has not set a season up yet.
-  const activeSeason = seasons.find((season) => season.status === "ACTIVE");
-  const seasonStart = activeSeason?.start_date ?? today;
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">

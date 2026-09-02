@@ -20,9 +20,10 @@ import {
   type GenerationResult,
   type ScheduleInput,
 } from "@/domain/scheduling/types";
-import { addDays, toInstant, toWallClock } from "@/domain/scheduling/timezone";
+import { addDays, toInstant, todayInZone, toWallClock } from "@/domain/scheduling/timezone";
 import type { ValidationState } from "@/types/database";
 import { getSeason } from "@/server/services/season-service";
+import { listAvailability, listExceptions } from "@/server/services/availability-service";
 import { log } from "@/lib/observability";
 
 /**
@@ -57,9 +58,24 @@ export async function buildScheduleInput(
   const season = await getSeason(context, options.seasonId);
   const tenantId = context.tenant.id;
 
-  // The pattern is generated for one representative week and then repeated by
-  // the caller. Anchor on the season start so weekdays line up.
-  const weekStart = options.appliesFrom ?? season.start_date;
+  /*
+    The pattern is generated for one representative week.
+
+    Anchoring purely on the season start looks right and is not: a club whose
+    season began in August but who entered its opening hours in September gets
+    a week in which none of that availability is yet in force, so the engine
+    sees an empty club and reports that no hours are set. Scheduling is forward
+    work — anchor on the later of the season start and today, clamped inside
+    the season so a finished season still resolves to a week within it.
+  */
+  const today = todayInZone(context.tenant.timezone);
+  const weekStart =
+    options.appliesFrom ??
+    (today > season.end_date
+      ? season.start_date
+      : today > season.start_date
+        ? today
+        : season.start_date);
 
   const [teamsResult, trainersResult, gymsResult, requirementsResult, assignmentsResult] =
     await Promise.all([
@@ -111,10 +127,6 @@ export async function buildScheduleInput(
     domain: "gym" | "trainer" | "team",
     ownerId: string,
   ): Promise<Record<number, MinuteWindow[]>> => {
-    const [{ listAvailability }, { listExceptions }] = [
-      await import("@/server/services/availability-service"),
-      await import("@/server/services/availability-service"),
-    ];
     const [windows, exceptions] = await Promise.all([
       listAvailability(context, domain, ownerId),
       listExceptions(context, domain, ownerId),
@@ -145,6 +157,9 @@ export async function buildScheduleInput(
       id: gym.id,
       name: gym.name,
       availability: await resolveFor("gym", gym.id),
+      // Distinguishes "no hours entered" from "hours entered but not in force
+      // for this week" — two different problems with two different fixes.
+      hasConfiguredAvailability: (await listAvailability(context, "gym", gym.id)).length > 0,
     })),
   );
 
@@ -153,6 +168,8 @@ export async function buildScheduleInput(
       id: trainer.id,
       name: `${trainer.first_name} ${trainer.last_name}`,
       availability: await resolveFor("trainer", trainer.id),
+      hasConfiguredAvailability:
+        (await listAvailability(context, "trainer", trainer.id)).length > 0,
       teamIds: coaching.filter((c) => c.trainer_id === trainer.id).map((c) => c.team_id),
     })),
   );

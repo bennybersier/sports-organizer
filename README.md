@@ -507,6 +507,17 @@ every step, which for a club schedule matters more than the last few points of
 score. `assign` is deliberately isolated so a stronger solver can replace it
 without touching anything else.
 
+**Availability has a date it takes effect from**, and the representative week
+must be one where it is actually in force. Anchoring purely on the season start
+looks right and is not: a club whose season began in August but who entered its
+opening hours in September gets a week in which none of that availability
+applies, so the engine sees an empty club. The anchor is the later of the season
+start and today, clamped inside the season.
+
+The diagnosis distinguishes *no hours entered* from *hours entered but not in
+force this week* — the same empty result, but entirely different things to go
+and fix.
+
 **Explanations are first-class.** Every placed session records what it
 satisfied, what it traded away, its score, and how many alternatives existed —
 "only one slot was possible" tells an organizer far more than "score 62". Every

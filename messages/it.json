@@ -612,7 +612,9 @@
     "NO_ASSIGNED_TRAINER": "Nessun allenatore è assegnato a questa squadra.",
     "NO_TRAINER_AVAILABILITY": "Gli allenatori assegnati non hanno disponibilità impostata.",
     "SESSION_LONGER_THAN_WINDOW": "L'allenamento è più lungo delle ore in cui la squadra può allenarsi.",
-    "NO_OVERLAPPING_AVAILABILITY": "La squadra, i suoi allenatori e le palestre non sono mai liberi contemporaneamente."
+    "NO_OVERLAPPING_AVAILABILITY": "La squadra, i suoi allenatori e le palestre non sono mai liberi contemporaneamente.",
+    "GYM_AVAILABILITY_NOT_IN_FORCE": "Le palestre hanno orari di apertura, ma nessuno si applica alla settimana pianificata: controlla la data da cui sono in vigore.",
+    "TRAINER_AVAILABILITY_NOT_IN_FORCE": "Gli allenatori assegnati hanno disponibilità, ma nessuna si applica alla settimana pianificata: controlla la data da cui è in vigore."
   },
   "members": {
     "title": "Membri",
