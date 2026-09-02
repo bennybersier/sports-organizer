@@ -7,7 +7,14 @@ import { runAction, parseInput, type ActionResult } from "@/lib/action";
 import { ConflictError, fromDatabaseError } from "@/lib/errors";
 import { requirePermission } from "@/server/auth/authorization";
 import { generateAndStore } from "@/server/services/schedule-generation-service";
-import { publishScheduleVersion } from "@/server/services/schedule-publish-service";
+import {
+  cancelScheduleEntry,
+  cancelScheduleSeries,
+  restoreScheduleSeries,
+  publishScheduleVersion,
+  restoreScheduleEntry,
+  withdrawSchedule,
+} from "@/server/services/schedule-publish-service";
 import type { GenerationResult } from "@/domain/scheduling/types";
 
 const generateSchema = z.object({
@@ -56,6 +63,74 @@ export async function publishScheduleAction(versionId: string): Promise<ActionRe
   });
 }
 
+/**
+ * Takes a published schedule off the calendar without destroying it.
+ *
+ * To remove one entirely: withdraw, then discard. Two steps, so the
+ * destructive one is deliberate.
+ */
+export async function withdrawScheduleAction(versionId: string): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const context = await requirePermission("schedule.publish");
+    await withdrawSchedule(context, versionId);
+    revalidatePath("/organizer");
+    revalidatePath("/calendar");
+    revalidatePath("/dashboard");
+    return null;
+  });
+}
+
+export async function cancelScheduleEntryAction(
+  entryId: string,
+  reason?: string,
+): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const context = await requirePermission("schedule.review");
+    await cancelScheduleEntry(context, entryId, reason ?? null);
+    revalidatePath("/calendar");
+    return null;
+  });
+}
+
+/**
+ * Cancels this occurrence and every later one in the same recurring slot.
+ * Returns how many, because "12 sessions cancelled" is the confirmation a user
+ * needs to know they hit the right thing.
+ */
+export async function cancelScheduleSeriesAction(
+  entryId: string,
+  reason?: string,
+): Promise<ActionResult<{ count: number }>> {
+  return runAction(async () => {
+    const context = await requirePermission("schedule.review");
+    const count = await cancelScheduleSeries(context, entryId, reason ?? null);
+    revalidatePath("/calendar");
+    revalidatePath("/dashboard");
+    return { count };
+  });
+}
+
+export async function restoreScheduleSeriesAction(
+  entryId: string,
+): Promise<ActionResult<{ count: number }>> {
+  return runAction(async () => {
+    const context = await requirePermission("schedule.review");
+    const count = await restoreScheduleSeries(context, entryId);
+    revalidatePath("/calendar");
+    revalidatePath("/dashboard");
+    return { count };
+  });
+}
+
+export async function restoreScheduleEntryAction(entryId: string): Promise<ActionResult<null>> {
+  return runAction(async () => {
+    const context = await requirePermission("schedule.review");
+    await restoreScheduleEntry(context, entryId);
+    revalidatePath("/calendar");
+    return null;
+  });
+}
+
 export async function discardVersionAction(versionId: string): Promise<ActionResult<null>> {
   return runAction(async () => {
     const context = await requirePermission("schedule.review");
@@ -68,7 +143,9 @@ export async function discardVersionAction(versionId: string): Promise<ActionRes
       .maybeSingle();
 
     if (version?.status === "PUBLISHED") {
-      throw new ConflictError("A published schedule can't be discarded. Publish another instead.");
+      throw new ConflictError(
+        "Withdraw this schedule first — that takes it off the calendar. It can then be discarded.",
+      );
     }
 
     // Entries cascade with the version.

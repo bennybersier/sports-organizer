@@ -21,7 +21,9 @@
     "test:watch": "vitest",
     "test:security": "tsx --env-file-if-exists=.env.local scripts/security/tenant-isolation.mts",
     "test:schema": "tsx --env-file-if-exists=.env.local scripts/security/schema-drift.mts",
-    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:schema && pnpm test:security"
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:schema && pnpm test:security && pnpm test:removal && pnpm test:series",
+    "test:removal": "node --env-file=.env.local --experimental-strip-types scripts/e2e/schedule-removal.mts",
+    "test:series": "node --env-file=.env.local ./node_modules/vitest/vitest.mjs run --config vitest.e2e.config.mts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",

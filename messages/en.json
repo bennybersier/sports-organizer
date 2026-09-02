@@ -535,7 +535,20 @@
     "deleted": "Event deleted.",
     "edit": "Edit event",
     "cancelVsDelete": "Cancelling keeps the event on the calendar, marked cancelled. Deleting removes it entirely.",
-    "trainingNotEditable": "This training belongs to a published schedule. Change it in the Smart Organizer, or move it on the calendar."
+    "trainingNotEditable": "This training belongs to a published schedule. Change it in the Smart Organizer, or move it on the calendar.",
+    "cancelSession": "Cancel this session",
+    "sessionCancelled": "Session cancelled.",
+    "restoreSession": "Restore this session",
+    "sessionRestored": "Session restored.",
+    "cancelSessionConfirmTitle": "Cancel this one session?",
+    "cancelSessionConfirmBody": "Only this date. It stays on the calendar marked cancelled, so nobody turns up to a locked door — the rest of the series is untouched.",
+    "trainingActions": "This session repeats weekly. Cancel just this date, or the whole recurring event.",
+    "cancelSeries": "Cancel this event",
+    "cancelSeriesConfirmTitle": "Cancel every remaining session of this event?",
+    "cancelSeriesConfirmBody": "This slot repeats weekly. Cancelling the event calls off this date and every one after it. Sessions already past are left alone, and you can restore the series afterwards.",
+    "seriesCancelled": "{count, plural, one {# session cancelled} other {# sessions cancelled}}.",
+    "restoreSeries": "Restore this event",
+    "seriesRestored": "{count, plural, one {# session restored} other {# sessions restored}}."
   },
   "conflicts": {
     "VALID": "Valid",
@@ -621,7 +634,13 @@
     "SESSION_LONGER_THAN_WINDOW": "The session is longer than the hours the team is allowed to train.",
     "NO_OVERLAPPING_AVAILABILITY": "The team, its trainers and the gyms are never free at the same time.",
     "GYM_AVAILABILITY_NOT_IN_FORCE": "The gyms have opening hours, but none of them apply to the week being scheduled — check the date they take effect from.",
-    "TRAINER_AVAILABILITY_NOT_IN_FORCE": "The assigned trainers have availability, but none of it applies to the week being scheduled — check the date it takes effect from."
+    "TRAINER_AVAILABILITY_NOT_IN_FORCE": "The assigned trainers have availability, but none of it applies to the week being scheduled — check the date it takes effect from.",
+    "withdraw": "Withdraw",
+    "withdrawn": "Schedule withdrawn.",
+    "withdrawConfirmTitle": "Take this schedule off the calendar?",
+    "withdrawConfirmBody": "The club stops seeing these sessions. Nothing is destroyed — the schedule and its sessions are archived, and you can discard it afterwards if you want it gone for good.",
+    "discardHint": "Withdraw a published schedule before discarding it.",
+    "published_": "Published"
   },
   "members": {
     "title": "Members",

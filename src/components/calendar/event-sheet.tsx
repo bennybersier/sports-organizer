@@ -2,7 +2,18 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { CalendarClock, MapPin, Pencil, Trash2, UserCog, Users, XCircle } from "lucide-react";
+import {
+  CalendarClock,
+  CalendarSync,
+  CalendarX,
+  MapPin,
+  Pencil,
+  RotateCcw,
+  Trash2,
+  UserCog,
+  Users,
+  XCircle,
+} from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -21,6 +32,12 @@ import {
   deleteEventAction,
   getEventAction,
 } from "@/server/actions/calendar";
+import {
+  cancelScheduleEntryAction,
+  cancelScheduleSeriesAction,
+  restoreScheduleEntryAction,
+  restoreScheduleSeriesAction,
+} from "@/server/actions/organizer";
 import {
   NewEventButton,
   type EventDialogOptions,
@@ -61,6 +78,8 @@ export function EventSheet({
   const tCommon = useTranslations("common");
   const { run, isPending } = useAction();
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [cancelSessionOpen, setCancelSessionOpen] = useState(false);
+  const [cancelSeriesOpen, setCancelSeriesOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [editing, setEditing] = useState<EventFormValues | null>(null);
 
@@ -170,7 +189,74 @@ export function EventSheet({
             ) : (
               <>
                 <Separator />
-                <p className="text-xs text-muted-foreground">{t("trainingNotEditable")}</p>
+
+                {/*
+                  A generated session cannot be edited in place — it belongs to
+                  a schedule version — but it can be called off for one week,
+                  which is the thing clubs actually need most often.
+                */}
+                {canDelete ? (
+                  <div className="flex flex-wrap gap-2">
+                    {isCancelled ? (
+                      <Button
+                        variant="outline"
+                        disabled={isPending}
+                        onClick={() =>
+                          run(() => restoreScheduleEntryAction(item.id), {
+                            success: () => t("sessionRestored"),
+                            onSuccess: () => onOpenChange(false),
+                          })
+                        }
+                      >
+                        <RotateCcw aria-hidden />
+                        {t("restoreSession")}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        className="text-destructive"
+                        disabled={isPending}
+                        onClick={() => setCancelSessionOpen(true)}
+                      >
+                        <XCircle aria-hidden />
+                        {t("cancelSession")}
+                      </Button>
+                    )}
+
+                    {/*
+                      The series, not the schedule. Cancelling the event calls
+                      off this slot's remaining weeks and touches nothing else —
+                      other teams, other days and other slots are unaffected.
+                    */}
+                    {isCancelled ? (
+                      <Button
+                        variant="ghost"
+                        disabled={isPending}
+                        onClick={() =>
+                          run(() => restoreScheduleSeriesAction(item.id), {
+                            success: (data) => t("seriesRestored", { count: data.count }),
+                            onSuccess: () => onOpenChange(false),
+                          })
+                        }
+                      >
+                        <CalendarSync aria-hidden />
+                        {t("restoreSeries")}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        className="text-destructive"
+                        disabled={isPending}
+                        onClick={() => setCancelSeriesOpen(true)}
+                      >
+                        <CalendarX aria-hidden />
+                        {t("cancelSeries")}
+                      </Button>
+                    )}
+                  </div>
+                ) : null}
+
+                <p className="text-xs text-muted-foreground">{t("trainingActions")}</p>
               </>
             )}
           </div>
@@ -187,6 +273,34 @@ export function EventSheet({
           }}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={cancelSeriesOpen}
+        onOpenChange={setCancelSeriesOpen}
+        title={t("cancelSeriesConfirmTitle")}
+        description={t("cancelSeriesConfirmBody")}
+        confirmLabel={t("cancelSeries")}
+        onConfirm={() =>
+          run(() => cancelScheduleSeriesAction(item.id), {
+            success: (data) => t("seriesCancelled", { count: data.count }),
+            onSuccess: () => onOpenChange(false),
+          })
+        }
+      />
+
+      <ConfirmDialog
+        open={cancelSessionOpen}
+        onOpenChange={setCancelSessionOpen}
+        title={t("cancelSessionConfirmTitle")}
+        description={t("cancelSessionConfirmBody")}
+        confirmLabel={t("cancelSession")}
+        onConfirm={() =>
+          run(() => cancelScheduleEntryAction(item.id), {
+            success: () => t("sessionCancelled"),
+            onSuccess: () => onOpenChange(false),
+          })
+        }
+      />
 
       <ConfirmDialog
         open={deleteOpen}

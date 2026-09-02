@@ -1,5 +1,7 @@
 import { TZDate } from "@date-fns/tz";
 
+import type { IsoWeekday } from "@/domain/availability";
+
 /**
  * Conversion between absolute instants and the club's wall clock.
  *
@@ -71,6 +73,12 @@ export function addDays(date: string, days: number): string {
   const value = new Date(`${date}T00:00:00Z`);
   value.setUTCDate(value.getUTCDate() + days);
   return value.toISOString().slice(0, 10);
+}
+
+/** ISO weekday of a calendar date: 1 = Monday … 7 = Sunday. */
+export function isoWeekdayOfDate(date: string): IsoWeekday {
+  const day = new Date(`${date}T00:00:00Z`).getUTCDay();
+  return (day === 0 ? 7 : day) as IsoWeekday;
 }
 
 /**

@@ -3,14 +3,18 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
-import { CalendarDays, Trash2, Upload } from "lucide-react";
+import { CalendarDays, Trash2, Undo2, Upload } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ConfirmDialog } from "@/components/data/confirm-dialog";
 import { useAction } from "@/hooks/use-action";
-import { discardVersionAction, publishScheduleAction } from "@/server/actions/organizer";
+import {
+  discardVersionAction,
+  publishScheduleAction,
+  withdrawScheduleAction,
+} from "@/server/actions/organizer";
 
 export interface VersionSummary {
   id: string;
@@ -47,6 +51,7 @@ export function VersionList({
   const { run, isPending } = useAction();
   const [publishing, setPublishing] = useState<string | null>(null);
   const [discarding, setDiscarding] = useState<string | null>(null);
+  const [withdrawing, setWithdrawing] = useState<string | null>(null);
 
   return (
     <>
@@ -99,6 +104,22 @@ export function VersionList({
                       </Button>
                     ) : null}
 
+                    {/*
+                      Without this a published schedule was permanent: nothing
+                      could take it back off the club's calendar.
+                    */}
+                    {canPublish && isPublished ? (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={isPending}
+                        onClick={() => setWithdrawing(version.id)}
+                      >
+                        <Undo2 aria-hidden />
+                        {t("withdraw")}
+                      </Button>
+                    ) : null}
+
                     {canReview && !isPublished ? (
                       <Button
                         size="icon"
@@ -129,6 +150,20 @@ export function VersionList({
           run(() => publishScheduleAction(publishing!), {
             success: () => t("published"),
             onSuccess: () => setPublishing(null),
+          })
+        }
+      />
+
+      <ConfirmDialog
+        open={withdrawing !== null}
+        onOpenChange={(open) => !open && setWithdrawing(null)}
+        title={t("withdrawConfirmTitle")}
+        description={t("withdrawConfirmBody")}
+        confirmLabel={t("withdraw")}
+        onConfirm={() =>
+          run(() => withdrawScheduleAction(withdrawing!), {
+            success: () => t("withdrawn"),
+            onSuccess: () => setWithdrawing(null),
           })
         }
       />

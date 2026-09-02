@@ -365,6 +365,8 @@ export interface ScheduleEntryRow extends Timestamps {
   tenant_id: string;
   season_id: string;
   schedule_version_id: string;
+  /** Occurrences of one recurring weekly slot share this. */
+  series_id: string;
   team_id: string;
   trainer_id: string | null;
   gym_id: string;

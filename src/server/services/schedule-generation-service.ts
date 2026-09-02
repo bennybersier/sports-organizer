@@ -8,6 +8,7 @@ import {
   resolveAvailability,
   toMinutes,
   type IsoWeekday,
+  type AvailabilityException,
   type MinuteWindow,
 } from "@/domain/availability";
 import { generateSchedule } from "@/domain/scheduling/optimizer";
@@ -20,10 +21,19 @@ import {
   type GenerationResult,
   type ScheduleInput,
 } from "@/domain/scheduling/types";
-import { addDays, toInstant, todayInZone, toWallClock } from "@/domain/scheduling/timezone";
-import type { ValidationState } from "@/types/database";
+import { randomUUID } from "node:crypto";
+
+import {
+  addDays,
+  isoWeekdayOfDate,
+  toInstant,
+  todayInZone,
+  toWallClock,
+} from "@/domain/scheduling/timezone";
+import type { Database, ValidationState } from "@/types/database";
 import { getSeason } from "@/server/services/season-service";
 import { listAvailability, listExceptions } from "@/server/services/availability-service";
+import { occurrenceDates, overlaps } from "@/domain/scheduling/occurrences";
 import { log } from "@/lib/observability";
 
 /**
@@ -48,11 +58,32 @@ export interface GenerationOptions {
   name?: string;
 }
 
+type AvailabilityDomain = "gym" | "trainer" | "team";
+
+/**
+ * Raw recurring windows and exceptions, keyed `domain:ownerId`.
+ *
+ * Kept unresolved on purpose: resolution depends on the date being asked
+ * about, and occurrences span the whole season.
+ */
+type RawAvailability = Map<
+  string,
+  {
+    windows: Awaited<ReturnType<typeof listAvailability>>;
+    exceptions: AvailabilityException[];
+  }
+>;
+
 /** Loads everything the engine needs, resolved to plain windows. */
 export async function buildScheduleInput(
   context: AuthContext,
   options: GenerationOptions,
-): Promise<{ input: ScheduleInput; teamNames: Map<string, string>; weekStart: string }> {
+): Promise<{
+  input: ScheduleInput;
+  teamNames: Map<string, string>;
+  weekStart: string;
+  rawAvailability: RawAvailability;
+}> {
   assertPermission(context, "schedule.generate");
 
   const season = await getSeason(context, options.seasonId);
@@ -123,30 +154,48 @@ export async function buildScheduleInput(
   // exceptions falling in that week are honoured exactly as the calendar shows.
   const weekDates = Array.from({ length: 7 }, (_, offset) => addDays(weekStart, offset));
 
-  const resolveFor = async (
-    domain: "gym" | "trainer" | "team",
-    ownerId: string,
-  ): Promise<Record<number, MinuteWindow[]>> => {
+  /*
+    The engine plans one representative week, but every occurrence of a slot is
+    materialised across the season and each one has to be checked against the
+    availability actually in force on *that* date — a hall whose hours end in
+    December must not be booked in January. Caching the raw windows here means
+    that second pass costs no further queries.
+  */
+  const rawAvailability: RawAvailability = new Map();
+
+  const loadRaw = async (domain: AvailabilityDomain, ownerId: string) => {
+    const key = `${domain}:${ownerId}`;
+    const cached = rawAvailability.get(key);
+    if (cached) return cached;
+
     const [windows, exceptions] = await Promise.all([
       listAvailability(context, domain, ownerId),
       listExceptions(context, domain, ownerId),
     ]);
+    const value = {
+      windows,
+      exceptions: exceptions.map((exception) => ({
+        date: exception.exceptionDate,
+        startTime: exception.startTime,
+        endTime: exception.endTime,
+        type: exception.type,
+      })),
+    };
+    rawAvailability.set(key, value);
+    return value;
+  };
+
+  const resolveFor = async (
+    domain: AvailabilityDomain,
+    ownerId: string,
+  ): Promise<Record<number, MinuteWindow[]>> => {
+    const { windows, exceptions } = await loadRaw(domain, ownerId);
 
     const byWeekday: Record<number, MinuteWindow[]> = {};
     for (const date of weekDates) {
       const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
       const iso = (weekday === 0 ? 7 : weekday) as IsoWeekday;
-      const resolved = resolveAvailability(
-        date,
-        iso,
-        windows,
-        exceptions.map((exception) => ({
-          date: exception.exceptionDate,
-          startTime: exception.startTime,
-          endTime: exception.endTime,
-          type: exception.type,
-        })),
-      );
+      const resolved = resolveAvailability(date, iso, windows, exceptions);
       if (resolved.length > 0) byWeekday[iso] = resolved;
     }
     return byWeekday;
@@ -159,7 +208,7 @@ export async function buildScheduleInput(
       availability: await resolveFor("gym", gym.id),
       // Distinguishes "no hours entered" from "hours entered but not in force
       // for this week" — two different problems with two different fixes.
-      hasConfiguredAvailability: (await listAvailability(context, "gym", gym.id)).length > 0,
+      hasConfiguredAvailability: (await loadRaw("gym", gym.id)).windows.length > 0,
     })),
   );
 
@@ -168,8 +217,7 @@ export async function buildScheduleInput(
       id: trainer.id,
       name: `${trainer.first_name} ${trainer.last_name}`,
       availability: await resolveFor("trainer", trainer.id),
-      hasConfiguredAvailability:
-        (await listAvailability(context, "trainer", trainer.id)).length > 0,
+      hasConfiguredAvailability: (await loadRaw("trainer", trainer.id)).windows.length > 0,
       teamIds: coaching.filter((c) => c.trainer_id === trainer.id).map((c) => c.team_id),
     })),
   );
@@ -209,6 +257,7 @@ export async function buildScheduleInput(
     },
     teamNames: new Map(teams.map((team) => [team.id, team.name])),
     weekStart,
+    rawAvailability,
   };
 }
 
@@ -274,7 +323,7 @@ export async function generateAndStore(
   assertPermission(context, "schedule.generate");
 
   const season = await getSeason(context, options.seasonId);
-  const { input, weekStart } = await buildScheduleInput(context, options);
+  const { input, weekStart, rawAvailability } = await buildScheduleInput(context, options);
 
   if (input.teams.length === 0) {
     throw new ConflictError("There are no active teams in this season to schedule.");
@@ -298,6 +347,25 @@ export async function generateAndStore(
     score: result.score,
   });
 
+  /*
+    The engine produced a weekly pattern; a club trains all season. Every slot
+    is expanded into one real dated session per week, and the occurrences of a
+    slot share a series id — that is what makes cancelling one Tuesday
+    different from cancelling Tuesdays.
+
+    Expansion happens before the version row is written so the summary can
+    report what was actually put on the calendar rather than a week's worth.
+  */
+  const appliesFrom = options.appliesFrom ?? weekStart;
+  const appliesUntil = options.appliesUntil ?? season.end_date;
+  const plan = await planOccurrences(context, {
+    assignments: result.assignments,
+    teams: input.teams,
+    from: weekStart,
+    until: appliesUntil,
+    rawAvailability,
+  });
+
   const { data: version, error: versionError } = await context.db
     .from("schedule_versions")
     .insert({
@@ -305,8 +373,8 @@ export async function generateAndStore(
       season_id: options.seasonId,
       name: options.name ?? null,
       status: "GENERATED",
-      applies_from: options.appliesFrom ?? season.start_date,
-      applies_until: options.appliesUntil ?? season.end_date,
+      applies_from: appliesFrom,
+      applies_until: appliesUntil,
       generated_at: new Date().toISOString(),
       generation_config: JSON.parse(
         JSON.stringify({
@@ -317,7 +385,14 @@ export async function generateAndStore(
         }),
       ),
       result_summary: JSON.parse(
-        JSON.stringify({ score: result.score, stats: result.stats, unmet: result.unmet }),
+        JSON.stringify({
+          score: result.score,
+          stats: result.stats,
+          unmet: result.unmet,
+          occurrences: plan.rows.length,
+          series: plan.seriesCount,
+          skipped: plan.skipped,
+        }),
       ),
       created_by: context.user.id,
     })
@@ -326,43 +401,32 @@ export async function generateAndStore(
 
   if (versionError) throw fromDatabaseError(versionError, { resource: "schedule" });
 
-  if (result.assignments.length > 0) {
-    const zone = context.tenant.timezone;
+  if (plan.rows.length > 0) {
+    const rows = plan.rows.map((row) => ({
+      ...row,
+      tenant_id: context.tenant.id,
+      season_id: options.seasonId,
+      schedule_version_id: version.id,
+      created_by: context.user.id,
+    }));
 
-    const rows = result.assignments.map((assignment) => {
-      // The engine works in weekdays; the calendar needs real instants. Convert
-      // once, here, anchored on the representative week.
-      const offset = (assignment.isoWeekday - isoWeekdayOfDate(weekStart) + 7) % 7;
-      const date = addDays(weekStart, offset);
+    /*
+      A season is a few hundred sessions. Inserted in chunks because a single
+      statement carrying every row of a long season is where request size
+      limits start to bite, and a half-written schedule is worse than a slow one.
+    */
+    for (let index = 0; index < rows.length; index += 500) {
+      const { error: entriesError } = await context.db
+        .from("schedule_entries")
+        .insert(rows.slice(index, index + 500));
 
-      return {
-        tenant_id: context.tenant.id,
-        season_id: options.seasonId,
-        schedule_version_id: version.id,
-        team_id: assignment.teamId,
-        trainer_id: assignment.trainerId,
-        gym_id: assignment.gymId,
-        start_at: toInstant(date, assignment.window.start, zone).toISOString(),
-        end_at: toInstant(date, assignment.window.end, zone).toISOString(),
-        status: "PROPOSED" as const,
-        score: assignment.score,
-        explanation: JSON.parse(JSON.stringify(assignment.explanation)),
-        // Trade-offs are warnings by construction: the engine never places a
-        // session that breaks a hard rule, so nothing here is ever a CONFLICT.
-        validation_state: (assignment.explanation.tradeOffs.length > 0
-          ? "WARNING"
-          : "VALID") as ValidationState,
-        created_by: context.user.id,
-      };
-    });
-
-    const { error: entriesError } = await context.db.from("schedule_entries").insert(rows);
-    if (entriesError) {
-      throw fromDatabaseError(entriesError, {
-        resource: "schedule",
-        exclusionMessage:
-          "The generated schedule collided with itself. This is a bug — please report it.",
-      });
+      if (entriesError) {
+        throw fromDatabaseError(entriesError, {
+          resource: "schedule",
+          exclusionMessage:
+            "The generated schedule collided with itself. This is a bug — please report it.",
+        });
+      }
     }
   }
 
@@ -376,13 +440,161 @@ export async function generateAndStore(
       scheduled: result.stats.sessionsScheduled,
       requested: result.stats.sessionsRequested,
       unmet: result.unmet.length,
+      occurrences: plan.rows.length,
     },
   });
 
   return { versionId: version.id, result };
 }
 
-function isoWeekdayOfDate(date: string): number {
-  const day = new Date(`${date}T00:00:00Z`).getUTCDay();
-  return day === 0 ? 7 : day;
+
+/**
+ * Expands the weekly pattern into dated sessions, one series per slot.
+ *
+ * Two things can stop an individual week from happening, and both are checked
+ * per date rather than assumed from the representative week:
+ *
+ *  - the hours in force changed (a hall's season ends, a coach's window has a
+ *    validity range, an exception closes that day), and
+ *  - something already occupies the slot that week — a match, a hall closure,
+ *    a public holiday.
+ *
+ * A week that fails either check is skipped and reported, never silently
+ * dropped: "26 Dec skipped, Winter closure" is the answer to the question a
+ * coach will actually ask.
+ */
+async function planOccurrences(
+  context: AuthContext,
+  args: {
+    assignments: GenerationResult["assignments"];
+    teams: ScheduleInput["teams"];
+    from: string;
+    until: string;
+    rawAvailability: RawAvailability;
+  },
+): Promise<{
+  rows: Omit<
+    Database["public"]["Tables"]["schedule_entries"]["Insert"],
+    "tenant_id" | "season_id" | "schedule_version_id" | "created_by"
+  >[];
+  seriesCount: number;
+  skipped: { teamId: string; date: string; reason: string }[];
+}> {
+  const zone = context.tenant.timezone;
+  const blocking = await collectBlockingEvents(context, args.from, args.until);
+  const rows: Awaited<ReturnType<typeof planOccurrences>>["rows"] = [];
+  const skipped: { teamId: string; date: string; reason: string }[] = [];
+
+  /* Mirrors the engine exactly: a team with no hours anywhere is
+     unconstrained, but one that has hours must be free on the date. */
+  const constrainedTeams = new Set(
+    args.teams.filter((team) => Object.keys(team.availability).length > 0).map((team) => team.id),
+  );
+
+  const covers = (key: string, date: string, window: { start: number; end: number }) => {
+    const entry = args.rawAvailability.get(key);
+    if (!entry) return false;
+    return resolveAvailability(date, isoWeekdayOfDate(date), entry.windows, entry.exceptions).some(
+      (available) => available.start <= window.start && available.end >= window.end,
+    );
+  };
+
+  for (const assignment of args.assignments) {
+    const seriesId = randomUUID();
+
+    for (const date of occurrenceDates(args.from, assignment.isoWeekday, args.until)) {
+      if (!covers(`gym:${assignment.gymId}`, date, assignment.window)) {
+        skipped.push({ teamId: assignment.teamId, date, reason: "Gym unavailable that week" });
+        continue;
+      }
+      if (
+        assignment.trainerId &&
+        !covers(`trainer:${assignment.trainerId}`, date, assignment.window)
+      ) {
+        skipped.push({ teamId: assignment.teamId, date, reason: "Trainer unavailable that week" });
+        continue;
+      }
+      if (
+        constrainedTeams.has(assignment.teamId) &&
+        !covers(`team:${assignment.teamId}`, date, assignment.window)
+      ) {
+        skipped.push({ teamId: assignment.teamId, date, reason: "Team unavailable that week" });
+        continue;
+      }
+
+      const startAt = toInstant(date, assignment.window.start, zone).toISOString();
+      const endAt = toInstant(date, assignment.window.end, zone).toISOString();
+
+      const clash = blocking.find(
+        (event) =>
+          overlaps({ start: startAt, end: endAt }, { start: event.startAt, end: event.endAt }) &&
+          (event.gymId
+            ? event.gymId === assignment.gymId
+            : event.trainerId
+              ? event.trainerId === assignment.trainerId
+              : event.blocksScheduling),
+      );
+
+      if (clash) {
+        skipped.push({ teamId: assignment.teamId, date, reason: clash.title });
+        continue;
+      }
+
+      rows.push({
+        series_id: seriesId,
+        team_id: assignment.teamId,
+        trainer_id: assignment.trainerId,
+        gym_id: assignment.gymId,
+        start_at: startAt,
+        end_at: endAt,
+        status: "PROPOSED",
+        score: assignment.score,
+        explanation: JSON.parse(JSON.stringify(assignment.explanation)),
+        // Trade-offs are warnings by construction: the engine never places a
+        // session that breaks a hard rule, so nothing here is ever a CONFLICT.
+        validation_state: (assignment.explanation.tradeOffs.length > 0
+          ? "WARNING"
+          : "VALID") as ValidationState,
+      });
+    }
+  }
+
+  return { rows, seriesCount: args.assignments.length, skipped };
+}
+
+/** Everything already occupying time across the whole schedule window. */
+async function collectBlockingEvents(
+  context: AuthContext,
+  from: string,
+  until: string,
+): Promise<
+  {
+    startAt: string;
+    endAt: string;
+    gymId: string | null;
+    trainerId: string | null;
+    blocksScheduling: boolean;
+    title: string;
+  }[]
+> {
+  const zone = context.tenant.timezone;
+
+  const { data } = await context.db
+    .from("calendar_events")
+    .select("title, gym_id, trainer_id, start_at, end_at, blocks_scheduling")
+    .eq("tenant_id", context.tenant.id)
+    .neq("status", "CANCELLED")
+    .lt("start_at", toInstant(addDays(until, 1), 0, zone).toISOString())
+    .gt("end_at", toInstant(from, 0, zone).toISOString());
+
+  return (data ?? [])
+    .filter((event) => event.blocks_scheduling || event.gym_id || event.trainer_id)
+    .map((event) => ({
+      startAt: event.start_at,
+      endAt: event.end_at,
+      gymId: event.gym_id,
+      trainerId: event.trainer_id,
+      blocksScheduling: event.blocks_scheduling,
+      title: event.title,
+    }));
 }

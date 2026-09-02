@@ -535,7 +535,20 @@
     "deleted": "Evento eliminato.",
     "edit": "Modifica evento",
     "cancelVsDelete": "Annullare mantiene l'evento nel calendario, contrassegnato come annullato. Eliminare lo rimuove del tutto.",
-    "trainingNotEditable": "Questo allenamento appartiene a un calendario pubblicato. Modificalo nell'Organizzatore intelligente, oppure spostalo nel calendario."
+    "trainingNotEditable": "Questo allenamento appartiene a un calendario pubblicato. Modificalo nell'Organizzatore intelligente, oppure spostalo nel calendario.",
+    "cancelSession": "Annulla questo allenamento",
+    "sessionCancelled": "Allenamento annullato.",
+    "restoreSession": "Ripristina questo allenamento",
+    "sessionRestored": "Allenamento ripristinato.",
+    "cancelSessionConfirmTitle": "Annullare solo questo allenamento?",
+    "cancelSessionConfirmBody": "Solo questa data. Resta nel calendario contrassegnato come annullato, così nessuno si presenta davanti a una porta chiusa: il resto della serie non viene toccato.",
+    "trainingActions": "Questo allenamento si ripete ogni settimana. Annulla solo questa data oppure l'intero evento ricorrente.",
+    "cancelSeries": "Annulla questo evento",
+    "cancelSeriesConfirmTitle": "Annullare tutti gli allenamenti rimanenti di questo evento?",
+    "cancelSeriesConfirmBody": "Questo slot si ripete ogni settimana. Annullando l'evento vengono cancellati questa data e tutte le successive. Gli allenamenti già svolti restano invariati e puoi ripristinare la serie in seguito.",
+    "seriesCancelled": "{count, plural, one {# allenamento annullato} other {# allenamenti annullati}}.",
+    "restoreSeries": "Ripristina questo evento",
+    "seriesRestored": "{count, plural, one {# allenamento ripristinato} other {# allenamenti ripristinati}}."
   },
   "conflicts": {
     "VALID": "Valido",
@@ -621,7 +634,13 @@
     "SESSION_LONGER_THAN_WINDOW": "L'allenamento è più lungo delle ore in cui la squadra può allenarsi.",
     "NO_OVERLAPPING_AVAILABILITY": "La squadra, i suoi allenatori e le palestre non sono mai liberi contemporaneamente.",
     "GYM_AVAILABILITY_NOT_IN_FORCE": "Le palestre hanno orari di apertura, ma nessuno si applica alla settimana pianificata: controlla la data da cui sono in vigore.",
-    "TRAINER_AVAILABILITY_NOT_IN_FORCE": "Gli allenatori assegnati hanno disponibilità, ma nessuna si applica alla settimana pianificata: controlla la data da cui è in vigore."
+    "TRAINER_AVAILABILITY_NOT_IN_FORCE": "Gli allenatori assegnati hanno disponibilità, ma nessuna si applica alla settimana pianificata: controlla la data da cui è in vigore.",
+    "withdraw": "Ritira",
+    "withdrawn": "Calendario ritirato.",
+    "withdrawConfirmTitle": "Togliere questo calendario dal calendario della società?",
+    "withdrawConfirmBody": "La società smetterà di vedere questi allenamenti. Non viene distrutto nulla: il calendario e i suoi allenamenti vengono archiviati e, se vuoi eliminarli del tutto, puoi scartarli in seguito.",
+    "discardHint": "Ritira un calendario pubblicato prima di scartarlo.",
+    "published_": "Pubblicato"
   },
   "members": {
     "title": "Membri",
