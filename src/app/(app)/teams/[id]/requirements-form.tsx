@@ -10,6 +10,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { MultiSelect, type MultiSelectOption } from "@/components/data/multi-select";
 import { useAction } from "@/hooks/use-action";
@@ -62,6 +69,8 @@ export function RequirementsForm({
           seasonId: values.seasonId,
           sessionsPerWeek: values.sessionsPerWeek,
           durationMinutes: values.durationMinutes,
+          priority: values.priority,
+          startsOn: values.startsOn ?? "",
           allowedWeekdays: values.allowedWeekdays,
           earliestStart: values.earliestStart,
           latestEnd: values.latestEnd,
@@ -145,6 +154,49 @@ export function RequirementsForm({
             {number("sessionsPerWeek", t("sessionsPerWeek"), 0, 14)}
             {number("durationMinutes", t("durationMinutes"), 15, 480, t("minutes"))}
             {number("minDaysBetween", t("minDaysBetween"), 0, 7)}
+          </div>
+
+          {/*
+            Priority decides who wins a contested slot, so it belongs with the
+            hard rules rather than the preferences — it is a club decision, not
+            a nudge the optimizer may trade away.
+          */}
+          <div className="grid gap-1 sm:max-w-xs">
+            <Label htmlFor="priority">{t("priority")}</Label>
+            <Select
+              value={String(values.priority)}
+              disabled={!canEdit}
+              onValueChange={(value) => set("priority", Number(value))}
+            >
+              <SelectTrigger id="priority">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {[1, 2, 3, 4, 5].map((level) => (
+                  <SelectItem key={level} value={String(level)}>
+                    {t(`priority${level}` as "priority1")}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">{t("priorityHint")}</p>
+          </div>
+
+          {/*
+            Teams do not all start on the same day — a first team may be back in
+            August while a youth side waits for the school term. Empty means
+            "start when the schedule does".
+          */}
+          <div className="grid gap-1 sm:max-w-xs">
+            <Label htmlFor="startsOn">{t("startsOn")}</Label>
+            <Input
+              id="startsOn"
+              type="date"
+              value={values.startsOn ?? ""}
+              disabled={!canEdit}
+              onChange={(event) => set("startsOn", event.target.value || null)}
+            />
+            <p className="text-xs text-muted-foreground">{t("startsOnHint")}</p>
           </div>
 
           <div className="grid gap-1">

@@ -1,6 +1,6 @@
 import "server-only";
 
-import { fromDatabaseError } from "@/lib/errors";
+import { NotFoundError, fromDatabaseError } from "@/lib/errors";
 import type { AuthContext } from "@/server/auth/context";
 import { assertPermission } from "@/server/auth/authorization";
 import { resolveAvailability, type IsoWeekday } from "@/domain/availability";
@@ -11,8 +11,12 @@ import {
   type PlacementRules,
 } from "@/domain/scheduling/conflicts";
 import {
+  addDays,
   endOfDayInZone,
+  isoWeekdayOfDate,
   startOfDayInZone,
+  startOfWeek,
+  todayInZone,
   toWallClock,
 } from "@/domain/scheduling/timezone";
 import { listAvailability, listExceptions } from "@/server/services/availability-service";
@@ -102,28 +106,7 @@ export async function listCalendarItems(
   const items: CalendarItem[] = [];
 
   for (const entry of entries) {
-    const team = lookups.teams.get(entry.team_id);
-    items.push({
-      id: entry.id,
-      source: "SCHEDULE",
-      type: "TRAINING",
-      title: team?.name ?? "Training",
-      startAt: entry.start_at,
-      endAt: entry.end_at,
-      allDay: false,
-      color: team?.color ?? null,
-      status: entry.status,
-      validationState: entry.validation_state,
-      teamId: entry.team_id,
-      teamName: team?.name ?? null,
-      trainerId: entry.trainer_id,
-      trainerName: entry.trainer_id ? (lookups.trainers.get(entry.trainer_id) ?? null) : null,
-      gymId: entry.gym_id,
-      gymName: lookups.gyms.get(entry.gym_id) ?? null,
-      editable: true,
-      blocksScheduling: false,
-      allowsGymSharing: false,
-    });
+    items.push(toCalendarItem(entry, lookups));
   }
 
   for (const event of events) {
@@ -151,6 +134,34 @@ export async function listCalendarItems(
   }
 
   return items.sort((a, b) => a.startAt.localeCompare(b.startAt));
+}
+
+type ScheduleEntryRecord = Awaited<ReturnType<typeof fetchScheduleEntries>>[number];
+type Lookups = Awaited<ReturnType<typeof fetchLookups>>;
+
+function toCalendarItem(entry: ScheduleEntryRecord, lookups: Lookups): CalendarItem {
+  const team = lookups.teams.get(entry.team_id);
+  return {
+    id: entry.id,
+    source: "SCHEDULE",
+    type: "TRAINING",
+    title: team?.name ?? "Training",
+    startAt: entry.start_at,
+    endAt: entry.end_at,
+    allDay: false,
+    color: team?.color ?? null,
+    status: entry.status,
+    validationState: entry.validation_state,
+    teamId: entry.team_id,
+    teamName: team?.name ?? null,
+    trainerId: entry.trainer_id,
+    trainerName: entry.trainer_id ? (lookups.trainers.get(entry.trainer_id) ?? null) : null,
+    gymId: entry.gym_id,
+    gymName: lookups.gyms.get(entry.gym_id) ?? null,
+    editable: true,
+    blocksScheduling: false,
+    allowsGymSharing: false,
+  };
 }
 
 async function fetchScheduleEntries(
@@ -394,4 +405,224 @@ async function collectBookings(
       allowsGymSharing: event.allows_gym_sharing,
     })),
   ];
+}
+
+export interface TrainingWeek {
+  weekStart: string;
+  weekEnd: string;
+  previousWeek: string;
+  nextWeek: string;
+  days: { date: string; isoWeekday: number; items: CalendarItem[] }[];
+  /** Sessions that are actually going ahead, so cancelled ones don't flatter the count. */
+  scheduledCount: number;
+  /**
+   * The date this schedule's sessions begin.
+   *
+   * A schedule generated on a Wednesday starts on that Wednesday, so its first
+   * week is a partial one — three days of a five-day pattern. Without this the
+   * view shows an empty Monday and Tuesday and looks like the optimizer simply
+   * failed to use them.
+   */
+  coverageStart: string | null;
+}
+
+/**
+ * One team's training week.
+ *
+ * A club asks "when does U13 Gold train?" far more often than it asks what the
+ * whole club is doing, and answering it from the full calendar means filtering
+ * a wall of other teams' sessions.
+ *
+ * With no week given it lands on the team's next session rather than today:
+ * during the summer, or any week the team happens not to train, "this week"
+ * is an empty grid that looks like a fault.
+ */
+export async function getTeamTrainingWeek(
+  context: AuthContext,
+  teamId: string,
+  weekOf?: string,
+): Promise<TrainingWeek> {
+  assertPermission(context, "calendar.read");
+
+  const zone = context.tenant.timezone;
+
+  const { data: published } = await context.db
+    .from("schedule_versions")
+    .select("id")
+    .eq("tenant_id", context.tenant.id)
+    .eq("status", "PUBLISHED")
+    .limit(1)
+    .maybeSingle();
+
+  const span = published
+    ? await scheduleSpan(context, published.id)
+    : { first: null, last: null };
+
+  const anchor = weekOf ?? (await nextTrainingDate(context, teamId)) ?? todayInZone(zone);
+  const weekStart = startOfWeek(anchor, context.tenant.weekStart);
+  const weekEnd = addDays(weekStart, 6);
+
+  const items = await listCalendarItems(context, weekStart, weekEnd, {
+    teamId,
+    type: "TRAINING",
+  });
+
+  const days = Array.from({ length: 7 }, (_, offset) => {
+    const date = addDays(weekStart, offset);
+    return {
+      date,
+      isoWeekday: isoWeekdayOfDate(date),
+      // Grouped by the club's local date, not UTC: a 22:00 session in Rome is
+      // already tomorrow in UTC and would land on the wrong day.
+      items: items.filter((item) => toWallClock(item.startAt, zone).date === date),
+    };
+  });
+
+  return {
+    weekStart,
+    weekEnd,
+    previousWeek: addDays(weekStart, -7),
+    nextWeek: addDays(weekStart, 7),
+    days,
+    scheduledCount: items.filter((item) => item.status !== "CANCELLED").length,
+    coverageStart: span.first,
+  };
+}
+
+/** First and last dates a version actually puts sessions on. */
+async function scheduleSpan(
+  context: AuthContext,
+  versionId: string,
+): Promise<{ first: string | null; last: string | null }> {
+  const zone = context.tenant.timezone;
+
+  const range = async (ascending: boolean) => {
+    const { data } = await context.db
+      .from("schedule_entries")
+      .select("start_at")
+      .eq("tenant_id", context.tenant.id)
+      .eq("schedule_version_id", versionId)
+      .order("start_at", { ascending })
+      .limit(1)
+      .maybeSingle();
+    return data ? toWallClock(data.start_at, zone).date : null;
+  };
+
+  const [first, last] = await Promise.all([range(true), range(false)]);
+  return { first, last };
+}
+
+function defaultAnchor(
+  span: { first: string | null; last: string | null },
+  fallback: string,
+  weekStart: number,
+): string {
+  if (!span.first) return fallback;
+
+  const firstWeek = startOfWeek(span.first, weekStart);
+  if (firstWeek === span.first) return span.first;
+
+  // Skipping the partial week is only an improvement if a whole one follows.
+  const nextWeek = addDays(firstWeek, 7);
+  return span.last && nextWeek <= span.last ? nextWeek : span.first;
+}
+
+/** The date of the team's next session, so the week shown is never empty. */
+async function nextTrainingDate(
+  context: AuthContext,
+  teamId: string,
+): Promise<string | null> {
+  const { data: version } = await context.db
+    .from("schedule_versions")
+    .select("id")
+    .eq("tenant_id", context.tenant.id)
+    .eq("status", "PUBLISHED")
+    .limit(1)
+    .maybeSingle();
+
+  if (!version) return null;
+
+  const { data } = await context.db
+    .from("schedule_entries")
+    .select("start_at")
+    .eq("tenant_id", context.tenant.id)
+    .eq("schedule_version_id", version.id)
+    .eq("team_id", teamId)
+    .gte("start_at", new Date().toISOString())
+    .order("start_at")
+    .limit(1)
+    .maybeSingle();
+
+  return data ? toWallClock(data.start_at, context.tenant.timezone).date : null;
+}
+
+/**
+ * One week of a schedule version, published or not.
+ *
+ * The calendar deliberately shows only the published schedule — a draft is not
+ * what the club is doing — which left "view in calendar" on a draft opening an
+ * empty week. This is the honest answer to "what would this schedule look
+ * like?", without publishing it to find out.
+ */
+export async function getVersionWeek(
+  context: AuthContext,
+  versionId: string,
+  weekOf?: string,
+): Promise<TrainingWeek> {
+  assertPermission(context, "schedule.review");
+
+  const { data: version } = await context.db
+    .from("schedule_versions")
+    .select("id, applies_from")
+    .eq("tenant_id", context.tenant.id)
+    .eq("id", versionId)
+    .maybeSingle();
+
+  if (!version) throw new NotFoundError("schedule");
+
+  const zone = context.tenant.timezone;
+
+  const span = await scheduleSpan(context, versionId);
+
+  /*
+    Open on the first *whole* week. A schedule generated mid-week starts
+    mid-week, so its opening week shows only the days that were left — which
+    reads as "the optimizer ignored Monday" rather than "the schedule starts on
+    Wednesday". The partial week is still there, one step back.
+  */
+  const anchor = weekOf ?? defaultAnchor(span, version.applies_from, context.tenant.weekStart);
+  const weekStart = startOfWeek(anchor, context.tenant.weekStart);
+  const weekEnd = addDays(weekStart, 6);
+
+  const [entries, lookups] = await Promise.all([
+    fetchScheduleEntries(
+      context,
+      versionId,
+      startOfDayInZone(weekStart, zone).toISOString(),
+      endOfDayInZone(weekEnd, zone).toISOString(),
+      {},
+    ),
+    fetchLookups(context),
+  ]);
+
+  const items = entries
+    .map((entry) => toCalendarItem(entry, lookups))
+    .sort((a, b) => a.startAt.localeCompare(b.startAt));
+
+  return {
+    weekStart,
+    weekEnd,
+    previousWeek: addDays(weekStart, -7),
+    nextWeek: addDays(weekStart, 7),
+    days: Array.from({ length: 7 }, (_, offset) => {
+      const date = addDays(weekStart, offset);
+      return {
+        date,
+        isoWeekday: isoWeekdayOfDate(date),
+        items: items.filter((item) => toWallClock(item.startAt, zone).date === date),
+      };
+    }),
+    scheduledCount: items.filter((item) => item.status !== "CANCELLED").length,
+    coverageStart: span.first,
+  };
 }

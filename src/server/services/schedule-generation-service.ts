@@ -83,6 +83,7 @@ export async function buildScheduleInput(
   teamNames: Map<string, string>;
   weekStart: string;
   rawAvailability: RawAvailability;
+  teamStartDates: Map<string, string | null>;
 }> {
   assertPermission(context, "schedule.generate");
 
@@ -230,6 +231,7 @@ export async function buildScheduleInput(
         name: team.name,
         availability: await resolveFor("team", team.id),
         sessionsPerWeek: requirement?.sessions_per_week ?? 2,
+        priority: requirement?.priority ?? 3,
         durationMinutes: requirement?.duration_minutes ?? 90,
         allowedWeekdays: requirement?.allowed_weekdays ?? [],
         earliestStart: toMinutes(requirement?.earliest_start ?? "16:30"),
@@ -258,6 +260,11 @@ export async function buildScheduleInput(
     teamNames: new Map(teams.map((team) => [team.id, team.name])),
     weekStart,
     rawAvailability,
+    // Null means "start when the schedule starts", which is not the same as a
+    // date and must not be flattened into one.
+    teamStartDates: new Map(
+      teams.map((team) => [team.id, requirements.get(team.id)?.starts_on ?? null]),
+    ),
   };
 }
 
@@ -323,7 +330,10 @@ export async function generateAndStore(
   assertPermission(context, "schedule.generate");
 
   const season = await getSeason(context, options.seasonId);
-  const { input, weekStart, rawAvailability } = await buildScheduleInput(context, options);
+  const { input, weekStart, rawAvailability, teamStartDates } = await buildScheduleInput(
+    context,
+    options,
+  );
 
   if (input.teams.length === 0) {
     throw new ConflictError("There are no active teams in this season to schedule.");
@@ -364,6 +374,7 @@ export async function generateAndStore(
     from: weekStart,
     until: appliesUntil,
     rawAvailability,
+    teamStartDates,
   });
 
   const { data: version, error: versionError } = await context.db
@@ -471,6 +482,7 @@ async function planOccurrences(
     from: string;
     until: string;
     rawAvailability: RawAvailability;
+    teamStartDates: Map<string, string | null>;
   },
 ): Promise<{
   rows: Omit<
@@ -502,7 +514,15 @@ async function planOccurrences(
   for (const assignment of args.assignments) {
     const seriesId = randomUUID();
 
-    for (const date of occurrenceDates(args.from, assignment.isoWeekday, args.until)) {
+    /*
+      A team that starts later simply has no sessions before that date. Not a
+      skip with a reason — nothing was prevented, the team was not training
+      yet — so these never appear in the shortfall report.
+    */
+    const startsOn = args.teamStartDates.get(assignment.teamId) ?? null;
+    const from = startsOn && startsOn > args.from ? startsOn : args.from;
+
+    for (const date of occurrenceDates(from, assignment.isoWeekday, args.until)) {
       if (!covers(`gym:${assignment.gymId}`, date, assignment.window)) {
         skipped.push({ teamId: assignment.teamId, date, reason: "Gym unavailable that week" });
         continue;

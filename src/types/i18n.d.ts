@@ -1,5 +1,5 @@
 import type messages from "../../messages/en.json";
-import type { Locale } from "@/i18n/config";
+import type { FormattingLocale } from "@/i18n/config";
 
 /**
  * Makes translation keys type-checked.
@@ -10,7 +10,9 @@ import type { Locale } from "@/i18n/config";
  */
 declare module "next-intl" {
   interface AppConfig {
-    Locale: Locale;
+    // The active locale is the regional formatting tag ("en-GB"), not the
+    // stored one ("en"); `storedLocale()` converts back where that matters.
+    Locale: FormattingLocale;
     Messages: typeof messages;
   }
 }

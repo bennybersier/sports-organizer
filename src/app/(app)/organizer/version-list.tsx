@@ -1,9 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
-import { CalendarDays, Trash2, Undo2, Upload } from "lucide-react";
+import { toast } from "sonner";
+import { CalendarDays, Eye, Loader2, Trash2, Undo2, Upload } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -12,9 +13,13 @@ import { ConfirmDialog } from "@/components/data/confirm-dialog";
 import { useAction } from "@/hooks/use-action";
 import {
   discardVersionAction,
+  previewVersionWeekAction,
   publishScheduleAction,
   withdrawScheduleAction,
 } from "@/server/actions/organizer";
+import type { TrainingWeek } from "@/server/services/calendar-service";
+
+import { VersionPreview } from "./version-preview";
 
 export interface VersionSummary {
   id: string;
@@ -41,10 +46,13 @@ export function VersionList({
   versions,
   canPublish,
   canReview,
+  timezone,
 }: {
   versions: VersionSummary[];
   canPublish: boolean;
   canReview: boolean;
+  /** The club's zone: session times must read as the club's clock, not the browser's. */
+  timezone: string;
 }) {
   const t = useTranslations("organizer");
   const format = useFormatter();
@@ -52,6 +60,16 @@ export function VersionList({
   const [publishing, setPublishing] = useState<string | null>(null);
   const [discarding, setDiscarding] = useState<string | null>(null);
   const [withdrawing, setWithdrawing] = useState<string | null>(null);
+  // Holds the fetched week alongside the version, so the dialog mounts with
+  // content rather than loading itself into existence.
+  const [preview, setPreview] = useState<{
+    version: VersionSummary;
+    week: TrainingWeek;
+  } | null>(null);
+  // Its own transition: loading a preview must not disable publish and discard
+  // on every other row.
+  const [isLoadingPreview, startPreview] = useTransition();
+  const [loadingPreview, setLoadingPreview] = useState<string | null>(null);
 
   return (
     <>
@@ -90,12 +108,41 @@ export function VersionList({
                       </p>
                     </div>
 
-                    <Button asChild variant="ghost" size="sm">
-                      <Link href="/calendar">
-                        <CalendarDays aria-hidden />
-                        {t("openInCalendar")}
-                      </Link>
-                    </Button>
+                    {/*
+                      A draft is not on the calendar, so linking there showed an
+                      empty week. Drafts preview in place; only the published
+                      schedule has a calendar to open.
+                    */}
+                    {isPublished ? (
+                      <Button asChild variant="ghost" size="sm">
+                        <Link href="/calendar">
+                          <CalendarDays aria-hidden />
+                          {t("openInCalendar")}
+                        </Link>
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={isLoadingPreview}
+                        onClick={() => {
+                          setLoadingPreview(version.id);
+                          startPreview(async () => {
+                            const result = await previewVersionWeekAction(version.id);
+                            if (result.ok) setPreview({ version, week: result.data });
+                            else toast.error(result.error.message);
+                            setLoadingPreview(null);
+                          });
+                        }}
+                      >
+                        {isLoadingPreview && loadingPreview === version.id ? (
+                          <Loader2 className="animate-spin" aria-hidden />
+                        ) : (
+                          <Eye aria-hidden />
+                        )}
+                        {t("preview")}
+                      </Button>
+                    )}
 
                     {canPublish && !isPublished ? (
                       <Button size="sm" disabled={isPending} onClick={() => setPublishing(version.id)}>
@@ -153,6 +200,18 @@ export function VersionList({
           })
         }
       />
+
+      {preview ? (
+        <VersionPreview
+          versionId={preview.version.id}
+          versionLabel={
+            preview.version.name ?? t("versionNumber", { number: preview.version.number })
+          }
+          timezone={timezone}
+          initialWeek={preview.week}
+          onOpenChange={(next) => !next && setPreview(null)}
+        />
+      ) : null}
 
       <ConfirmDialog
         open={withdrawing !== null}

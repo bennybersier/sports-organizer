@@ -48,6 +48,15 @@ export interface EngineTeam {
 
   sessionsPerWeek: number;
   durationMinutes: number;
+  /**
+   * Booking priority, 1 (highest) to 5 (lowest).
+   *
+   * Placement order, not a score: a higher-priority team is served first and so
+   * gets first refusal on every contested slot. It never lets a team break a
+   * hard constraint — priority decides who gets a slot, not whether a slot is
+   * legal.
+   */
+  priority: number;
   allowedWeekdays: number[];
   earliestStart: number;
   latestEnd: number;

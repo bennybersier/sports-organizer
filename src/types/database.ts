@@ -324,6 +324,10 @@ export interface TeamTrainingRequirementRow extends Timestamps {
   season_id: string;
   sessions_per_week: number;
   duration_minutes: number;
+  /** Booking priority, 1 (highest) to 5 (lowest). */
+  priority: number;
+  /** First date this team trains; null follows the schedule. */
+  starts_on: string | null;
   allowed_weekdays: IsoWeekday[];
   earliest_start: string;
   latest_end: string;

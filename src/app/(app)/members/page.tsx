@@ -115,7 +115,7 @@ export default async function MembersPage() {
           <TableBody>
             {members.map((member) => (
               <TableRow key={member.membershipId}>
-                <TableCell>
+                <TableCell variant="primary">
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{member.fullName ?? member.email}</span>
                     {member.isSelf ? <Badge variant="secondary">{t("you")}</Badge> : null}
@@ -124,22 +124,22 @@ export default async function MembersPage() {
                     <div className="text-xs text-muted-foreground">{member.email}</div>
                   ) : null}
                 </TableCell>
-                <TableCell>
+                <TableCell data-label={t("role")}>
                   <Badge variant={member.roleRank === 0 ? "default" : "outline"}>
                     {roleLabel(tRoles, member.roleKey, member.roleName)}
                   </Badge>
                 </TableCell>
-                <TableCell className="text-sm text-muted-foreground">
+                <TableCell data-label={t("joined")} className="text-sm text-muted-foreground">
                   {format.dateTime(new Date(member.joinedAt), { dateStyle: "medium" })}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">
+                <TableCell data-label={t("overrides")} className="text-right tabular-nums">
                   {member.overrideCount > 0 ? (
                     <Badge variant="secondary">{member.overrideCount}</Badge>
                   ) : (
                     <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
-                <TableCell className="text-right">
+                <TableCell variant="actions" className="text-right">
                   <MemberRowActions
                     member={{
                       membershipId: member.membershipId,

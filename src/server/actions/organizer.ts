@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+
+import { getVersionWeek, type TrainingWeek } from "@/server/services/calendar-service";
 import { z } from "zod";
 
 import { runAction, parseInput, type ActionResult } from "@/lib/action";
@@ -69,6 +71,17 @@ export async function publishScheduleAction(versionId: string): Promise<ActionRe
  * To remove one entirely: withdraw, then discard. Two steps, so the
  * destructive one is deliberate.
  */
+/** One week of a draft, for the in-page preview. */
+export async function previewVersionWeekAction(
+  versionId: string,
+  weekOf?: string,
+): Promise<ActionResult<TrainingWeek>> {
+  return runAction(async () => {
+    const context = await requirePermission("schedule.review");
+    return getVersionWeek(context, versionId, weekOf);
+  });
+}
+
 export async function withdrawScheduleAction(versionId: string): Promise<ActionResult<null>> {
   return runAction(async () => {
     const context = await requirePermission("schedule.publish");

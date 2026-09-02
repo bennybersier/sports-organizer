@@ -119,7 +119,7 @@ export default async function TrainersPage({
               <TableBody>
                 {result.rows.map((trainer) => (
                   <TableRow key={trainer.id}>
-                    <TableCell>
+                    <TableCell variant="primary">
                       <div className="flex items-center gap-2">
                         {trainer.color ? (
                           <span
@@ -139,10 +139,10 @@ export default async function TrainersPage({
                         <div className="text-xs text-muted-foreground">{trainer.phone}</div>
                       ) : null}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell data-label={tCommon("email")} className="text-sm text-muted-foreground">
                       {trainer.email ?? "—"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label={t("qualifications")}>
                       <div className="flex flex-wrap gap-1">
                         {trainer.qualifications.length === 0 ? (
                           <span className="text-sm text-muted-foreground">—</span>
@@ -155,7 +155,7 @@ export default async function TrainersPage({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label={t("teams")}>
                       <div className="flex flex-wrap justify-end gap-1">
                         {trainer.teams.length === 0 ? (
                           // Worth saying out loud: the scheduler skips them.
@@ -174,10 +174,10 @@ export default async function TrainersPage({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label={tCommon("status")}>
                       <StatusBadge status={trainer.status} />
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell variant="actions" className="text-right">
                       <TrainerRowActions
                         trainer={{
                           id: trainer.id,

@@ -9,7 +9,7 @@ import {
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
 } from "@/components/ui/dropdown-menu";
-import { LOCALES, LOCALE_NAMES } from "@/i18n/config";
+import { LOCALES, LOCALE_NAMES, storedLocale } from "@/i18n/config";
 import { setLocale } from "@/server/actions/preferences";
 
 /**
@@ -19,7 +19,9 @@ import { setLocale } from "@/server/actions/preferences";
  * scans for "Italiano", not for "Italian" written in a language they can't read.
  */
 export function LocaleToggle() {
-  const current = useLocale();
+  // The active locale is a formatting tag ("en-GB"); the picker deals in
+  // stored locales ("en").
+  const current = storedLocale(useLocale());
   const t = useTranslations("errors");
   const [isPending, startTransition] = useTransition();
 

@@ -115,7 +115,7 @@ export default async function GymsPage({
               <TableBody>
                 {result.rows.map((gym) => (
                   <TableRow key={gym.id}>
-                    <TableCell>
+                    <TableCell variant="primary">
                       <div className="flex items-center gap-2">
                         {gym.color ? (
                           <span
@@ -129,10 +129,10 @@ export default async function GymsPage({
                         </Link>
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell data-label={t("location")} className="text-sm text-muted-foreground">
                       {[gym.address_line1, gym.city].filter(Boolean).join(", ") || "—"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label={t("sportTypes")}>
                       <div className="flex flex-wrap gap-1">
                         {gym.sport_types.length === 0 ? (
                           <span className="text-sm text-muted-foreground">—</span>
@@ -145,13 +145,13 @@ export default async function GymsPage({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
+                    <TableCell data-label={t("capacity")} className="text-right tabular-nums">
                       {gym.capacity ?? "—"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label={tCommon("status")}>
                       <StatusBadge status={gym.status} />
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell variant="actions" className="text-right">
                       <GymRowActions
                         gym={{
                           id: gym.id,

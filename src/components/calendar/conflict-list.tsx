@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { AlertTriangle, CheckCircle2, Info, XCircle } from "lucide-react";
 
 import type { Finding, PlacementSeverity } from "@/domain/scheduling/conflicts";
+import { useFindingText } from "./use-finding-text";
 
 const ICONS = {
   VALID: CheckCircle2,
@@ -34,6 +35,7 @@ export function ConflictList({
   findings: Finding[];
 }) {
   const t = useTranslations("conflicts");
+  const findingText = useFindingText();
 
   if (findings.length === 0) {
     return (
@@ -53,9 +55,7 @@ export function ConflictList({
             <Icon className={`mt-0.5 size-4 shrink-0 ${TONES[finding.severity]}`} aria-hidden />
             <span>
               <span className="sr-only">{t(finding.severity)}: </span>
-              {/* Values are interpolated by ICU; a missing one degrades to the
-                  base sentence rather than showing a raw placeholder. */}
-              {t(finding.code, { team: "", expected: 0, actual: 0, ...finding.values })}
+              {findingText(finding.code, finding.values)}
             </span>
           </li>
         );

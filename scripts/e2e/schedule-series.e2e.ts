@@ -14,7 +14,15 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { Permission } from "@/domain/permissions";
 import type { AuthContext } from "@/server/auth/context";
-import { generateAndStore } from "@/server/services/schedule-generation-service";
+import {
+  getTeamTrainingWeek,
+  getVersionWeek,
+  listCalendarItems,
+} from "@/server/services/calendar-service";
+import {
+  buildScheduleInput,
+  generateAndStore,
+} from "@/server/services/schedule-generation-service";
 import {
   cancelScheduleSeries,
   restoreScheduleSeries,
@@ -39,6 +47,8 @@ let tenantId = "";
 let userId = "";
 let context: AuthContext;
 let rows: Row[] = [];
+let versionId = "";
+const teamIds: string[] = [];
 let bySeries: Row[][] = [];
 let dates: string[] = [];
 
@@ -111,10 +121,13 @@ beforeAll(async () => {
       team_id: team.id,
       sessions_per_week: 1,
       duration_minutes: 90,
+      // U16 outranks U18, so a contested slot goes to U16.
+      priority: name === "U16" ? 1 : 5,
       earliest_start: "17:00",
       latest_end: "22:00",
     });
     teams.push(team);
+    teamIds.push(team.id);
   }
 
   // Hall and coach free Monday and Wednesday evenings, all season long.
@@ -174,7 +187,16 @@ beforeAll(async () => {
     db,
   } as unknown as AuthContext;
 
-  const { versionId } = await generateAndStore(context, { seasonId: season.id });
+  ({ versionId } = await generateAndStore(context, { seasonId: season.id }));
+
+  // The team week reads the published schedule, which is what a club sees.
+  // Published through the service-role entry point because this process holds
+  // no session for auth.uid() to find.
+  const { error: publishError } = await db.rpc("internal_publish_schedule_version", {
+    p_version_id: versionId,
+    p_user_id: userId,
+  });
+  if (publishError) throw new Error(`publish: ${publishError.message}`);
 
   const { data: entries } = await db
     .from("schedule_entries")
@@ -245,5 +267,127 @@ describe("cancelling an event", () => {
     expect(await statuses(other.map((row) => row.id))).not.toContain("CANCELLED");
 
     expect(await restoreScheduleSeries(context, third.id)).toBe(cancelled);
+  });
+});
+
+describe("a team's training week", () => {
+  it("lands on the week of the team's next session", async () => {
+    const week = await getTeamTrainingWeek(context, teamIds[0]);
+
+    expect(week.days).toHaveLength(7);
+    // Weeks start on the club's configured first day.
+    expect(new Date(`${week.weekStart}T00:00:00Z`).getUTCDay()).toBe(1);
+    expect(week.scheduledCount).toBeGreaterThan(0);
+
+    // Every session shown belongs to this team and to the week shown.
+    const shown = week.days.flatMap((day) => day.items);
+    expect(shown.every((item) => item.teamId === teamIds[0])).toBe(true);
+    for (const day of week.days) {
+      expect(day.items.every((item) => item.startAt.slice(0, 10) === day.date)).toBe(true);
+    }
+  });
+
+  it("shows the requested week when one is given, and counts only live sessions", async () => {
+    const anchor = await getTeamTrainingWeek(context, teamIds[0]);
+    const next = await getTeamTrainingWeek(context, teamIds[0], anchor.nextWeek);
+    expect(next.weekStart).toBe(anchor.nextWeek);
+
+    const session = next.days.flatMap((day) => day.items)[0];
+    expect(session).toBeDefined();
+
+    await db
+      .from("schedule_entries")
+      .update({ status: "CANCELLED" })
+      .eq("id", session.id);
+
+    const after = await getTeamTrainingWeek(context, teamIds[0], anchor.nextWeek);
+    // Still visible — a cancelled session must not silently disappear — but
+    // no longer counted as training that is going ahead.
+    expect(after.days.flatMap((day) => day.items).some((item) => item.id === session.id)).toBe(true);
+    expect(after.scheduledCount).toBe(next.scheduledCount - 1);
+  });
+});
+
+describe("previewing a draft", () => {
+  it("shows a draft's sessions that the calendar deliberately hides", async () => {
+    // A second generation, left unpublished — exactly the state the organizer's
+    // "view in calendar" used to open an empty week for.
+    const { versionId: draftId } = await generateAndStore(context, {
+      seasonId: (await db.from("seasons").select("id").eq("tenant_id", tenantId).single()).data!.id,
+    });
+
+    const week = await getVersionWeek(context, draftId);
+    const sessions = week.days.flatMap((day) => day.items);
+    expect(sessions.length).toBeGreaterThan(0);
+
+    // The club's calendar still shows only the published schedule, so none of
+    // the draft's sessions leak into it.
+    const onCalendar = await listCalendarItems(context, week.weekStart, week.weekEnd);
+    const draftIds = new Set(sessions.map((session) => session.id));
+    expect(onCalendar.some((item) => draftIds.has(item.id))).toBe(false);
+
+    // Stepping a week returns the week asked for.
+    const next = await getVersionWeek(context, draftId, week.nextWeek);
+    expect(next.weekStart).toBe(week.nextWeek);
+  });
+});
+
+describe("booking priority", () => {
+  it("reaches the engine from the team's saved requirements", async () => {
+    const { data: season } = await db
+      .from("seasons").select("id").eq("tenant_id", tenantId).single();
+    const { input } = await buildScheduleInput(context, { seasonId: season!.id });
+
+    const priorities = Object.fromEntries(input.teams.map((team) => [team.name, team.priority]));
+    expect(priorities).toEqual({ U16: 1, U18: 5 });
+
+    // And it survives an edit rather than being read once at creation.
+    await db
+      .from("team_training_requirements")
+      .update({ priority: 2 })
+      .eq("tenant_id", tenantId)
+      .eq("team_id", teamIds[1]);
+
+    const reloaded = await buildScheduleInput(context, { seasonId: season!.id });
+    expect(reloaded.input.teams.find((team) => team.name === "U18")?.priority).toBe(2);
+  });
+});
+
+describe("a team's first training date", () => {
+  it("delays that team only, and leaves the rest of the season intact", async () => {
+    const { data: season } = await db
+      .from("seasons").select("id").eq("tenant_id", tenantId).single();
+
+    // U18 comes back three weeks after everyone else.
+    const LATE_START = "2026-09-28";
+    await db
+      .from("team_training_requirements")
+      .update({ starts_on: LATE_START })
+      .eq("tenant_id", tenantId)
+      .eq("team_id", teamIds[1]);
+
+    const { versionId: delayed } = await generateAndStore(context, { seasonId: season!.id });
+
+    const { data: entries } = await db
+      .from("schedule_entries")
+      .select("team_id, start_at")
+      .eq("schedule_version_id", delayed)
+      .order("start_at");
+
+    const dates = (teamId: string) =>
+      (entries ?? []).filter((row) => row.team_id === teamId).map((row) => row.start_at.slice(0, 10));
+
+    const late = dates(teamIds[1]);
+    const others = dates(teamIds[0]);
+
+    expect(late.length).toBeGreaterThan(0);
+    expect(late.every((date) => date >= LATE_START)).toBe(true);
+
+    // The delay is the team's own: everyone else still starts at the top.
+    expect(others.some((date) => date < LATE_START)).toBe(true);
+
+    // And the season still runs to the end for the delayed team — this trims
+    // the front of the series, it does not shorten it to a single week.
+    expect(late.at(-1)! > "2026-11-25").toBe(true);
   });
 });

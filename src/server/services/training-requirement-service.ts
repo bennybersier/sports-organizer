@@ -14,6 +14,10 @@ export interface TrainingRequirement {
   seasonId: string;
   sessionsPerWeek: number;
   durationMinutes: number;
+  /** 1 (highest) to 5 (lowest). Decides who gets a contested slot. */
+  priority: number;
+  /** First date this team trains. Null starts with the schedule. */
+  startsOn: string | null;
   allowedWeekdays: number[];
   earliestStart: string;
   latestEnd: string;
@@ -35,6 +39,8 @@ export function defaultRequirement(teamId: string, seasonId: string): TrainingRe
     seasonId,
     sessionsPerWeek: 2,
     durationMinutes: 90,
+    priority: 3,
+    startsOn: null,
     allowedWeekdays: [1, 2, 3, 4, 5],
     earliestStart: "16:30",
     latestEnd: "22:00",
@@ -56,6 +62,8 @@ function fromRow(row: TeamTrainingRequirementRow): TrainingRequirement {
     seasonId: row.season_id,
     sessionsPerWeek: row.sessions_per_week,
     durationMinutes: row.duration_minutes,
+    priority: row.priority,
+    startsOn: row.starts_on,
     allowedWeekdays: row.allowed_weekdays,
     earliestStart: normalizeTime(row.earliest_start),
     latestEnd: normalizeTime(row.latest_end),
@@ -111,6 +119,8 @@ export async function saveTrainingRequirement(
         season_id: input.seasonId,
         sessions_per_week: input.sessionsPerWeek,
         duration_minutes: input.durationMinutes,
+        priority: input.priority,
+        starts_on: input.startsOn,
         allowed_weekdays: input.allowedWeekdays as IsoWeekday[],
         earliest_start: input.earliestStart,
         latest_end: input.latestEnd,
@@ -148,6 +158,8 @@ export async function saveTrainingRequirement(
       team: input.teamId,
       sessions_per_week: input.sessionsPerWeek,
       duration_minutes: input.durationMinutes,
+      priority: input.priority,
+      starts_on: input.startsOn,
     },
   });
 

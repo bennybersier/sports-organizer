@@ -96,7 +96,7 @@ export default async function SeasonsPage({
               <TableBody>
                 {result.rows.map((season) => (
                   <TableRow key={season.id}>
-                    <TableCell>
+                    <TableCell variant="primary">
                       <div className="font-medium">{season.name}</div>
                       {season.description ? (
                         <div className="line-clamp-1 text-xs text-muted-foreground">
@@ -104,20 +104,20 @@ export default async function SeasonsPage({
                         </div>
                       ) : null}
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell data-label={t("dates")} className="text-sm text-muted-foreground">
                       {format.dateTime(new Date(season.start_date), { dateStyle: "medium" })}
                       {" – "}
                       {format.dateTime(new Date(season.end_date), { dateStyle: "medium" })}
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label={t("status")}>
                       <Badge
                         variant={season.status === "ACTIVE" ? "default" : "secondary"}
                       >
                         {t(season.status)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{season.team_count}</TableCell>
-                    <TableCell className="text-right">
+                    <TableCell data-label={t("teams")} className="text-right tabular-nums">{season.team_count}</TableCell>
+                    <TableCell variant="actions" className="text-right">
                       <SeasonRowActions
                         season={{
                           id: season.id,

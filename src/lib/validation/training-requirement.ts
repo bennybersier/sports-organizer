@@ -26,6 +26,13 @@ export const trainingRequirementSchema = z
 
     sessionsPerWeek: z.coerce.number().int().min(0).max(14),
     durationMinutes: z.coerce.number().int().min(15).max(480),
+    // 1 (highest) to 5 (lowest), matching the database constraint.
+    priority: z.coerce.number().int().min(1).max(5).default(3),
+    // Empty means "start with the schedule", which is not the same as a date.
+    startsOn: z
+      .union([z.literal(""), z.iso.date()])
+      .optional()
+      .transform((value) => value || null),
     allowedWeekdays: weekdays,
     earliestStart: timeSchema,
     latestEnd: timeSchema,

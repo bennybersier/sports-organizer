@@ -168,7 +168,7 @@ export default async function TeamsPage({
               <TableBody>
                 {result.rows.map((team) => (
                   <TableRow key={team.id}>
-                    <TableCell>
+                    <TableCell variant="primary">
                       <div className="flex items-center gap-2">
                         <span
                           className="size-2.5 shrink-0 rounded-full"
@@ -185,16 +185,16 @@ export default async function TeamsPage({
                           .join(" · ") || "—"}
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm">{team.sport}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell data-label={tCommon("sport")} className="text-sm">{team.sport}</TableCell>
+                    <TableCell data-label={tCommon("season")} className="text-sm text-muted-foreground">
                       {team.season_name}
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">{team.athlete_count}</TableCell>
-                    <TableCell className="text-right tabular-nums">{team.trainer_count}</TableCell>
-                    <TableCell>
+                    <TableCell data-label={t("athletes")} className="text-right tabular-nums">{team.athlete_count}</TableCell>
+                    <TableCell data-label={t("trainers")} className="text-right tabular-nums">{team.trainer_count}</TableCell>
+                    <TableCell data-label={tCommon("status")}>
                       <StatusBadge status={team.status} />
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell variant="actions" className="text-right">
                       <TeamRowActions
                         team={{
                           id: team.id,

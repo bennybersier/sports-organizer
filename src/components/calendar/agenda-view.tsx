@@ -6,6 +6,7 @@ import { CalendarDays } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/data/empty-state";
 import { cn } from "@/lib/utils";
+import { SHORT_TIME_FORMAT } from "@/lib/time-format";
 import type { CalendarItem } from "@/server/services/calendar-service";
 
 /**
@@ -65,7 +66,7 @@ export function AgendaView({
                   <span className="w-28 shrink-0 text-sm tabular-nums">
                     {item.allDay
                       ? t("allDay")
-                      : `${format.dateTime(new Date(item.startAt), { timeStyle: "short", timeZone })}–${format.dateTime(new Date(item.endAt), { timeStyle: "short", timeZone })}`}
+                      : `${format.dateTime(new Date(item.startAt), { ...SHORT_TIME_FORMAT, timeZone })}–${format.dateTime(new Date(item.endAt), { ...SHORT_TIME_FORMAT, timeZone })}`}
                   </span>
                   <span
                     className={cn(

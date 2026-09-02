@@ -124,7 +124,7 @@ export default async function AthletesPage({
               <TableBody>
                 {result.rows.map((athlete) => (
                   <TableRow key={athlete.id}>
-                    <TableCell>
+                    <TableCell variant="primary">
                       <div className="font-medium">
                         {athlete.first_name} {athlete.last_name}
                       </div>
@@ -132,7 +132,7 @@ export default async function AthletesPage({
                         <div className="text-xs text-muted-foreground">{athlete.email}</div>
                       ) : null}
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label={t("teams")}>
                       <div className="flex flex-wrap gap-1">
                         {athlete.teams.length === 0 ? (
                           <span className="text-sm text-muted-foreground">{t("noTeams")}</span>
@@ -150,19 +150,19 @@ export default async function AthletesPage({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
+                    <TableCell data-label={t("dateOfBirth")} className="text-sm text-muted-foreground">
                       {athlete.date_of_birth
                         ? format.dateTime(new Date(athlete.date_of_birth), { dateStyle: "medium" })
                         : "—"}
                     </TableCell>
-                    <TableCell>
+                    <TableCell data-label={t("membershipStatus")}>
                       <Badge
                         variant={athlete.membership_status === "ACTIVE" ? "secondary" : "outline"}
                       >
                         {tMembership(athlete.membership_status)}
                       </Badge>
                     </TableCell>
-                    <TableCell className="text-right">
+                    <TableCell variant="actions" className="text-right">
                       <AthleteRowActions
                         athlete={{
                           id: athlete.id,

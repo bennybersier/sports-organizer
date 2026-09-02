@@ -20,7 +20,15 @@ import { getSeason } from "@/server/services/season-service";
 import { getTeam } from "@/server/services/team-service";
 import { getTrainingRequirement } from "@/server/services/training-requirement-service";
 
+import { getTeamTrainingWeek } from "@/server/services/calendar-service";
+
 import { RequirementsForm } from "./requirements-form";
+import { TrainingWeek } from "./training-week";
+
+/** Guards the week query param: anything else falls back to the next session. */
+function isIsoDate(value: string | undefined): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
 
 export async function generateMetadata({
   params,
@@ -37,7 +45,15 @@ export async function generateMetadata({
   }
 }
 
-export default async function TeamDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function TeamDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  // The week being viewed lives in the URL so it survives a refresh and can be
+  // linked to — "here is the week we are arguing about" is a real message.
+  searchParams: Promise<{ week?: string }>;
+}) {
   const context = await requireAuthContext();
   if (!hasPermission(context, "teams.read")) return <AccessDenied />;
 
@@ -54,23 +70,28 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
     throw error;
   }
 
+  const { week: weekParam } = await searchParams;
   const canEditTeam = hasPermission(context, "teams.update");
+  const canReadCalendar = hasPermission(context, "calendar.read");
   const canReadAvailability = hasPermission(context, "availability.read");
   const canEditAvailability = hasPermission(context, "availability.create");
 
   const today = new Date().toISOString().slice(0, 10);
-  const [season, requirement, gyms, windows, exceptions] = await Promise.all([
+  const [season, requirement, gyms, windows, exceptions, trainingWeek] = await Promise.all([
     getSeason(context, team.season_id),
     getTrainingRequirement(context, id, team.season_id),
     hasPermission(context, "gyms.read") ? listGymOptions(context) : Promise.resolve([]),
     canReadAvailability ? listAvailability(context, "team", id) : Promise.resolve([]),
     canReadAvailability ? listExceptions(context, "team", id, { from: today }) : Promise.resolve([]),
+    canReadCalendar
+      ? getTeamTrainingWeek(context, id, isIsoDate(weekParam) ? weekParam : undefined)
+      : Promise.resolve(null),
   ]);
 
   const gymOptions = gyms.map((gym) => ({ value: gym.id, label: gym.name }));
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <Button asChild variant="ghost" size="sm" className="-ml-2 w-fit">
         <Link href="/teams">
           <ArrowLeft aria-hidden />
@@ -112,6 +133,15 @@ export default async function TeamDetailPage({ params }: { params: Promise<{ id:
           ) : null}
         </CardContent>
       </Card>
+
+      {trainingWeek ? (
+        <TrainingWeek
+          teamId={team.id}
+          week={trainingWeek}
+          timezone={context.tenant.timezone}
+          requiredPerWeek={requirement?.sessionsPerWeek ?? null}
+        />
+      ) : null}
 
       <RequirementsForm requirement={requirement} gyms={gymOptions} canEdit={canEditTeam} />
 

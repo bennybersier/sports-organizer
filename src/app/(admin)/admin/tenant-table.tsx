@@ -69,20 +69,20 @@ export function TenantTable({ tenants }: { tenants: AdminTenant[] }) {
         <TableBody>
           {tenants.map((tenant) => (
             <TableRow key={tenant.id}>
-              <TableCell>
+              <TableCell variant="primary">
                 <div className="font-medium">{tenant.name}</div>
                 <div className="text-xs text-muted-foreground">/{tenant.slug}</div>
               </TableCell>
-              <TableCell>
+              <TableCell data-label={t("status")}>
                 <Badge variant={tenant.deleted_at ? "destructive" : "secondary"}>
                   {tenant.deleted_at ? t("deleted") : tenant.status}
                 </Badge>
               </TableCell>
-              <TableCell className="text-right tabular-nums">{tenant.member_count}</TableCell>
-              <TableCell className="text-right tabular-nums">{tenant.season_count}</TableCell>
-              <TableCell className="text-right tabular-nums">{tenant.team_count}</TableCell>
-              <TableCell className="text-right tabular-nums">{tenant.athlete_count}</TableCell>
-              <TableCell className="text-right">
+              <TableCell data-label={t("members")} className="text-right tabular-nums">{tenant.member_count}</TableCell>
+              <TableCell data-label={t("seasons")} className="text-right tabular-nums">{tenant.season_count}</TableCell>
+              <TableCell data-label={t("teams")} className="text-right tabular-nums">{tenant.team_count}</TableCell>
+              <TableCell data-label={t("athletes")} className="text-right tabular-nums">{tenant.athlete_count}</TableCell>
+              <TableCell variant="actions" className="text-right">
                 <Button
                   size="sm"
                   variant="outline"

@@ -1,7 +1,15 @@
 import { cookies, headers } from "next/headers";
 import { getRequestConfig } from "next-intl/server";
 
-import { DEFAULT_LOCALE, LOCALE_COOKIE, isLocale, matchLocale, type Locale } from "./config";
+import {
+  DEFAULT_LOCALE,
+  FORMATTING_LOCALES,
+  LOCALE_COOKIE,
+  isLocale,
+  matchLocale,
+  type FormattingLocale,
+  type Locale,
+} from "./config";
 
 /**
  * Resolves the locale for the current request, in order of how deliberate the
@@ -30,7 +38,12 @@ export default getRequestConfig(async () => {
   const locale = await resolveLocale();
 
   return {
-    locale,
+    /*
+      The regional tag, not the stored one: everything Intl does — date order,
+      month names, number grouping — follows this, and "en" alone formats dates
+      the American way. Messages still load by the stored locale.
+    */
+    locale: FORMATTING_LOCALES[locale] as FormattingLocale,
     messages: (await import(`../../messages/${locale}.json`)).default,
     // The club's timezone governs scheduling; this only affects how absolute
     // times are rendered when a component does not specify one.

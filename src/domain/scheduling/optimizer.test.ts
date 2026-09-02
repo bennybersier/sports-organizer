@@ -29,6 +29,7 @@ const team = (id: string, overrides: Partial<EngineTeam> = {}): EngineTeam => ({
   availability: {},
   sessionsPerWeek: 2,
   durationMinutes: 90,
+  priority: 3,
   allowedWeekdays: [1, 2, 3, 4, 5],
   earliestStart: 960,
   latestEnd: 1320,
@@ -273,7 +274,128 @@ describe("preferences steer without blocking", () => {
   });
 });
 
+describe("team priority", () => {
+  /*
+    One hall, one evening, two teams that both want it. Without priority the
+    winner is whichever team the most-constrained heuristic happens to favour,
+    which is not a decision a club can make.
+  */
+  // Exactly one 90-minute session fits, so the two teams genuinely compete.
+  const oneSlot = { start: 18 * 60, end: 19 * 60 + 30 };
+  const tightHall = { id: "hall", name: "hall", availability: { 1: [oneSlot] } };
+  const coach = {
+    id: "tr1",
+    name: "tr1",
+    teamIds: ["first", "second"],
+    availability: { 1: [oneSlot] },
+  };
+
+  const contested = (priorities: { first: number; second: number }) =>
+    run({
+      teams: [
+        team("first", { sessionsPerWeek: 1, allowedWeekdays: [1], priority: priorities.first }),
+        team("second", { sessionsPerWeek: 1, allowedWeekdays: [1], priority: priorities.second }),
+      ],
+      gyms: [tightHall],
+      trainers: [coach],
+    });
+
+  it("gives the contested slot to the higher-priority team", () => {
+    const result = contested({ first: 1, second: 5 });
+    expect(result.assignments.map((a) => a.teamId)).toEqual(["first"]);
+    expect(result.unmet.map((u) => u.teamId)).toEqual(["second"]);
+  });
+
+  it("reverses when the priorities reverse", () => {
+    const result = contested({ first: 5, second: 1 });
+    expect(result.assignments.map((a) => a.teamId)).toEqual(["second"]);
+    expect(result.unmet.map((u) => u.teamId)).toEqual(["first"]);
+  });
+
+  it("still respects hard constraints — priority buys order, not exemptions", () => {
+    // The first team may not use the only hall that is open.
+    const result = run({
+      teams: [
+        team("first", { sessionsPerWeek: 1, allowedWeekdays: [1], priority: 1, allowedGymIds: ["other"] }),
+        team("second", { sessionsPerWeek: 1, allowedWeekdays: [1], priority: 5 }),
+      ],
+      gyms: [tightHall],
+      trainers: [coach],
+    });
+
+    expect(result.assignments.map((a) => a.teamId)).toEqual(["second"]);
+  });
+
+  it("falls back to most-constrained-first when priorities are equal", () => {
+    const result = run({
+      teams: [
+        // Only Monday works for this one; the other can use the whole week.
+        team("narrow", { sessionsPerWeek: 1, allowedWeekdays: [1] }),
+        team("wide", { sessionsPerWeek: 1 }),
+      ],
+      gyms: [gym("hall", [1, 2, 3, 4, 5])],
+      trainers: [trainer("tr1", ["narrow", "wide"], [1, 2, 3, 4, 5])],
+    });
+
+    // Both fit, because the flexible team simply moves to another evening.
+    expect(result.assignments).toHaveLength(2);
+  });
+});
+
 describe("capacity and impossibility", () => {
+  /*
+    The real shape that prompted this: a team asking for four sessions on
+    Mon/Tue/Thu/Fri, where Tuesday has no hall open at all and Thursday's only
+    hall opens at 20:00 — exactly when the coach goes home. The team can train
+    twice a week and no rescheduling changes that, so saying "the hall was
+    already booked" would send an organizer hunting for the wrong thing.
+  */
+  it("says a team cannot reach its weekly total, and which days fail", () => {
+    const evenings = (days: number[], window: { start: number; end: number }) =>
+      Object.fromEntries(days.map((day) => [day, [window]]));
+
+    const result = run({
+      teams: [team("t1", { sessionsPerWeek: 4, allowedWeekdays: [1, 2, 4, 5] })],
+      gyms: [
+        { id: "casale", name: "Casale", availability: evenings([1, 3, 5], { start: 1080, end: 1200 }) },
+        { id: "sede", name: "Sede", availability: evenings([1, 4], { start: 1200, end: 1320 }) },
+      ],
+      trainers: [
+        {
+          id: "karim",
+          name: "Karim",
+          teamIds: ["t1"],
+          availability: evenings([1, 2, 3, 4, 5], { start: 1020, end: 1200 }),
+        },
+      ],
+    });
+
+    const reasons = result.unmet[0].reasons;
+    const codes = reasons.map((reason) => reason.code);
+
+    expect(result.assignments).toHaveLength(2);
+    expect(codes).toContain("WEEKLY_CAPACITY");
+    expect(reasons.find((r) => r.code === "WEEKLY_CAPACITY")?.values).toMatchObject({
+      usableDays: 2,
+      requested: 4,
+    });
+
+    // Tuesday is nobody's fault but the hall calendar's.
+    expect(reasons.find((r) => r.code === "DAY_NO_GYM_OPEN")?.values).toMatchObject({ weekday: 2 });
+
+    // Thursday names both sides, which is the actionable half.
+    expect(reasons.find((r) => r.code === "DAY_NO_OVERLAP")?.values).toMatchObject({
+      weekday: 4,
+      gym: "Sede",
+      gymFrom: 1200,
+      trainer: "Karim",
+      trainerUntil: 1200,
+    });
+
+    // And it must not blame contention, which was the misleading answer before.
+    expect(codes).not.toContain("GYM_DOUBLE_BOOKED");
+  });
+
   it("explains that no gym is available at all", () => {
     const result = run({ teams: [team("t1")], gyms: [], trainers: [] });
     expect(result.assignments).toHaveLength(0);

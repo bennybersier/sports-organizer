@@ -1,5 +1,11 @@
 import { overlaps, type IsoWeekday } from "../availability";
 import { generateCandidates, diagnoseNoCandidates, type Candidate } from "./candidates";
+import {
+  analyseWeekdays,
+  suggestFixes,
+  weeklyCeiling,
+  type WeekdayCapacity,
+} from "./capacity";
 import { circularDayGap, scoreCandidate, type ScoreContext } from "./scoring";
 import type { Finding } from "./conflicts";
 import {
@@ -130,11 +136,17 @@ export function generateSchedule(input: ScheduleInput): GenerationResult {
   }
 
   /*
-    Most-constrained-first. Teams with the least room are placed while there is
-    still room; ties break on more sessions first, then on id so the ordering is
-    total and the run is reproducible.
+    Priority first, then most-constrained-first.
+
+    A club's ranking is a decision, not a heuristic: if the first team must have
+    the main hall on Tuesday, no amount of "the under-13s had fewer options"
+    should outrank that. So teams are served in priority order, and the
+    most-constrained rule — which is a good tie-breaker and a poor policy —
+    settles teams of equal priority. Ties then break on more sessions first,
+    then on id, so the ordering is total and the run reproducible.
   */
   const order = [...input.teams].sort((a, b) => {
+    if (a.priority !== b.priority) return a.priority - b.priority;
     const roomA = (candidatesByTeam.get(a.id)?.length ?? 0) / Math.max(1, a.sessionsPerWeek);
     const roomB = (candidatesByTeam.get(b.id)?.length ?? 0) / Math.max(1, b.sessionsPerWeek);
     if (roomA !== roomB) return roomA - roomB;
@@ -227,11 +239,37 @@ export function generateSchedule(input: ScheduleInput): GenerationResult {
 
   /** Why a team could not get everything it asked for. */
   function explainShortfall(team: EngineTeam, candidates: Candidate[]): Finding[] {
+    // With nothing placeable at all, the setup diagnosis is the sharper
+    // answer: "no gym is allowed for this team" beats counting usable days.
     if (candidates.length === 0) {
       return diagnoseNoCandidates(team, input.gyms, input.trainers).map((code) => ({
         code: code as Finding["code"],
         severity: "CONFLICT" as const,
       }));
+    }
+
+    /*
+      Some placements were possible, so before blaming contention check the
+      ceiling: a team wanting four sessions on days where only two can ever
+      host one is short for a reason no amount of rescheduling touches, and
+      reporting "the hall was already booked" sends an organizer hunting for a
+      clash that is not the problem.
+    */
+    const days = analyseWeekdays(team, input.gyms, input.trainers);
+    const ceiling = weeklyCeiling(team, days);
+
+    if (ceiling !== null && ceiling < team.sessionsPerWeek) {
+      return [
+        {
+          code: "WEEKLY_CAPACITY",
+          severity: "CONFLICT",
+          values: { usableDays: ceiling, requested: team.sessionsPerWeek },
+        },
+        ...days.filter((day) => day.blocker !== "USABLE").map(blockedDayFinding),
+        ...suggestFixes(team, days).map(
+          (suggestion): Finding => ({ ...suggestion, severity: "WARNING" }),
+        ),
+      ];
     }
 
     // Candidates existed but were taken. Say which resource ran out, since that
@@ -250,6 +288,9 @@ export function generateSchedule(input: ScheduleInput): GenerationResult {
           severity: "CONFLICT",
           values: { considered: candidates.length },
         },
+        // Nothing is misconfigured here — the club has simply run out of room,
+        // so the fix is capacity rather than a correction.
+        { code: "SUGGEST_MORE_CAPACITY", severity: "WARNING", values: { team: team.name } },
       ];
     }
 
@@ -284,4 +325,36 @@ export function generateSchedule(input: ScheduleInput): GenerationResult {
       elapsedMs: Date.now() - startedAt,
     },
   };
+}
+
+/** One blocked weekday, as data the UI can phrase. */
+function blockedDayFinding(day: WeekdayCapacity): Finding {
+  const base: Record<string, string | number> = { weekday: day.isoWeekday };
+  const gym: Record<string, string | number> = day.gym
+    ? { gym: day.gym.name, gymFrom: day.gym.from, gymUntil: day.gym.until }
+    : {};
+  const trainer: Record<string, string | number> = day.trainer
+    ? { trainer: day.trainer.name, trainerFrom: day.trainer.from, trainerUntil: day.trainer.until }
+    : {};
+
+  switch (day.blocker) {
+    case "NO_GYM_OPEN":
+      return { code: "DAY_NO_GYM_OPEN", severity: "CONFLICT", values: base };
+    case "NO_TRAINER_AVAILABLE":
+      return { code: "DAY_NO_TRAINER", severity: "CONFLICT", values: { ...base, ...gym } };
+    case "TEAM_UNAVAILABLE":
+      return { code: "DAY_TEAM_UNAVAILABLE", severity: "CONFLICT", values: base };
+    case "WINDOW_TOO_SHORT":
+      return {
+        code: "DAY_WINDOW_TOO_SHORT",
+        severity: "CONFLICT",
+        values: { ...base, ...gym, ...trainer, minutes: day.longestOverlap ?? 0 },
+      };
+    default:
+      return {
+        code: "DAY_NO_OVERLAP",
+        severity: "CONFLICT",
+        values: { ...base, ...gym, ...trainer },
+      };
+  }
 }

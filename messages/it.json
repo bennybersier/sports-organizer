@@ -360,7 +360,10 @@
     "archiveConfirmTitle": "Archiviare questa squadra?",
     "archiveConfirmBody": "Lo storico e i calendari passati vengono conservati.",
     "allSeasons": "Tutte le stagioni",
-    "allSports": "Tutti gli sport"
+    "allSports": "Tutti gli sport",
+    "trainingWeek": "Settimana di allenamenti",
+    "sessionsThisWeek": "{count} di {required} allenamenti",
+    "noTrainingThisWeek": "Nessun allenamento programmato questa settimana. Genera e pubblica un calendario nell'Organizzatore intelligente oppure sfoglia le settimane qui sopra."
   },
   "athletes": {
     "title": "Atleti",
@@ -462,7 +465,16 @@
     "preferredGyms": "Palestre preferite",
     "save": "Salva requisiti",
     "saved": "Requisiti di allenamento salvati.",
-    "noSeason": "Serve la stagione della squadra prima di poter impostare i requisiti."
+    "noSeason": "Serve la stagione della squadra prima di poter impostare i requisiti.",
+    "priority": "Priorità di prenotazione",
+    "priority1": "1 — Massima",
+    "priority2": "2 — Alta",
+    "priority3": "3 — Normale",
+    "priority4": "4 — Bassa",
+    "priority5": "5 — Minima",
+    "priorityHint": "Quando due squadre vogliono lo stesso spazio, lo ottiene quella con priorità più alta. Non consente mai di violare una regola: stabilisce solo chi viene servito per primo.",
+    "startsOn": "Primo giorno di allenamento",
+    "startsOnHint": "Lascia vuoto per iniziare insieme al calendario. Gli allenamenti precedenti a questa data non vengono creati."
   },
   "detail": {
     "back": "Indietro",
@@ -548,7 +560,9 @@
     "cancelSeriesConfirmBody": "Questo slot si ripete ogni settimana. Annullando l'evento vengono cancellati questa data e tutte le successive. Gli allenamenti già svolti restano invariati e puoi ripristinare la serie in seguito.",
     "seriesCancelled": "{count, plural, one {# allenamento annullato} other {# allenamenti annullati}}.",
     "restoreSeries": "Ripristina questo evento",
-    "seriesRestored": "{count, plural, one {# allenamento ripristinato} other {# allenamenti ripristinati}}."
+    "seriesRestored": "{count, plural, one {# allenamento ripristinato} other {# allenamenti ripristinati}}.",
+    "scheduleStartsOn": "Questo calendario inizia il {date}, quindi i giorni precedenti sono vuoti. Le settimane successive mostrano il ritmo completo.",
+    "beforeStart": "Prima dell'inizio del calendario"
   },
   "conflicts": {
     "VALID": "Valido",
@@ -569,7 +583,18 @@
     "NO_TRAINER_ASSIGNED": "Nessun allenatore ancora assegnato.",
     "NOT_PREFERRED_WEEKDAY": "Non è uno dei giorni preferiti dalla squadra.",
     "NOT_PREFERRED_TIME": "Fuori dall'orario preferito dalla squadra.",
-    "NOT_PREFERRED_GYM": "Non è la palestra preferita dalla squadra."
+    "NOT_PREFERRED_GYM": "Non è la palestra preferita dalla squadra.",
+    "WEEKLY_CAPACITY": "Questa squadra può allenarsi solo {usableDays, plural, one {# giorno} other {# giorni}} a settimana, ma ne chiede {requested}. I giorni elencati non funzionano mai.",
+    "DAY_NO_GYM_OPEN": "{weekday}: nessuna palestra è aperta.",
+    "DAY_NO_TRAINER": "{weekday}: {gym} è aperta {gymFrom}–{gymUntil}, ma nessun allenatore assegnato a questa squadra è disponibile.",
+    "DAY_NO_OVERLAP": "{weekday}: {gym} è aperta {gymFrom}–{gymUntil}, ma {trainer} è disponibile solo {trainerFrom}–{trainerUntil}.",
+    "DAY_TEAM_UNAVAILABLE": "{weekday}: la squadra stessa è indicata come non disponibile.",
+    "DAY_WINDOW_TOO_SHORT": "{weekday}: {gym} e {trainer} si sovrappongono solo per {minutes} minuti, non abbastanza per un allenamento completo.",
+    "SUGGEST_GYM_HOURS": "Assegna a una palestra degli orari di apertura il {weekday}, almeno {minutes} minuti.",
+    "SUGGEST_TRAINER_HOURS": "Rendi {trainer} disponibile {from}–{until} il {weekday}, mentre {gym} è aperta.",
+    "SUGGEST_ASSIGN_TRAINER": "Assegna a questa squadra un allenatore libero {from}–{until} il {weekday}, mentre {gym} è aperta.",
+    "SUGGEST_EXTEND_WINDOW": "Amplia {gym} il {weekday}: si sovrappone all'allenatore solo per {minutes} dei {needed} minuti necessari.",
+    "SUGGEST_MORE_CAPACITY": "Tutti gli spazi utilizzabili da questa squadra sono già occupati. Aggiungi orari di palestra, consenti più giorni oppure riduci gli allenamenti settimanali."
   },
   "organizer": {
     "title": "Organizzatore intelligente",
@@ -640,7 +665,11 @@
     "withdrawConfirmTitle": "Togliere questo calendario dal calendario della società?",
     "withdrawConfirmBody": "La società smetterà di vedere questi allenamenti. Non viene distrutto nulla: il calendario e i suoi allenamenti vengono archiviati e, se vuoi eliminarli del tutto, puoi scartarli in seguito.",
     "discardHint": "Ritira un calendario pubblicato prima di scartarlo.",
-    "published_": "Pubblicato"
+    "published_": "Pubblicato",
+    "howToFix": "Come risolvere",
+    "preview": "Anteprima",
+    "previewDescription": "Questa bozza, settimana per settimana. Nulla di ciò che vedi è nel calendario della società finché non lo pubblichi.",
+    "previewEmptyWeek": "Nessun allenamento in questa settimana. Vai avanti o indietro per trovare quelli programmati."
   },
   "members": {
     "title": "Membri",

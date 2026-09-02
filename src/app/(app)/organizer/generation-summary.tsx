@@ -1,12 +1,13 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Lightbulb } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import type { GenerationResult } from "@/domain/scheduling/types";
+import { useFindingText } from "@/components/calendar/use-finding-text";
 
 /**
  * What the run produced.
@@ -18,6 +19,7 @@ import type { GenerationResult } from "@/domain/scheduling/types";
  */
 export function GenerationSummary({ result }: { result: GenerationResult }) {
   const t = useTranslations("organizer");
+  const findingText = useFindingText();
   const { stats } = result;
 
   const completion =
@@ -93,15 +95,40 @@ export function GenerationSummary({ result }: { result: GenerationResult }) {
                   <div className="mt-2 space-y-1 pl-6">
                     <p className="text-xs font-medium text-muted-foreground">{t("whyUnmet")}</p>
                     <ul className="space-y-0.5">
-                      {shortfall.reasons.map((reason, index) => (
+                      {shortfall.reasons
+                        .filter((reason) => !reason.code.startsWith("SUGGEST_"))
+                        .map((reason, index) => (
                         <li key={index} className="text-sm text-muted-foreground">
                           {/* Known engine diagnoses get a sentence; anything
                               else falls back to the raw code rather than a
                               blank line. */}
-                          {reasonText(t, reason.code)}
+                          {reasonText(t, findingText, reason.code, reason.values)}
                         </li>
                       ))}
                     </ul>
+
+                    {/*
+                      The diagnosis and the fix are different questions. Keeping
+                      them apart means an organizer can skip straight to what
+                      they have to change.
+                    */}
+                    {shortfall.reasons.some((reason) => reason.code.startsWith("SUGGEST_")) ? (
+                      <div className="mt-2 space-y-0.5 rounded-md bg-muted/50 p-2">
+                        <p className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                          <Lightbulb className="size-3.5" aria-hidden />
+                          {t("howToFix")}
+                        </p>
+                        <ul className="space-y-0.5">
+                          {shortfall.reasons
+                            .filter((reason) => reason.code.startsWith("SUGGEST_"))
+                            .map((reason, index) => (
+                              <li key={index} className="text-sm">
+                                {findingText(reason.code, reason.values)}
+                              </li>
+                            ))}
+                        </ul>
+                      </div>
+                    ) : null}
                   </div>
                 </li>
               ))}
@@ -124,11 +151,23 @@ const KNOWN = [
   "TRAINER_AVAILABILITY_NOT_IN_FORCE",
 ] as const;
 
+/**
+ * The engine's diagnoses come from two vocabularies: the setup problems it
+ * names before scheduling starts, and the findings it produces while placing
+ * sessions. Both end up in this list.
+ *
+ * Anything unrecognised falls through to the finding vocabulary rather than to
+ * a specific sentence. The previous fallback claimed "the team, its trainers
+ * and the gyms are never free at the same time" for *any* unknown code, which
+ * told a club with a perfectly free coach exactly the wrong thing.
+ */
 function reasonText(
   t: ReturnType<typeof useTranslations<"organizer">>,
+  findingText: (code: string, values?: Record<string, string | number>) => string,
   code: string,
+  values?: Record<string, string | number>,
 ): string {
   return (KNOWN as readonly string[]).includes(code)
     ? t(code as (typeof KNOWN)[number])
-    : t("NO_OVERLAPPING_AVAILABILITY");
+    : findingText(code, values);
 }

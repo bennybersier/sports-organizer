@@ -114,6 +114,7 @@ export default async function OrganizerPage({
         }))}
         canPublish={hasPermission(context, "schedule.publish")}
         canReview={hasPermission(context, "schedule.review")}
+        timezone={context.tenant.timezone}
       />
     </div>
   );

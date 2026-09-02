@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 
 import { cn } from "@/lib/utils";
+import { SHORT_TIME_FORMAT } from "@/lib/time-format";
 import { useAction } from "@/hooks/use-action";
 import { moveCalendarItemAction } from "@/server/actions/calendar";
 import type { CalendarItem } from "@/server/services/calendar-service";
@@ -203,7 +204,7 @@ export function WeekGrid({
                       {height > 34 ? (
                         <span className="block truncate text-muted-foreground">
                           {format.dateTime(new Date(item.startAt), {
-                            timeStyle: "short",
+                            ...SHORT_TIME_FORMAT,
                             timeZone,
                           })}
                           {item.gymName ? ` · ${item.gymName}` : null}

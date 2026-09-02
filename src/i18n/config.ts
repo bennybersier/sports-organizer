@@ -21,6 +21,29 @@ export const LOCALE_NAMES: Record<Locale, string> = {
 
 export const LOCALE_COOKIE = "sco_locale";
 
+/**
+ * The tag each language is *formatted* with, as distinct from the one it is
+ * stored under.
+ *
+ * Dates are ordered by locale, not by format options: no combination of
+ * `day`/`month`/`year` makes plain `en` render 2 September 2026 as anything but
+ * "September 2, 2026". These clubs read day-month-year, so English formats as
+ * British English while the cookie, the profile column and the message
+ * catalogue all stay on "en".
+ */
+export const FORMATTING_LOCALES: Record<Locale, string> = {
+  en: "en-GB",
+  it: "it-IT",
+};
+
+export type FormattingLocale = "en-GB" | "it-IT";
+
+/** Back from a formatting tag to the locale we store and load messages by. */
+export function storedLocale(tag: string): Locale {
+  const primary = tag.split("-")[0];
+  return isLocale(primary) ? primary : DEFAULT_LOCALE;
+}
+
 export function isLocale(value: string | undefined | null): value is Locale {
   return !!value && (LOCALES as readonly string[]).includes(value);
 }

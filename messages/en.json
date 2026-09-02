@@ -360,7 +360,10 @@
     "archiveConfirmTitle": "Archive this team?",
     "archiveConfirmBody": "Its history and past schedules are preserved.",
     "allSeasons": "All seasons",
-    "allSports": "All sports"
+    "allSports": "All sports",
+    "trainingWeek": "Training week",
+    "sessionsThisWeek": "{count} of {required} sessions",
+    "noTrainingThisWeek": "No training scheduled this week. Generate and publish a schedule in the Smart Organizer, or step through the weeks above."
   },
   "athletes": {
     "title": "Athletes",
@@ -462,7 +465,16 @@
     "preferredGyms": "Preferred gyms",
     "save": "Save requirements",
     "saved": "Training requirements saved.",
-    "noSeason": "This team's season is needed before requirements can be set."
+    "noSeason": "This team's season is needed before requirements can be set.",
+    "priority": "Booking priority",
+    "priority1": "1 — Highest",
+    "priority2": "2 — High",
+    "priority3": "3 — Normal",
+    "priority4": "4 — Low",
+    "priority5": "5 — Lowest",
+    "priorityHint": "When two teams want the same slot, the higher priority gets it. It never lets a team break a rule — it decides who is served first.",
+    "startsOn": "First training date",
+    "startsOnHint": "Leave empty to start with the schedule. Sessions before this date are not created."
   },
   "detail": {
     "back": "Back",
@@ -548,7 +560,9 @@
     "cancelSeriesConfirmBody": "This slot repeats weekly. Cancelling the event calls off this date and every one after it. Sessions already past are left alone, and you can restore the series afterwards.",
     "seriesCancelled": "{count, plural, one {# session cancelled} other {# sessions cancelled}}.",
     "restoreSeries": "Restore this event",
-    "seriesRestored": "{count, plural, one {# session restored} other {# sessions restored}}."
+    "seriesRestored": "{count, plural, one {# session restored} other {# sessions restored}}.",
+    "scheduleStartsOn": "This schedule starts on {date}, so the days before it are empty. Later weeks show the full pattern.",
+    "beforeStart": "Before the schedule starts"
   },
   "conflicts": {
     "VALID": "Valid",
@@ -569,7 +583,18 @@
     "NO_TRAINER_ASSIGNED": "No trainer is assigned yet.",
     "NOT_PREFERRED_WEEKDAY": "Not one of the team's preferred days.",
     "NOT_PREFERRED_TIME": "Outside the team's preferred time.",
-    "NOT_PREFERRED_GYM": "Not the team's preferred gym."
+    "NOT_PREFERRED_GYM": "Not the team's preferred gym.",
+    "WEEKLY_CAPACITY": "This team can only train on {usableDays, plural, one {# day} other {# days}} a week, but asks for {requested}. The days below never work.",
+    "DAY_NO_GYM_OPEN": "{weekday}: no hall is open.",
+    "DAY_NO_TRAINER": "{weekday}: {gym} is open {gymFrom}–{gymUntil}, but no coach assigned to this team is available.",
+    "DAY_NO_OVERLAP": "{weekday}: {gym} is open {gymFrom}–{gymUntil}, but {trainer} is only available {trainerFrom}–{trainerUntil}.",
+    "DAY_TEAM_UNAVAILABLE": "{weekday}: the team itself is marked unavailable.",
+    "DAY_WINDOW_TOO_SHORT": "{weekday}: {gym} and {trainer} only overlap for {minutes} minutes — not enough for a full session.",
+    "SUGGEST_GYM_HOURS": "Give a hall opening hours on {weekday} — at least {minutes} minutes.",
+    "SUGGEST_TRAINER_HOURS": "Make {trainer} available {from}–{until} on {weekday}, while {gym} is open.",
+    "SUGGEST_ASSIGN_TRAINER": "Assign this team a coach who is free {from}–{until} on {weekday}, while {gym} is open.",
+    "SUGGEST_EXTEND_WINDOW": "Widen {gym} on {weekday}: it overlaps the coach for only {minutes} of the {needed} minutes needed.",
+    "SUGGEST_MORE_CAPACITY": "Every slot this team could use is already taken. Add hall hours, allow more weekdays for it, or lower its weekly sessions."
   },
   "organizer": {
     "title": "Smart Organizer",
@@ -640,7 +665,11 @@
     "withdrawConfirmTitle": "Take this schedule off the calendar?",
     "withdrawConfirmBody": "The club stops seeing these sessions. Nothing is destroyed — the schedule and its sessions are archived, and you can discard it afterwards if you want it gone for good.",
     "discardHint": "Withdraw a published schedule before discarding it.",
-    "published_": "Published"
+    "published_": "Published",
+    "howToFix": "How to fix",
+    "preview": "Preview",
+    "previewDescription": "This draft, week by week. Nothing here is on the club's calendar until you publish it.",
+    "previewEmptyWeek": "No sessions in this week. Step forward or back to find the ones that were scheduled."
   },
   "members": {
     "title": "Members",

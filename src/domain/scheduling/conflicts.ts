@@ -47,7 +47,20 @@ export type FindingCode =
   | "NO_TRAINER_ASSIGNED"
   | "NOT_PREFERRED_WEEKDAY"
   | "NOT_PREFERRED_TIME"
-  | "NOT_PREFERRED_GYM";
+  | "NOT_PREFERRED_GYM"
+  /* Why a team can never reach its weekly total, whatever the optimizer does. */
+  | "WEEKLY_CAPACITY"
+  | "DAY_NO_GYM_OPEN"
+  | "DAY_NO_TRAINER"
+  | "DAY_NO_OVERLAP"
+  | "DAY_TEAM_UNAVAILABLE"
+  | "DAY_WINDOW_TOO_SHORT"
+  /* What to change to fix the above. Rendered apart from the diagnosis. */
+  | "SUGGEST_GYM_HOURS"
+  | "SUGGEST_TRAINER_HOURS"
+  | "SUGGEST_ASSIGN_TRAINER"
+  | "SUGGEST_EXTEND_WINDOW"
+  | "SUGGEST_MORE_CAPACITY";
 
 export interface Finding {
   code: FindingCode;

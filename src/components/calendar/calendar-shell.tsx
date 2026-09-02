@@ -5,11 +5,13 @@ import { useFormatter, useTranslations } from "next-intl";
 
 import { AgendaView } from "./agenda-view";
 import { MonthGrid } from "./month-grid";
+import { MobileCalendar } from "./mobile-calendar";
 import { WeekGrid } from "./week-grid";
 import { EventSheet } from "./event-sheet";
 import type { CalendarView } from "./calendar-toolbar";
 import type { CalendarItem } from "@/server/services/calendar-service";
 import type { EventDialogOptions } from "@/app/(app)/calendar/new-event-button";
+import { SHORT_TIME_FORMAT } from "@/lib/time-format";
 
 export interface CalendarShellProps {
   view: CalendarView;
@@ -48,18 +50,34 @@ export function CalendarShell(props: CalendarShellProps) {
   const view = (
     <>
       {props.view === "month" ? (
-        <MonthGrid
-          weeks={props.monthWeeks}
-          weekdayLabels={props.weekdayLabels}
-          onSelect={setSelected}
-        />
+        <>
+          {/* A month of named events does not fit a phone; dates with dots,
+              then the chosen day in full, does. */}
+          <div className="hidden lg:block">
+            <MonthGrid
+              weeks={props.monthWeeks}
+              weekdayLabels={props.weekdayLabels}
+              timeZone={props.timeZone}
+              onSelect={setSelected}
+            />
+          </div>
+          <div className="lg:hidden">
+            <MobileCalendar
+              weeks={props.monthWeeks}
+              weekdayLabels={props.weekdayLabels}
+              timeZone={props.timeZone}
+              onSelect={setSelected}
+            />
+          </div>
+        </>
       ) : props.view === "agenda" ? (
         <AgendaView groups={props.groups} timeZone={props.timeZone} onSelect={setSelected} />
       ) : (
         <>
-          {/* A time grid is unreadable on a phone, so small screens get the
-              agenda instead of a shrunken version of the wrong thing. */}
-          <div className="hidden md:block">
+          {/* An hour grid needs width it does not have on a phone or on a
+              tablet held upright, so those get the touch layout instead of a
+              squeezed version of the wrong thing. */}
+          <div className="hidden lg:block">
             <WeekGrid
               days={props.days}
               items={props.positioned}
@@ -70,8 +88,22 @@ export function CalendarShell(props: CalendarShellProps) {
               onSelect={setSelected}
             />
           </div>
-          <div className="md:hidden">
-            <AgendaView groups={props.groups} timeZone={props.timeZone} onSelect={setSelected} />
+          {/* The same shape as the month, one week wide. */}
+          <div className="lg:hidden">
+            <MobileCalendar
+              weeks={[
+                props.groups.map((group) => ({
+                  date: group.date,
+                  day: Number(group.date.slice(8, 10)),
+                  inMonth: true,
+                  isToday: group.isToday,
+                  items: group.items,
+                })),
+              ]}
+              weekdayLabels={props.weekdayLabels}
+              timeZone={props.timeZone}
+              onSelect={setSelected}
+            />
           </div>
         </>
       )}
@@ -91,7 +123,7 @@ export function CalendarShell(props: CalendarShellProps) {
         formatRange={(item) =>
           item.allDay
             ? t("allDay")
-            : `${format.dateTime(new Date(item.startAt), { dateStyle: "full", timeStyle: "short", timeZone: props.timeZone })} – ${format.dateTime(new Date(item.endAt), { timeStyle: "short", timeZone: props.timeZone })}`
+            : `${format.dateTime(new Date(item.startAt), { dateStyle: "full", ...SHORT_TIME_FORMAT, timeZone: props.timeZone })} – ${format.dateTime(new Date(item.endAt), { ...SHORT_TIME_FORMAT, timeZone: props.timeZone })}`
         }
       />
     </>

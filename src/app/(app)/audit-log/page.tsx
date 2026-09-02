@@ -13,6 +13,7 @@ import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
 import { listAuditActions, listAuditEntries } from "@/server/services/audit-query-service";
 import { parseListParams } from "@/server/services/list-query";
+import { SHORT_TIME_FORMAT } from "@/lib/time-format";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("audit");
@@ -82,7 +83,7 @@ export default async function AuditLogPage({
                     <span className="ml-auto text-xs tabular-nums text-muted-foreground">
                       {format.dateTime(new Date(entry.createdAt), {
                         dateStyle: "medium",
-                        timeStyle: "short",
+                        ...SHORT_TIME_FORMAT,
                         timeZone: context.tenant.timezone,
                       })}
                     </span>
