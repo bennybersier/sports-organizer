@@ -110,7 +110,10 @@ pnpm dev
 | `pnpm bootstrap:club` | Create the first club and Owner |
 | `pnpm platform:admin` | Grant, revoke or list platform administrators |
 | `pnpm i18n:check` | Verify every locale has every message key |
-| `pnpm test` | Unit tests (availability resolution, time arithmetic) |
+| `pnpm test` | Unit tests — availability, conflicts, timezones, permissions |
+| `pnpm test:schema` | Verify the app and database still agree |
+| `pnpm test:security` | Attempt cross-tenant access from every angle |
+| `pnpm verify` | All of the above, in order |
 
 ---
 
@@ -314,6 +317,63 @@ Team training requirements separate **hard** constraints the schedule must
 satisfy from **preferences** it should try to — the distinction the optimizer is
 built around, and one an organizer needs to already understand when reading a
 conflict explanation later.
+
+## Verification
+
+```bash
+pnpm verify   # typecheck -> lint -> unit tests -> schema drift -> security
+```
+
+**`pnpm test`** — 102 unit tests over the pure domain: availability resolution
+(half-open intervals, `24:00`, exception precedence), conflict grading,
+timezone conversion across both DST boundaries, the optimizer's scenarios, and
+the permission resolution order.
+
+**`pnpm test:schema`** — the application and the database define the permission
+taxonomy and role hierarchy in two places by necessity. This checks they still
+agree, that Owner holds everything and Admin cannot delete the club, that
+Athlete's grants are all read-only, and that all 28 tenant-owned tables return
+nothing to an anonymous caller.
+
+**`pnpm test:security`** — the suite the spec asks for by name. It builds two
+real clubs and then, as a member of one, tries to read, write, rename, delete
+and smuggle its way into the other. Every assertion is phrased as an attack that
+must fail:
+
+| Vector | Result |
+| --- | --- |
+| Read any of 14 tenant tables belonging to club B | nothing returned |
+| Read 6 secret-bearing tables | refused outright |
+| Insert into 8 of club B's tables | refused |
+| Rename, delete, or drop club B | no rows affected |
+| Point a team in A at B's season | refused by trigger |
+| Grant self platform-admin | refused |
+| Forge the active-club cookie | no data shown |
+| Use club A's MCP key against club B | nothing returned |
+
+**43 attacks blocked, 0 succeeded.** A failing run names the vector that got
+through.
+
+## Accessibility
+
+Semantic HTML, a skip link past the sidebar's fifteen nav items, labelled form
+controls, visible focus rings, `aria-live` on regions that update
+asynchronously, and status never carried by colour alone — every coloured
+indicator has text beside it.
+
+One gap, stated rather than glossed: **dragging a session in the week view is
+pointer-only.** Every session is a real button that opens its detail panel with
+the keyboard, so reading and inspecting the schedule never needs a mouse — but
+*moving* one currently does, and a keyboard alternative is still owed.
+
+## Observability
+
+`src/lib/observability.ts` emits one JSON object per line in production and
+readable lines in development. Fields whose names look credential-shaped are
+redacted at that boundary regardless of what the caller passed, because a
+context object assembled from a row can pick one up by accident. Schedule
+generation is timed, since it is the operation whose cost grows with a club's
+size.
 
 ## MCP
 
@@ -549,4 +609,4 @@ font request and no swap flash.
 | 7 | Invitations, members, permission overrides, audit UI, settings, onboarding | **Done** |
 | 8 | AI provider configuration **done**; Google Calendar sync needs OAuth credentials | Partly done |
 | 9 | MCP server: credentials, scopes, tools | **Done** |
-| 10 | Hardening: tests, security tests, performance, a11y, observability | Next |
+| 10 | Hardening: tests, security tests, a11y, observability | **Done** |

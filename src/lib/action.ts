@@ -10,6 +10,7 @@ import {
   type SerializedError,
 } from "@/lib/errors";
 import { isProduction } from "@/env";
+import { log } from "@/lib/observability";
 
 /**
  * The uniform Server Action result.
@@ -30,9 +31,11 @@ export function actionSuccess<T>(data: T): ActionResult<T> {
 export function actionFailure(error: unknown): ActionResult<never> {
   if (!isAppError(error)) {
     // Log the real cause server-side; the client gets a generic message.
-    console.error("[action] unhandled error", error);
+    log.error("action.unhandled", {
+      reason: error instanceof Error ? error.message : "unknown",
+    });
   } else if (!isProduction && error.context) {
-    console.warn(`[action] ${error.code}`, error.context);
+    log.debug(`action.${error.code}`, error.context);
   }
   return { ok: false, error: serializeError(error) };
 }

@@ -61,7 +61,8 @@
     "description": "Descrizione",
     "season": "Stagione",
     "team": "Squadra",
-    "unsavedChanges": "Ci sono modifiche non salvate."
+    "unsavedChanges": "Ci sono modifiche non salvate.",
+    "skipToContent": "Vai al contenuto"
   },
   "nav": {
     "overview": "Panoramica",

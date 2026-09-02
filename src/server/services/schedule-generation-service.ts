@@ -23,6 +23,7 @@ import {
 import { addDays, toInstant, toWallClock } from "@/domain/scheduling/timezone";
 import type { ValidationState } from "@/types/database";
 import { getSeason } from "@/server/services/season-service";
+import { log } from "@/lib/observability";
 
 /**
  * Turns the club's stored configuration into engine input, runs the optimizer,
@@ -266,6 +267,19 @@ export async function generateAndStore(
   }
 
   const result = generateSchedule(input);
+
+  log.info("schedule.generated", {
+    tenantId: context.tenant.id,
+    userId: context.user.id,
+    actor: context.actorType,
+    durationMs: result.stats.elapsedMs,
+    teams: result.stats.teams,
+    requested: result.stats.sessionsRequested,
+    scheduled: result.stats.sessionsScheduled,
+    candidates: result.stats.candidatesConsidered,
+    unmet: result.unmet.length,
+    score: result.score,
+  });
 
   const { data: version, error: versionError } = await context.db
     .from("schedule_versions")

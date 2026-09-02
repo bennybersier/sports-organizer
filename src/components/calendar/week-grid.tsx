@@ -32,6 +32,12 @@ const SLOT_HEIGHT = 24; // px per 30 minutes
  * Dragging moves a session to another day or time. The drop is validated server
  * side before it is saved, and a refusal explains itself rather than silently
  * snapping back.
+ *
+ * Accessibility: dragging is pointer-only, so every session is also a real
+ * button that opens its detail panel with the keyboard — reading and inspecting
+ * the schedule never requires a mouse. *Moving* one currently does; the
+ * keyboard route is to edit the session directly, and a keyboard drag
+ * alternative is still owed here.
  */
 export function WeekGrid({
   days,

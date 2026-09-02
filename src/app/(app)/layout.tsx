@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { getTranslations } from "next-intl/server";
 
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -39,8 +40,23 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     redirect("/select-club");
   }
 
+  const t = await getTranslations("common");
+  const skipToContent = t("skipToContent");
+
   return (
     <SidebarProvider>
+      {/*
+        The sidebar carries ~15 links before the page content. Without this, a
+        keyboard or screen-reader user tabs through all of them on every
+        navigation.
+      */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-50 focus:rounded-md focus:bg-background focus:px-3 focus:py-2 focus:shadow-lg focus:ring-2 focus:ring-ring"
+      >
+        {skipToContent}
+      </a>
+
       <AppSidebar
         tenants={
           memberships.length > 0
@@ -73,7 +89,9 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           <Separator orientation="vertical" className="mr-2 h-4" />
           <span className="text-sm font-medium">{context.tenant.name}</span>
         </header>
-        <div className="flex-1 p-4 md:p-6">{children}</div>
+        <div id="main-content" tabIndex={-1} className="flex-1 p-4 md:p-6">
+          {children}
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

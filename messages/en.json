@@ -61,7 +61,8 @@
     "description": "Description",
     "season": "Season",
     "team": "Team",
-    "unsavedChanges": "You have unsaved changes."
+    "unsavedChanges": "You have unsaved changes.",
+    "skipToContent": "Skip to content"
   },
   "nav": {
     "overview": "Overview",

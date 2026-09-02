@@ -18,7 +18,10 @@
     "platform:admin": "tsx --env-file-if-exists=.env.local scripts/platform-admin.ts",
     "i18n:check": "node scripts/check-i18n.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:security": "tsx --env-file-if-exists=.env.local scripts/security/tenant-isolation.mts",
+    "test:schema": "tsx --env-file-if-exists=.env.local scripts/security/schema-drift.mts",
+    "verify": "pnpm typecheck && pnpm lint && pnpm test && pnpm test:schema && pnpm test:security"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",
