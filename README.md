@@ -246,7 +246,7 @@ way.
 
 ## Database
 
-36 tables across 12 versioned migrations in [`supabase/migrations/`](supabase/migrations/).
+36 tables across 15 versioned migrations in [`supabase/migrations/`](supabase/migrations/).
 
 | Migration | Contents |
 | --- | --- |
@@ -262,6 +262,9 @@ way.
 | `0010_invariants_rpc` | Last-owner guard, tenant provisioning, invitation acceptance, transactional publish |
 | `0011_platform_admin` | System staff: the grant table, the bypass, and the admin console RPCs |
 | `0012_error_messages_and_owner_guard` | Owner guard no longer blocks club deletion; user-facing messages survive the error mapper |
+| `0013_invitation_token_hardening` | accept_invitation takes the raw token, not its hash |
+| `0014_invitation_column_grants` | token_hash removed from what client roles may select |
+| `0015_audit_immutability_scope` | Audit guard no longer blocks deleting a club with history |
 
 **Availability model.** Recurring weekly windows plus date-specific exceptions.
 Weekdays are ISO-8601 (1 = Monday … 7 = Sunday, matching `extract(isodow)`).
@@ -310,6 +313,31 @@ Team training requirements separate **hard** constraints the schedule must
 satisfy from **preferences** it should try to — the distinction the optimizer is
 built around, and one an organizer needs to already understand when reading a
 conflict explanation later.
+
+## Members and permissions
+
+Roles set defaults; an individual can be granted or denied a single permission
+on top. Three states, not two — `From role`, `Always allow`, `Never allow` —
+because removing an override restores the role's default rather than denying,
+which is what `override > role > deny` actually means.
+
+Rank guards who may act on whom: you can never edit, promote or remove someone
+at or above your own level, and you can never grant a role above your own.
+Checked in the UI so the menu doesn't offer what will fail, and again on the
+server, which is what enforces it.
+
+**Invitation tokens.** The raw token is shown once, to the inviter; only its
+SHA-256 is stored. Two things make that hashing worth something, both added
+after testing showed it wasn't:
+
+- `accept_invitation` takes the **raw token** and hashes it inside the database.
+  It previously took the hash, which made the stored value itself a usable
+  credential — hashing protects nothing if knowing the stored value is enough.
+- `token_hash` is removed from what client roles may `SELECT`, at the column
+  grant level. A table-level grant is not narrowed by revoking one column, so
+  the privilege is dropped and re-granted column by column; a column added to
+  that table later is invisible to clients until it is listed, which is the
+  right default for a table holding a secret.
 
 ## The scheduling engine
 
@@ -460,7 +488,7 @@ font request and no swap flash.
 | 4 | Calendar: views, filters, drag/drop, conflict detection | **Done** |
 | 5 | Scheduling engine: constraints, candidates, optimizer, explanations | **Done** |
 | 6 | Review and publishing workflow | **Done** (with Phase 5) |
-| 7 | Invitations, notifications, audit UI, settings, onboarding | Next |
-| 8 | Google Calendar sync, AI provider configuration | |
+| 7 | Invitations, members, permission overrides, audit UI, settings, onboarding | **Done** |
+| 8 | Google Calendar sync, AI provider configuration | Next |
 | 9 | MCP server: credentials, scopes, tools | |
 | 10 | Hardening: tests, security tests, performance, a11y, observability | |

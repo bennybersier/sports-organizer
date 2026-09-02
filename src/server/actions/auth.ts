@@ -6,7 +6,6 @@ import { redirect } from "next/navigation";
 import { env } from "@/env";
 import { runAction, parseInput, type ActionResult } from "@/lib/action";
 import { AuthenticationError, ValidationError, fromDatabaseError } from "@/lib/errors";
-import { hashSecret } from "@/lib/crypto";
 import { createClient } from "@/lib/supabase/server";
 import {
   forgotPasswordSchema,
@@ -124,8 +123,10 @@ export async function acceptInvitation(input: unknown): Promise<ActionResult<{ t
     } = await supabase.auth.getUser();
     if (!user) throw new AuthenticationError();
 
+    // The raw token goes to the database, which hashes it there. Sending the
+    // hash would make the stored value itself a usable credential.
     const { data, error } = await supabase.rpc("accept_invitation", {
-      p_token_hash: hashSecret(token),
+      p_token: token,
     });
 
     if (error) throw fromDatabaseError(error, { resource: "invitation" });

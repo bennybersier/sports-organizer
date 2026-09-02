@@ -687,7 +687,7 @@ export type Database = {
         Returns: string[];
       };
       accept_invitation: {
-        Args: { p_token_hash: string };
+        Args: { p_token: string };
         Returns: string;
       };
       publish_schedule_version: {
