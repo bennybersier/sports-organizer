@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { MapPin } from "lucide-react";
 
@@ -123,7 +124,9 @@ export default async function GymsPage({
                             aria-hidden
                           />
                         ) : null}
-                        <span className="font-medium">{gym.name}</span>
+                        <Link href={`/gyms/${gym.id}`} className="font-medium hover:underline">
+                          {gym.name}
+                        </Link>
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">

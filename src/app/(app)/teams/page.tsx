@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { Users } from "lucide-react";
 
@@ -174,7 +175,9 @@ export default async function TeamsPage({
                           style={{ backgroundColor: team.color }}
                           aria-hidden
                         />
-                        <span className="font-medium">{team.name}</span>
+                        <Link href={`/teams/${team.id}`} className="font-medium hover:underline">
+                          {team.name}
+                        </Link>
                       </div>
                       <div className="text-xs text-muted-foreground">
                         {[team.age_group, team.gender !== "UNSPECIFIED" ? tGender(team.gender) : null]

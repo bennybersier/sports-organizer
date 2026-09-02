@@ -110,6 +110,7 @@ pnpm dev
 | `pnpm bootstrap:club` | Create the first club and Owner |
 | `pnpm platform:admin` | Grant, revoke or list platform administrators |
 | `pnpm i18n:check` | Verify every locale has every message key |
+| `pnpm test` | Unit tests (availability resolution, time arithmetic) |
 
 ---
 
@@ -284,6 +285,32 @@ squads remain reconstructable.
 
 ---
 
+## Availability
+
+Recurring weekly windows plus date-specific exceptions, shared by gyms,
+trainers and teams — the three tables are structurally identical, so they share
+one service rather than three copies that drift.
+
+`src/domain/availability.ts` holds the resolution logic as pure functions with
+no database and no React anywhere near them, because the scheduling engine will
+depend on it and must be testable with in-memory data. `pnpm test` covers it:
+half-open intervals so back-to-back sessions don't count as a conflict, `24:00`
+as end-of-day rather than wrapping to zero, ISO weekdays throughout (never
+`Date.getDay()`, which is 0-indexed on Sunday), and exception precedence —
+including that a whole-day closure beats a same-day override regardless of the
+order they were entered.
+
+Overlapping windows for one owner on one weekday are rejected by a Postgres
+exclusion constraint, so contradictory availability never reaches the scheduler.
+The app matches that failure by SQLSTATE rather than constraint name: Postgres
+generates those names by truncating the column list, and the three tables end up
+with three unpredictable names for the same rule.
+
+Team training requirements separate **hard** constraints the schedule must
+satisfy from **preferences** it should try to — the distinction the optimizer is
+built around, and one an organizer needs to already understand when reading a
+conflict explanation later.
+
 ## Collections
 
 Every list page works the same way, and all of it happens in Postgres:
@@ -350,8 +377,8 @@ font request and no swap flash.
 | --- | --- | --- |
 | 1 | Foundation: schema, RLS, auth, tenancy, RBAC, app shell | **Done** |
 | 2 | Seasons, teams, athletes, trainers, gyms | **Done** |
-| 3 | Availability editors, exceptions, team preferences | Next |
-| 4 | Calendar: views, filters, drag/drop, conflict detection | |
+| 3 | Availability editors, exceptions, team preferences | **Done** |
+| 4 | Calendar: views, filters, drag/drop, conflict detection | Next |
 | 5 | Scheduling engine: constraints, candidates, optimizer, explanations | |
 | 6 | Review and publishing workflow | |
 | 7 | Invitations, notifications, audit UI, settings, onboarding | |

@@ -1,5 +1,13 @@
 import { getTranslations } from "next-intl/server";
 
+/*
+  This Suspense boundary makes navigation feel instant, at one cost worth
+  knowing: the shell flushes before page data resolves, so a `notFound()` raised
+  afterwards streams the not-found UI in but cannot change the already-committed
+  HTTP status, which stays 200. Users see the correct page; crawlers would not.
+  Acceptable here — the whole app is behind auth and marked noindex.
+*/
+
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default async function AppLoading() {

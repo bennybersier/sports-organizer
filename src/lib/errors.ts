@@ -165,7 +165,17 @@ function isPostgrestError(error: unknown): error is PostgrestLikeError {
  */
 export function fromDatabaseError(
   error: unknown,
-  options: { resource?: string; conflictMessages?: Record<string, string> } = {},
+  options: {
+    resource?: string;
+    conflictMessages?: Record<string, string>;
+    /**
+     * Message for an exclusion violation (23P01), regardless of which
+     * constraint fired. Postgres generates those names by truncating the column
+     * list, so matching on them is brittle — the same rule can be expressed by
+     * three constraints with three unpredictable names.
+     */
+    exclusionMessage?: string;
+  } = {},
 ): AppError {
   if (isAppError(error)) return error;
   if (!isPostgrestError(error)) return new InternalError({ cause: error });
@@ -205,7 +215,9 @@ export function fromDatabaseError(
 
     case PG_EXCLUSION_VIOLATION:
       return new ConflictError(
-        mapped ?? "That overlaps an existing entry. Adjust the times and try again.",
+        mapped ??
+          options.exclusionMessage ??
+          "That overlaps an existing entry. Adjust the times and try again.",
         { context: { constraint }, cause: error },
       );
 

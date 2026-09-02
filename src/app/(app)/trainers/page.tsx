@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { UserCog } from "lucide-react";
 
@@ -108,9 +109,12 @@ export default async function TrainersPage({
                             aria-hidden
                           />
                         ) : null}
-                        <span className="font-medium">
+                        <Link
+                          href={`/trainers/${trainer.id}`}
+                          className="font-medium hover:underline"
+                        >
                           {trainer.first_name} {trainer.last_name}
-                        </span>
+                        </Link>
                       </div>
                       {trainer.phone ? (
                         <div className="text-xs text-muted-foreground">{trainer.phone}</div>
