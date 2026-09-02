@@ -311,6 +311,52 @@ satisfy from **preferences** it should try to — the distinction the optimizer 
 built around, and one an organizer needs to already understand when reading a
 conflict explanation later.
 
+## The scheduling engine
+
+`src/domain/scheduling/` is a deterministic constraint engine. No database, no
+clock, no randomness — plain data in, plain data out — which is what makes it
+testable and what makes a generated schedule reproducible when an organizer
+reruns it after a small change and wants to see only the difference that change
+caused.
+
+The pipeline is separated the way the spec asks:
+
+```
+requirements + availability      buildScheduleInput   (the only DB-aware part)
+            ↓
+    candidate generation         every legal (day, time, gym, trainer)
+            ↓
+     constraint evaluation       hard rules eliminate; soft rules score
+            ↓
+        optimization             most-constrained-first, then a repair pass
+            ↓
+      conflict analysis          why a requirement could not be met
+            ↓
+     versioned persistence       a DRAFT, never the published schedule
+```
+
+**Why most-constrained-first.** A team with 60 possible slots can nearly always
+be fitted around others; a team with 2 cannot. Scheduling the fragile teams
+first stops them losing their only options to a team that had a choice. It is
+not an optimal solver and does not pretend to be — but it is explainable at
+every step, which for a club schedule matters more than the last few points of
+score. `assign` is deliberately isolated so a stronger solver can replace it
+without touching anything else.
+
+**Explanations are first-class.** Every placed session records what it
+satisfied, what it traded away, its score, and how many alternatives existed —
+"only one slot was possible" tells an organizer far more than "score 62". Every
+unmet requirement records *why*: no eligible gym, no assigned trainer, session
+longer than the allowed window, or no overlapping availability at all.
+
+**Scores are normalised to 0–100** so they mean the same thing regardless of how
+the weights are tuned, and the total is multiplied by the completion ratio — a
+schedule that leaves teams unplaced is not a good schedule, whatever the placed
+sessions scored.
+
+Weights live in one object (`DEFAULT_WEIGHTS`), not scattered through the
+scoring code, so tuning is configuration rather than a code change.
+
 ## Calendar and conflicts
 
 Day, week, month and agenda views, all filtered server-side through the URL.
@@ -412,9 +458,9 @@ font request and no swap flash.
 | 2 | Seasons, teams, athletes, trainers, gyms | **Done** |
 | 3 | Availability editors, exceptions, team preferences | **Done** |
 | 4 | Calendar: views, filters, drag/drop, conflict detection | **Done** |
-| 5 | Scheduling engine: constraints, candidates, optimizer, explanations | Next |
-| 6 | Review and publishing workflow | |
-| 7 | Invitations, notifications, audit UI, settings, onboarding | |
+| 5 | Scheduling engine: constraints, candidates, optimizer, explanations | **Done** |
+| 6 | Review and publishing workflow | **Done** (with Phase 5) |
+| 7 | Invitations, notifications, audit UI, settings, onboarding | Next |
 | 8 | Google Calendar sync, AI provider configuration | |
 | 9 | MCP server: credentials, scopes, tools | |
 | 10 | Hardening: tests, security tests, performance, a11y, observability | |
