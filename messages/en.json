@@ -221,7 +221,9 @@
     "reference": "Reference: {digest}",
     "notFoundTitle": "Page not found",
     "notFoundBody": "The page you're looking for doesn't exist, or you don't have access to it.",
-    "backToDashboard": "Back to dashboard"
+    "backToDashboard": "Back to dashboard",
+    "forbiddenTitle": "You don't have access to this",
+    "forbiddenBody": "Your role in this club doesn't include permission to view this page. An administrator can change that in Members."
   },
   "list": {
     "clear": "Clear",

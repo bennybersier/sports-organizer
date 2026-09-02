@@ -221,7 +221,9 @@
     "reference": "Riferimento: {digest}",
     "notFoundTitle": "Pagina non trovata",
     "notFoundBody": "La pagina che cerchi non esiste, oppure non hai accesso.",
-    "backToDashboard": "Torna alla dashboard"
+    "backToDashboard": "Torna alla dashboard",
+    "forbiddenTitle": "Non hai accesso a questa sezione",
+    "forbiddenBody": "Il tuo ruolo in questa società non include il permesso di vedere questa pagina. Un amministratore può modificarlo in Membri."
   },
   "list": {
     "clear": "Azzera",

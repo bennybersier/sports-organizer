@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { AccessDenied } from "@/components/data/access-denied";
 import { EmptyState } from "@/components/data/empty-state";
 import { ListToolbar } from "@/components/data/list-toolbar";
 import { PageHeader } from "@/components/data/page-header";
@@ -35,6 +36,8 @@ export default async function SeasonsPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const context = await requireAuthContext();
+  if (!hasPermission(context, "seasons.read")) return <AccessDenied />;
+
   const t = await getTranslations("seasons");
   const tCommon = await getTranslations("common");
   const format = await getFormatter();
