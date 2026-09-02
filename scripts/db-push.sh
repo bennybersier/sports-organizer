@@ -24,14 +24,29 @@ if [ -n "${SUPABASE_ACCESS_TOKEN:-}" ]; then
   echo "Using SUPABASE_ACCESS_TOKEN for CLI authentication."
 fi
 
+# `supabase link` calls a management endpoint this account cannot reach, and it
+# is not needed to apply migrations: connecting straight to Postgres works and
+# depends on nothing but the database password.
+#
+# The URL contains the password, so every byte of output from here on is piped
+# through a redactor. The CLI prints the connection string on failure.
+redact() { sed -E 's#postgres(ql)?://[^[:space:]]*#[connection string redacted]#g'; }
+
 if [ -n "${SUPABASE_DB_PASSWORD:-}" ]; then
-  export SUPABASE_DB_PASSWORD
-  echo "Using SUPABASE_DB_PASSWORD for the database connection."
-  supabase link --project-ref "$REF" --password "$SUPABASE_DB_PASSWORD" </dev/null
-else
-  supabase link --project-ref "$REF" </dev/null
+  echo "Connecting directly with SUPABASE_DB_PASSWORD."
+  # Percent-encode the password: a `@` or `/` in it would otherwise split the URL.
+  ENCODED=$(PW="$SUPABASE_DB_PASSWORD" python3 -c \
+    'import os,urllib.parse;print(urllib.parse.quote(os.environ["PW"],safe=""))')
+  DB_URL="postgresql://postgres:${ENCODED}@db.${REF}.supabase.co:5432/postgres"
+
+  echo
+  echo "Applying migrations…"
+  supabase db push --db-url "$DB_URL" --include-all </dev/null 2>&1 | redact
+  exit "${PIPESTATUS[0]}"
 fi
+
+supabase link --project-ref "$REF" </dev/null
 
 echo
 echo "Applying migrations…"
-supabase db push --include-all </dev/null
+supabase db push --include-all </dev/null 2>&1 | redact
