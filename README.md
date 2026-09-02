@@ -284,6 +284,28 @@ squads remain reconstructable.
 
 ---
 
+## Collections
+
+Every list page works the same way, and all of it happens in Postgres:
+
+- **Search, filter, sort and paging live in the URL.** The server component
+  reads `searchParams`, so a filtered view is linkable and survives a refresh —
+  and no page ever pulls a table into the browser to filter it there.
+- **Empty states distinguish "nothing yet" from "nothing matched".** The first
+  needs a way to create something; the second needs a way to clear the filter.
+- **Permission-denied is its own state.** Pages check before reading, so a user
+  without `gyms.read` sees an explanation rather than "Something went wrong".
+  The service still asserts underneath — that is the control, this is the face.
+- **Archive, not delete.** Past sessions reference teams, gyms and trainers, so
+  everything archives. Removing a trainer from a team sets `unassigned_at`, and
+  an athlete leaving a squad sets `left_at`, keeping the record of who trained
+  what and when.
+
+Related counts use a grouped query rather than a PostgREST embed — embeds need
+relationship metadata the hand-written schema types don't carry yet. That is one
+extra indexed query per page, not an N+1, and it becomes an embed the day
+`pnpm db:types` can run.
+
 ## Internationalisation
 
 English and Italian, with no locale URL prefix. The whole app sits behind
@@ -327,8 +349,8 @@ font request and no swap flash.
 | Phase | Scope | Status |
 | --- | --- | --- |
 | 1 | Foundation: schema, RLS, auth, tenancy, RBAC, app shell | **Done** |
-| 2 | Seasons, teams, athletes, trainers, gyms | Next |
-| 3 | Availability editors, exceptions, team preferences | |
+| 2 | Seasons, teams, athletes, trainers, gyms | **Done** |
+| 3 | Availability editors, exceptions, team preferences | Next |
 | 4 | Calendar: views, filters, drag/drop, conflict detection | |
 | 5 | Scheduling engine: constraints, candidates, optimizer, explanations | |
 | 6 | Review and publishing workflow | |
