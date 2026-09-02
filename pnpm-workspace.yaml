@@ -1,5 +1,5 @@
 # pnpm blocks package build scripts by default. These need their postinstall to
-# produce working native binaries.
+# produce working native binaries or generated code.
 allowBuilds:
   esbuild: true
   sharp: true
@@ -7,3 +7,5 @@ allowBuilds:
   "@tailwindcss/oxide": true
   "@parcel/watcher": true
   "@swc/core": true
+  "@google/genai": true
+  "protobufjs": true

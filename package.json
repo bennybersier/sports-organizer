@@ -21,7 +21,9 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.122.0",
     "@date-fns/tz": "^1.5.0",
+    "@google/genai": "^2.20.0",
     "@hookform/resolvers": "^5.9.1",
     "@supabase/ssr": "^0.12.5",
     "@supabase/supabase-js": "^2.112.4",
@@ -33,6 +35,7 @@
     "next": "16.3.4",
     "next-intl": "^4.14.1",
     "next-themes": "^0.4.6",
+    "openai": "^7.8.0",
     "radix-ui": "^1.6.7",
     "react": "19.2.8",
     "react-day-picker": "^10.0.1",

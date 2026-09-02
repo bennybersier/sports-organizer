@@ -314,6 +314,33 @@ satisfy from **preferences** it should try to — the distinction the optimizer 
 built around, and one an organizer needs to already understand when reading a
 conflict explanation later.
 
+## AI providers
+
+Bring-your-own-key, per club. One interface (`AiProvider`), three adapters —
+Anthropic, Gemini, OpenAI — each using that vendor's official SDK. The
+application never imports a vendor SDK directly; it asks the registry for
+whatever the tenant configured. A fourth provider is a new adapter and nothing
+else.
+
+**AI is never authoritative about scheduling.** It explains, summarises and
+drafts; whether a schedule is valid is decided by the deterministic engine, and
+the engine's structured findings are always rendered alongside any AI prose,
+never replaced by it. The prompt says so, but the architecture is what enforces
+it: there is no code path from a model's output to a schedule change.
+
+**Key handling.** Keys are encrypted with AES-256-GCM before storage and
+decrypted only where a provider client is constructed.
+`ai_provider_configurations` has no grants for `authenticated` at all, so every
+read goes through the secret-key client after this service has checked the
+caller's permission. Nothing returns a key: the UI gets the last four characters
+and a "test key" button, because that is the only honest way to answer "does
+this work". Audit entries record *that* a key was rotated, never the key.
+
+Verified live: the envelope is versioned and authenticated (a tampered one is
+rejected), the same key encrypts differently each time, the table is
+unreachable from a signed-in client (403), and no key or ciphertext appears in
+what the UI receives or in the audit log.
+
 ## Members and permissions
 
 Roles set defaults; an individual can be granted or denied a single permission
@@ -489,6 +516,6 @@ font request and no swap flash.
 | 5 | Scheduling engine: constraints, candidates, optimizer, explanations | **Done** |
 | 6 | Review and publishing workflow | **Done** (with Phase 5) |
 | 7 | Invitations, members, permission overrides, audit UI, settings, onboarding | **Done** |
-| 8 | Google Calendar sync, AI provider configuration | Next |
+| 8 | AI provider configuration **done**; Google Calendar sync needs OAuth credentials | Partly done |
 | 9 | MCP server: credentials, scopes, tools | |
 | 10 | Hardening: tests, security tests, performance, a11y, observability | |
