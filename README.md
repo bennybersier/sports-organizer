@@ -432,6 +432,24 @@ rejected), the same key encrypts differently each time, the table is
 unreachable from a signed-in client (403), and no key or ciphertext appears in
 what the UI receives or in the audit log.
 
+## Trainers and teams
+
+A trainer must be assigned to at least one team. This is not bureaucracy: the
+scheduler's candidate generation only offers a coach for teams they actually
+coach, so an unassigned trainer is silently invisible to it. Requiring the
+assignment turns "I added a trainer but the schedule ignores them" into a
+message at the point of entry.
+
+Assignment works from both sides — the team form picks its coaches, the trainer
+form picks their teams — and both write the same `trainer_teams` rows.
+Removing an assignment sets `unassigned_at` rather than deleting, so who coached
+what through a season survives a roster change.
+
+Trainers created before the rule are still listed and still editable; they are
+flagged **No team** so the gap is visible rather than silent. Onboarding puts
+teams before trainers, since the reverse order walks someone into a form they
+cannot submit.
+
 ## Members and permissions
 
 Roles set defaults; an individual can be granted or denied a single permission

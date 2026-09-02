@@ -330,7 +330,12 @@
     "updated": "{name} updated.",
     "archived": "{name} archived.",
     "archiveConfirmTitle": "Archive this trainer?",
-    "archiveConfirmBody": "Their past sessions are preserved. They won't be assigned to new training."
+    "archiveConfirmBody": "Their past sessions are preserved. They won't be assigned to new training.",
+    "teamsRequired": "Assign this trainer to at least one team.",
+    "teamsHint": "A trainer with no team is skipped by the scheduler — it only offers a coach for teams they actually coach.",
+    "noTeamsYet": "Create a team first",
+    "noTeamsYetBody": "Trainers are assigned to teams, so there needs to be at least one before you can add coaching staff.",
+    "unassigned": "No team"
   },
   "teams": {
     "title": "Teams",

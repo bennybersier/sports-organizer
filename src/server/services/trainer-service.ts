@@ -8,7 +8,6 @@ import {
   buildListResult,
   paginationRange,
   searchAcross,
-  tally,
   type ListParams,
   type ListResult,
 } from "@/server/services/list-query";
@@ -17,6 +16,7 @@ import type { TrainerRow } from "@/types/database";
 
 export interface TrainerListItem extends TrainerRow {
   team_count: number;
+  teams: { id: string; name: string; color: string }[];
 }
 
 const CONFLICTS = {
@@ -64,27 +64,105 @@ export async function listTrainers(
   if (error) throw fromDatabaseError(error, { resource: "trainer" });
 
   const trainers = data ?? [];
-  const counts = await countTeamsByTrainer(context, trainers.map((t) => t.id));
+  const teamsByTrainer = await teamsFor(context, trainers.map((t) => t.id));
 
   return buildListResult(
-    trainers.map((trainer) => ({ ...trainer, team_count: counts.get(trainer.id) ?? 0 })),
+    trainers.map((trainer) => ({
+      ...trainer,
+      teams: teamsByTrainer.get(trainer.id) ?? [],
+      team_count: (teamsByTrainer.get(trainer.id) ?? []).length,
+    })),
     count ?? 0,
     params,
     Boolean(params.q || filters.status || filters.teamId),
   );
 }
 
-async function countTeamsByTrainer(context: AuthContext, trainerIds: string[]) {
-  if (trainerIds.length === 0) return new Map<string, number>();
+/**
+ * Current team assignments for a page of trainers, in two queries rather than
+ * one per trainer.
+ */
+async function teamsFor(context: AuthContext, trainerIds: string[]) {
+  const result = new Map<string, { id: string; name: string; color: string }[]>();
+  if (trainerIds.length === 0) return result;
 
-  const { data } = await context.db
+  const { data: links } = await context.db
     .from("trainer_teams")
-    .select("trainer_id")
+    .select("trainer_id, team_id")
     .eq("tenant_id", context.tenant.id)
     .in("trainer_id", trainerIds)
     .is("unassigned_at", null);
 
-  return tally(data ?? [], "trainer_id");
+  const teamIds = [...new Set((links ?? []).map((link) => link.team_id))];
+  if (teamIds.length === 0) return result;
+
+  const { data: teams } = await context.db
+    .from("teams")
+    .select("id, name, color")
+    .eq("tenant_id", context.tenant.id)
+    .in("id", teamIds);
+
+  const byId = new Map((teams ?? []).map((team) => [team.id, team]));
+
+  for (const link of links ?? []) {
+    const team = byId.get(link.team_id);
+    if (!team) continue;
+    result.set(link.trainer_id, [...(result.get(link.trainer_id) ?? []), team]);
+  }
+  return result;
+}
+
+/** Current team ids for one trainer, for the edit form. */
+export async function getTrainerTeamIds(
+  context: AuthContext,
+  trainerId: string,
+): Promise<string[]> {
+  assertPermission(context, "trainers.read");
+
+  const { data } = await context.db
+    .from("trainer_teams")
+    .select("team_id")
+    .eq("tenant_id", context.tenant.id)
+    .eq("trainer_id", trainerId)
+    .is("unassigned_at", null);
+
+  return (data ?? []).map((row) => row.team_id);
+}
+
+/**
+ * Reconciles a trainer's team assignments.
+ *
+ * Removals end the assignment rather than deleting it, so the record of who
+ * coached what through a season survives a roster change — the same rule the
+ * team side follows.
+ */
+async function syncTeams(context: AuthContext, trainerId: string, teamIds: string[]) {
+  const current = await getTrainerTeamIds(context, trainerId);
+  const desired = new Set(teamIds);
+
+  const removed = current.filter((id) => !desired.has(id));
+  const added = teamIds.filter((id) => !current.includes(id));
+
+  if (removed.length > 0) {
+    await context.db
+      .from("trainer_teams")
+      .update({ unassigned_at: new Date().toISOString().slice(0, 10) })
+      .eq("tenant_id", context.tenant.id)
+      .eq("trainer_id", trainerId)
+      .in("team_id", removed)
+      .is("unassigned_at", null);
+  }
+
+  for (const teamId of added) {
+    await context.db.from("trainer_teams").insert({
+      tenant_id: context.tenant.id,
+      trainer_id: trainerId,
+      team_id: teamId,
+      created_by: context.user.id,
+    });
+  }
+
+  return { added: added.length, removed: removed.length };
 }
 
 export async function getTrainer(context: AuthContext, id: string): Promise<TrainerRow> {
@@ -144,11 +222,13 @@ export async function createTrainer(
 
   if (error) throw fromDatabaseError(error, { resource: "trainer", conflictMessages: CONFLICTS });
 
+  await syncTeams(context, data.id, input.teamIds);
+
   await recordAudit(context, {
     action: AUDIT_ACTIONS.TRAINER_CREATED,
     resourceType: "trainer",
     resourceId: data.id,
-    newValue: { name: `${data.first_name} ${data.last_name}` },
+    newValue: { name: `${data.first_name} ${data.last_name}`, teams: input.teamIds.length },
   });
 
   return data;
@@ -172,13 +252,17 @@ export async function updateTrainer(
 
   if (error) throw fromDatabaseError(error, { resource: "trainer", conflictMessages: CONFLICTS });
 
+  const assignments = await syncTeams(context, input.id, input.teamIds);
   const diff = diffFields(before as unknown as Record<string, unknown>, changes);
-  if (diff) {
+
+  if (diff || assignments.added || assignments.removed) {
     await recordAudit(context, {
       action: AUDIT_ACTIONS.TRAINER_UPDATED,
       resourceType: "trainer",
       resourceId: data.id,
-      ...diff,
+      oldValue: diff?.oldValue ?? null,
+      newValue: diff?.newValue ?? null,
+      metadata: assignments,
     });
   }
 

@@ -37,12 +37,16 @@ export async function getOnboardingSteps(context: AuthContext): Promise<Onboardi
     count("schedule_versions"),
   ]);
 
+  /*
+    Teams come before trainers: a trainer must be assigned to at least one team,
+    so the reverse order walks someone into a form they cannot submit.
+  */
   return [
     { key: "stepSeason", done: seasons > 0, href: "/seasons" },
     { key: "stepGyms", done: gyms > 0, href: "/gyms" },
     { key: "stepGymHours", done: gymHours > 0, href: "/gyms" },
-    { key: "stepTrainers", done: trainers > 0, href: "/trainers" },
     { key: "stepTeams", done: teams > 0, href: "/teams" },
+    { key: "stepTrainers", done: trainers > 0, href: "/trainers" },
     { key: "stepRequirements", done: requirements > 0, href: "/teams" },
     { key: "stepSchedule", done: schedules > 0, href: "/organizer" },
   ];

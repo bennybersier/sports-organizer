@@ -23,6 +23,8 @@ import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
 import { parseListParams } from "@/server/services/list-query";
 import { listTrainers } from "@/server/services/trainer-service";
+import { listTeamOptions } from "@/server/services/team-service";
+import { listSeasonOptions } from "@/server/services/season-service";
 
 import { TrainerFormDialog } from "./trainer-form-dialog";
 import { TrainerRowActions } from "./trainer-row-actions";
@@ -48,7 +50,20 @@ export default async function TrainersPage({
   const params = parseListParams(raw);
   const status = typeof raw.status === "string" ? raw.status : undefined;
 
-  const result = await listTrainers(context, params, { status });
+  /*
+    Assignment is scoped to the active season: a coach is assigned to this
+    year's squad, not to a team that existed two seasons ago.
+  */
+  const canReadTeams = hasPermission(context, "teams.read");
+  const seasons = canReadTeams ? await listSeasonOptions(context) : [];
+  const activeSeasonId = seasons.find((season) => season.status === "ACTIVE")?.id;
+
+  const [result, teams] = await Promise.all([
+    listTrainers(context, params, { status }),
+    canReadTeams ? listTeamOptions(context, activeSeasonId) : Promise.resolve([]),
+  ]);
+
+  const teamOptions = teams.map((team) => ({ value: team.id, label: team.name }));
   const canCreate = hasPermission(context, "trainers.create");
   const canUpdate = hasPermission(context, "trainers.update");
   const canDelete = hasPermission(context, "trainers.delete");
@@ -58,7 +73,7 @@ export default async function TrainersPage({
       <PageHeader
         title={t("title")}
         description={t("subtitle")}
-        action={canCreate ? <TrainerFormDialog mode="create" /> : null}
+        action={canCreate ? <TrainerFormDialog mode="create" teams={teamOptions} /> : null}
       />
 
       <ListToolbar
@@ -81,7 +96,11 @@ export default async function TrainersPage({
           icon={UserCog}
           title={result.filtered ? tList("noResults") : t("emptyTitle")}
           description={result.filtered ? tList("noResultsBody") : t("emptyBody")}
-          action={canCreate && !result.filtered ? <TrainerFormDialog mode="create" /> : null}
+          action={
+            canCreate && !result.filtered ? (
+              <TrainerFormDialog mode="create" teams={teamOptions} />
+            ) : null
+          }
         />
       ) : (
         <>
@@ -136,8 +155,24 @@ export default async function TrainersPage({
                         )}
                       </div>
                     </TableCell>
-                    <TableCell className="text-right tabular-nums">
-                      {trainer.team_count}
+                    <TableCell>
+                      <div className="flex flex-wrap justify-end gap-1">
+                        {trainer.teams.length === 0 ? (
+                          // Worth saying out loud: the scheduler skips them.
+                          <Badge variant="destructive">{t("unassigned")}</Badge>
+                        ) : (
+                          trainer.teams.map((team) => (
+                            <Badge key={team.id} variant="outline" className="gap-1">
+                              <span
+                                className="size-2 rounded-full"
+                                style={{ backgroundColor: team.color }}
+                                aria-hidden
+                              />
+                              {team.name}
+                            </Badge>
+                          ))
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={trainer.status} />
@@ -155,6 +190,7 @@ export default async function TrainersPage({
                           notes: trainer.notes,
                           status: trainer.status,
                         }}
+                        teams={teamOptions}
                         canUpdate={canUpdate}
                         canDelete={canDelete}
                       />

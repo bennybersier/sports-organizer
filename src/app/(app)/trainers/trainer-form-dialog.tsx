@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { MultiSelect, type MultiSelectOption } from "@/components/data/multi-select";
 import { useFormDialog } from "@/hooks/use-form-dialog";
 import { createTrainerAction, updateTrainerAction } from "@/server/actions/trainers";
 
@@ -66,11 +67,16 @@ const toList = (text: string | undefined) =>
 export function TrainerFormDialog({
   mode,
   trainer,
+  teams,
+  initialTeamIds,
   open: controlledOpen,
   onOpenChange,
 }: {
   mode: "create" | "edit";
   trainer?: TrainerFormValues;
+  /** Active teams in the current season, for assignment. */
+  teams: MultiSelectOption[];
+  initialTeamIds?: string[];
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -78,6 +84,8 @@ export function TrainerFormDialog({
   const t = useTranslations("trainers");
   const tCommon = useTranslations("common");
   const [formError, setFormError] = useState<string | null>(null);
+  const [teamIds, setTeamIds] = useState<string[]>(initialTeamIds ?? []);
+  const [teamsError, setTeamsError] = useState<string | null>(null);
 
   const blank: Values = {
     firstName: "",
@@ -107,12 +115,25 @@ export function TrainerFormDialog({
     onOpenChange,
     onOpen: () => {
       setFormError(null);
-      if (mode === "create") form.reset(blank);
+      setTeamsError(null);
+      if (mode === "create") {
+        form.reset(blank);
+        setTeamIds([]);
+      }
     },
   });
 
   async function onSubmit(values: Values) {
     setFormError(null);
+    setTeamsError(null);
+
+    // Checked here as well as on the server so the message lands next to the
+    // field rather than as a general form error.
+    if (teamIds.length === 0) {
+      setTeamsError(t("teamsRequired"));
+      return;
+    }
+
     const payload = {
       ...(mode === "edit" ? { id: trainer?.id } : {}),
       firstName: values.firstName,
@@ -122,6 +143,7 @@ export function TrainerFormDialog({
       qualifications: toList(values.qualificationsText),
       color: values.color,
       notes: values.notes,
+      teamIds,
     };
 
     const result =
@@ -198,6 +220,35 @@ export function TrainerFormDialog({
                 )}
               />
             </div>
+
+            {teams.length === 0 ? (
+              <Alert>
+                <AlertDescription>
+                  <strong>{t("noTeamsYet")}</strong>
+                  <br />
+                  {t("noTeamsYetBody")}
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <FormItem>
+                <FormLabel>{t("teams")}</FormLabel>
+                <MultiSelect
+                  options={teams}
+                  value={teamIds}
+                  onChange={(next) => {
+                    setTeamIds(next);
+                    if (next.length > 0) setTeamsError(null);
+                  }}
+                  placeholder={t("teams")}
+                  emptyText={tCommon("none")}
+                />
+                {teamsError ? (
+                  <p className="text-sm text-destructive">{teamsError}</p>
+                ) : (
+                  <FormDescription>{t("teamsHint")}</FormDescription>
+                )}
+              </FormItem>
+            )}
 
             <div className="grid gap-4 sm:grid-cols-2">
               <FormField
@@ -285,7 +336,10 @@ export function TrainerFormDialog({
               <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 {tCommon("cancel")}
               </Button>
-              <Button type="submit" disabled={form.formState.isSubmitting}>
+              <Button
+                type="submit"
+                disabled={form.formState.isSubmitting || teams.length === 0}
+              >
                 {form.formState.isSubmitting ? (
                   <>
                     <Loader2 className="animate-spin" aria-hidden />

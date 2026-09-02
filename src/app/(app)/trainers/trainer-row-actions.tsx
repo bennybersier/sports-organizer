@@ -15,15 +15,19 @@ import {
 import { ConfirmDialog } from "@/components/data/confirm-dialog";
 import { useAction } from "@/hooks/use-action";
 import { archiveTrainerAction, restoreTrainerAction } from "@/server/actions/trainers";
+import { getTrainerTeamIdsAction } from "@/server/actions/trainers-read";
+import type { MultiSelectOption } from "@/components/data/multi-select";
 
 import { TrainerFormDialog, type TrainerFormValues } from "./trainer-form-dialog";
 
 export function TrainerRowActions({
   trainer,
+  teams,
   canUpdate,
   canDelete,
 }: {
   trainer: TrainerFormValues & { id: string; status: string };
+  teams: MultiSelectOption[];
   canUpdate: boolean;
   canDelete: boolean;
 }) {
@@ -32,6 +36,15 @@ export function TrainerRowActions({
   const { run, isPending } = useAction();
   const [editOpen, setEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
+  const [teamIds, setTeamIds] = useState<string[] | undefined>(undefined);
+
+  // Current assignments are fetched when the dialog is asked for, so the list
+  // page does not pay for rows nobody edits.
+  async function openEdit() {
+    const result = await getTrainerTeamIdsAction(trainer.id);
+    setTeamIds(result.ok ? result.data : []);
+    setEditOpen(true);
+  }
 
   const isArchived = trainer.status === "ARCHIVED";
   if (!canUpdate && !canDelete) return null;
@@ -46,7 +59,7 @@ export function TrainerRowActions({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {canUpdate ? (
-            <DropdownMenuItem onSelect={() => setEditOpen(true)}>
+            <DropdownMenuItem onSelect={() => void openEdit()}>
               <Pencil aria-hidden />
               {tCommon("edit")}
             </DropdownMenuItem>
@@ -77,7 +90,16 @@ export function TrainerRowActions({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <TrainerFormDialog mode="edit" trainer={trainer} open={editOpen} onOpenChange={setEditOpen} />
+      {editOpen ? (
+        <TrainerFormDialog
+          mode="edit"
+          trainer={trainer}
+          teams={teams}
+          initialTeamIds={teamIds}
+          open={editOpen}
+          onOpenChange={setEditOpen}
+        />
+      ) : null}
 
       <ConfirmDialog
         open={archiveOpen}

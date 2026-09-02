@@ -330,7 +330,12 @@
     "updated": "{name} aggiornato.",
     "archived": "{name} archiviato.",
     "archiveConfirmTitle": "Archiviare questo allenatore?",
-    "archiveConfirmBody": "Gli allenamenti passati vengono conservati. Non verrà assegnato a nuovi allenamenti."
+    "archiveConfirmBody": "Gli allenamenti passati vengono conservati. Non verrà assegnato a nuovi allenamenti.",
+    "teamsRequired": "Assegna questo allenatore ad almeno una squadra.",
+    "teamsHint": "Un allenatore senza squadra viene ignorato dalla pianificazione: propone un allenatore solo per le squadre che allena davvero.",
+    "noTeamsYet": "Crea prima una squadra",
+    "noTeamsYetBody": "Gli allenatori vengono assegnati alle squadre, quindi ne serve almeno una prima di poter aggiungere lo staff tecnico.",
+    "unassigned": "Nessuna squadra"
   },
   "teams": {
     "title": "Squadre",

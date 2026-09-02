@@ -18,6 +18,13 @@ const baseTrainer = z.object({
   qualifications: stringArray,
   color: z.union([z.literal(""), hexColorSchema]).optional().transform((v) => v || null),
   notes: optionalText(2000),
+  /*
+    A trainer with no team is invisible to the scheduler: candidate generation
+    only offers a coach for teams they actually coach. Requiring the assignment
+    here means "I added a trainer but the schedule ignores them" cannot happen
+    silently.
+  */
+  teamIds: z.array(uuidSchema).min(1, "Assign this trainer to at least one team."),
 });
 
 export const createTrainerSchema = baseTrainer;
