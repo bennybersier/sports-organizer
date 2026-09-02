@@ -246,7 +246,7 @@ way.
 
 ## Database
 
-36 tables across 15 versioned migrations in [`supabase/migrations/`](supabase/migrations/).
+37 tables across 16 versioned migrations in [`supabase/migrations/`](supabase/migrations/).
 
 | Migration | Contents |
 | --- | --- |
@@ -265,6 +265,7 @@ way.
 | `0013_invitation_token_hardening` | accept_invitation takes the raw token, not its hash |
 | `0014_invitation_column_grants` | token_hash removed from what client roles may select |
 | `0015_audit_immutability_scope` | Audit guard no longer blocks deleting a club with history |
+| `0016_publish_for_non_session_callers` | Publishing works for callers with no JWT; the transaction and the auth check are separated |
 
 **Availability model.** Recurring weekly windows plus date-specific exceptions.
 Weekdays are ISO-8601 (1 = Monday … 7 = Sunday, matching `extract(isodow)`).
@@ -313,6 +314,36 @@ Team training requirements separate **hard** constraints the schedule must
 satisfy from **preferences** it should try to — the distinction the optimizer is
 built around, and one an organizer needs to already understand when reading a
 conflict explanation later.
+
+## MCP
+
+`POST /api/mcp` — JSON-RPC 2.0, protocol `2025-11-25`, stateless. Every tool is
+a thin shell over a service the web UI already calls, so MCP owns no business
+logic: change a rule in a service and it changes for MCP in the same commit.
+That is the spec's closing principle made mechanical rather than aspirational.
+
+**Two independent gates, both must pass.** The key's *owner* must hold the
+tool's permission — that one cannot be argued with. And the key's *scopes* must
+allow the tool: an empty scope list means "the ordinary tools my owner can use";
+naming any scope narrows the key to exactly those; and generating or publishing
+a schedule must always be named explicitly. A tool a key cannot call is never
+advertised.
+
+**Scopes gate tools, not permissions.** Got this wrong first: masking the
+permission set meant a key scoped to `schedule.generate` was offered the tool
+and then failed inside it, because generating legitimately reads seasons, teams,
+gyms and availability along the way. A permitted tool now runs with its owner's
+real permissions. The guarantee is unchanged — a scoped key reaches fewer
+capabilities, never more — and the failure mode is gone.
+
+**A key never outlives its owner's authority.** Demote the person and every key
+they issued weakens with them; suspend their membership and their keys stop
+working on the next request. Verified: an Athlete's key that asks for
+`schedule.publish` gets nothing at all.
+
+Only the SHA-256 of a key is stored, and MCP writes are attributed as
+`actor_type = MCP` in the audit log, so a club can always tell an agent's work
+from a person's.
 
 ## AI providers
 
@@ -517,5 +548,5 @@ font request and no swap flash.
 | 6 | Review and publishing workflow | **Done** (with Phase 5) |
 | 7 | Invitations, members, permission overrides, audit UI, settings, onboarding | **Done** |
 | 8 | AI provider configuration **done**; Google Calendar sync needs OAuth credentials | Partly done |
-| 9 | MCP server: credentials, scopes, tools | |
-| 10 | Hardening: tests, security tests, performance, a11y, observability | |
+| 9 | MCP server: credentials, scopes, tools | **Done** |
+| 10 | Hardening: tests, security tests, performance, a11y, observability | Next |

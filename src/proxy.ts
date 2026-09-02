@@ -14,7 +14,7 @@ import { updateSession } from "@/lib/supabase/middleware";
  * permissions server-side, and RLS guards the data underneath.
  */
 
-/** Routes reachable without a session. */
+/** Routes reachable without a session cookie. */
 const PUBLIC_PREFIXES = [
   "/login",
   "/forgot-password",
@@ -24,8 +24,18 @@ const PUBLIC_PREFIXES = [
   "/auth/error",
 ];
 
+/**
+ * Routes that authenticate themselves.
+ *
+ * `/api/mcp` presents an API key, not a session cookie. Redirecting it to the
+ * login page would hand a machine client an HTML page and an HTTP 200 where it
+ * expected JSON and a 401 — so the gate below steps aside and lets the route
+ * answer for itself.
+ */
+const SELF_AUTHENTICATING_PREFIXES = ["/api/mcp"];
+
 function isPublic(pathname: string): boolean {
-  return PUBLIC_PREFIXES.some(
+  return [...PUBLIC_PREFIXES, ...SELF_AUTHENTICATING_PREFIXES].some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
 }

@@ -10,8 +10,10 @@ import { env } from "@/env";
 import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
 import { listAiConfigs } from "@/server/services/ai-config-service";
+import { listMcpKeys } from "@/server/services/mcp-key-service";
 
 import { AiProviderList } from "./ai-provider-list";
+import { McpKeyList } from "./mcp-key-list";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("integrations");
@@ -25,7 +27,12 @@ export default async function IntegrationsPage() {
   const t = await getTranslations("integrations");
 
   const canReadAi = hasPermission(context, "ai.read");
-  const configs = canReadAi ? await listAiConfigs(context) : [];
+  const canManageMcp = hasPermission(context, "mcp.manage");
+
+  const [configs, mcpKeys] = await Promise.all([
+    canReadAi ? listAiConfigs(context) : Promise.resolve([]),
+    canManageMcp ? listMcpKeys(context) : Promise.resolve([]),
+  ]);
 
   // Google is a deployment-level capability: without credentials in the
   // environment, no club can connect, and saying so is more useful than
@@ -42,6 +49,14 @@ export default async function IntegrationsPage() {
         <AiProviderList
           configs={configs}
           canManage={hasPermission(context, "ai.manage")}
+        />
+      ) : null}
+
+      {canManageMcp ? (
+        <McpKeyList
+          keys={mcpKeys}
+          endpoint={new URL("/api/mcp", env.NEXT_PUBLIC_APP_URL).toString()}
+          availableScopes={[...context.permissions]}
         />
       ) : null}
 

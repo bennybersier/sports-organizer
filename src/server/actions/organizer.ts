@@ -6,8 +6,8 @@ import { z } from "zod";
 import { runAction, parseInput, type ActionResult } from "@/lib/action";
 import { ConflictError, fromDatabaseError } from "@/lib/errors";
 import { requirePermission } from "@/server/auth/authorization";
-import { AUDIT_ACTIONS, recordAudit } from "@/server/services/audit-service";
 import { generateAndStore } from "@/server/services/schedule-generation-service";
+import { publishScheduleVersion } from "@/server/services/schedule-publish-service";
 import type { GenerationResult } from "@/domain/scheduling/types";
 
 const generateSchema = z.object({
@@ -47,18 +47,7 @@ export async function generateScheduleAction(
 export async function publishScheduleAction(versionId: string): Promise<ActionResult<null>> {
   return runAction(async () => {
     const context = await requirePermission("schedule.publish");
-
-    const { error } = await context.db.rpc("publish_schedule_version", {
-      p_version_id: versionId,
-    });
-
-    if (error) throw fromDatabaseError(error, { resource: "schedule" });
-
-    await recordAudit(context, {
-      action: AUDIT_ACTIONS.SCHEDULE_PUBLISHED,
-      resourceType: "schedule_version",
-      resourceId: versionId,
-    });
+    await publishScheduleVersion(context, versionId);
 
     revalidatePath("/organizer");
     revalidatePath("/calendar");
