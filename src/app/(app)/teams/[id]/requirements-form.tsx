@@ -113,6 +113,7 @@ export function RequirementsCard({
           earliestStart: values.earliestStart,
           latestEnd: values.latestEnd,
           minDaysBetween: values.minDaysBetween,
+          matchRestDays: values.matchRestDays,
           maxDaysBetween: values.maxDaysBetween ?? "",
           allowedGymIds: values.allowedGymIds,
           preferredWeekdays: values.preferredWeekdays,
@@ -144,7 +145,7 @@ export function RequirementsCard({
   );
 
   const number = (
-    key: "sessionsPerWeek" | "durationMinutes" | "minDaysBetween",
+    key: "sessionsPerWeek" | "durationMinutes" | "minDaysBetween" | "matchRestDays",
     label: string,
     min: number,
     max: number,
@@ -224,6 +225,18 @@ export function RequirementsCard({
                   {number("sessionsPerWeek", t("sessionsPerWeek"), 0, 14)}
                   {number("durationMinutes", t("durationMinutes"), 15, 480, t("minutes"))}
                   {number("minDaysBetween", t("minDaysBetween"), 0, 7)}
+                </div>
+
+                {/*
+                  The match day itself is always kept clear, so zero here is a
+                  real answer and the common one: a minibasket group plays on
+                  Saturday morning and trains that afternoon quite happily.
+                */}
+                <div className="grid gap-1">
+                  <div className="sm:max-w-48">
+                    {number("matchRestDays", t("matchRestDays"), 0, 3)}
+                  </div>
+                  <p className="text-muted-foreground text-xs">{t("matchRestDaysHint")}</p>
                 </div>
 
                 {/*
@@ -392,6 +405,7 @@ export function RequirementsCard({
           {fact(t("allowedWeekdays"), dayNames(requirement.allowedWeekdays))}
           {fact(t("window"), `${requirement.earliestStart} – ${requirement.latestEnd}`)}
           {fact(t("minDaysBetween"), String(requirement.minDaysBetween))}
+          {fact(t("matchRestDays"), String(requirement.matchRestDays))}
           {fact(t("allowedGyms"), gymNames(requirement.allowedGymIds))}
         </dl>
 

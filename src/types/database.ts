@@ -332,6 +332,8 @@ export interface TeamTrainingRequirementRow extends Timestamps {
   priority: number;
   /** First date this team trains; null follows the schedule. */
   starts_on: string | null;
+  /** Whole days either side of a fixture this team does not train. */
+  match_rest_days: number;
   allowed_weekdays: IsoWeekday[];
   earliest_start: string;
   latest_end: string;

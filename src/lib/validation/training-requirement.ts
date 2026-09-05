@@ -33,6 +33,8 @@ export const trainingRequirementSchema = z
       .union([z.literal(""), z.iso.date()])
       .optional()
       .transform((value) => value || null),
+    // The match day is always blocked; this is the buffer either side of it.
+    matchRestDays: z.coerce.number().int().min(0).max(3).default(0),
     allowedWeekdays: weekdays,
     earliestStart: timeSchema,
     latestEnd: timeSchema,

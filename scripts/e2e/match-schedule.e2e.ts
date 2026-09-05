@@ -88,7 +88,10 @@ beforeAll(async () => {
 
   // Three sides, all training once a week on a Wednesday evening. `playing`
   // and `travelling` have fixtures; `resting` never does, and is the control.
-  for (const name of ["playing", "travelling", "resting"]) {
+  // `cautious` trains Tuesdays and Thursdays and keeps a day clear either side
+  // of a fixture. Deliberately off Wednesday: the others are all there, and one
+  // coach can only take so many 90-minute sessions in an evening.
+  for (const name of ["playing", "travelling", "resting", "cautious"]) {
     const row = await insert<{ id: string }>("teams", {
       tenant_id: tenantId,
       season_id: seasonId,
@@ -101,9 +104,10 @@ beforeAll(async () => {
       tenant_id: tenantId,
       season_id: seasonId,
       team_id: row.id,
-      sessions_per_week: 1,
+      sessions_per_week: name === "cautious" ? 2 : 1,
       duration_minutes: 90,
-      allowed_weekdays: [3],
+      allowed_weekdays: name === "cautious" ? [2, 4] : [3],
+      match_rest_days: name === "cautious" ? 1 : 0,
       earliest_start: "17:00",
       latest_end: "22:00",
     });
@@ -111,24 +115,26 @@ beforeAll(async () => {
 
   // Both halls and the coach are free every Wednesday evening, so nothing is
   // ever short for a reason other than a fixture.
-  for (const id of [gymId, spareGymId]) {
-    await insert("gym_availability", {
+  for (const weekday of [2, 3, 4]) {
+    for (const id of [gymId, spareGymId]) {
+      await insert("gym_availability", {
+        tenant_id: tenantId,
+        gym_id: id,
+        iso_weekday: weekday,
+        start_time: "17:00",
+        end_time: "22:00",
+        valid_from: "2026-09-01",
+      });
+    }
+    await insert("trainer_availability", {
       tenant_id: tenantId,
-      gym_id: id,
-      iso_weekday: 3,
+      trainer_id: trainer.id,
+      iso_weekday: weekday,
       start_time: "17:00",
       end_time: "22:00",
       valid_from: "2026-09-01",
     });
   }
-  await insert("trainer_availability", {
-    tenant_id: tenantId,
-    trainer_id: trainer.id,
-    iso_weekday: 3,
-    start_time: "17:00",
-    end_time: "22:00",
-    valid_from: "2026-09-01",
-  });
 
   /* A home fixture: holds the hall 17:30–21:30 once its buffers are counted. */
   const home = await insert<{ id: string }>("calendar_events", {
@@ -166,6 +172,23 @@ beforeAll(async () => {
     tenant_id: tenantId,
     event_id: away.id,
     team_id: team.travelling,
+  });
+
+  /* A third fixture, so the rest-day rule has something to rest around. */
+  const cautiousMatch = await insert<{ id: string }>("calendar_events", {
+    tenant_id: tenantId,
+    season_id: seasonId,
+    type: "MATCH",
+    title: "cautious v Crema",
+    opponent: "Crema",
+    is_home: false,
+    start_at: `${MATCH_DATE}T17:00:00Z`,
+    end_at: `${MATCH_DATE}T19:00:00Z`,
+  });
+  await insert("calendar_event_teams", {
+    tenant_id: tenantId,
+    event_id: cautiousMatch.id,
+    team_id: team.cautious,
   });
 
   const { data: permissionRows } = await db.from("permissions").select("key");
@@ -289,6 +312,41 @@ describe("fixtures and training", () => {
 
     expect(await inHall(MATCH_DATE)).toBe(0);
     expect(await inHall(LATER_WEDNESDAY)).toBeGreaterThan(0);
+  });
+
+  it("keeps the day either side clear when a team asks for rest days", () => {
+    /*
+      `cautious` plays on the Wednesday and rests one day either side, so it
+      loses the Tuesday before and the Thursday after — and nothing else. The
+      week before is untouched, which is what separates a rest day from a
+      standing ban on the weekday.
+    */
+    expect(dates[team.cautious]).not.toContain("2026-09-22");
+    expect(dates[team.cautious]).not.toContain("2026-09-24");
+    expect(dates[team.cautious]).toContain("2026-09-15");
+    expect(dates[team.cautious]).toContain("2026-09-17");
+  });
+
+  it("tells a rest day apart from a match day", () => {
+    // Two different sentences for two different situations: the team is not
+    // playing on the Tuesday, it is resting — so an organizer looking at the
+    // gap is not sent hunting for a fixture that is not there.
+    const codes = new Map(
+      skipped
+        .filter((entry) => entry.teamId === team.cautious)
+        .map((entry) => [entry.date, entry.code]),
+    );
+    expect(codes.get("2026-09-22")).toBe("SKIP_REST_DAY");
+    expect(codes.get("2026-09-24")).toBe("SKIP_REST_DAY");
+
+    const playingCodes = skipped.filter((entry) => entry.teamId === team.playing);
+    expect(playingCodes.map((entry) => entry.code)).toContain("SKIP_MATCH");
+  });
+
+  it("rests only the team that asked for it", () => {
+    // `resting` trains Wednesdays only, so the proof is that it is unaffected
+    // by another team's fixture: rest days are per team, not per club.
+    expect(dates[team.resting]).toContain(LATER_WEDNESDAY);
   });
 
   it("costs a bystander only that evening", () => {

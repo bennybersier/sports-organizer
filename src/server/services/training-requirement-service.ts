@@ -18,6 +18,12 @@ export interface TrainingRequirement {
   priority: number;
   /** First date this team trains. Null starts with the schedule. */
   startsOn: string | null;
+  /**
+   * Days either side of a match this team keeps clear.
+   *
+   * The match day itself is always clear; this is the buffer beyond it.
+   */
+  matchRestDays: number;
   allowedWeekdays: number[];
   earliestStart: string;
   latestEnd: string;
@@ -41,6 +47,7 @@ export function defaultRequirement(teamId: string, seasonId: string): TrainingRe
     durationMinutes: 90,
     priority: 3,
     startsOn: null,
+    matchRestDays: 0,
     allowedWeekdays: [1, 2, 3, 4, 5],
     earliestStart: "16:30",
     latestEnd: "22:00",
@@ -64,6 +71,7 @@ function fromRow(row: TeamTrainingRequirementRow): TrainingRequirement {
     durationMinutes: row.duration_minutes,
     priority: row.priority,
     startsOn: row.starts_on,
+    matchRestDays: row.match_rest_days,
     allowedWeekdays: row.allowed_weekdays,
     earliestStart: normalizeTime(row.earliest_start),
     latestEnd: normalizeTime(row.latest_end),
@@ -121,6 +129,7 @@ export async function saveTrainingRequirement(
         duration_minutes: input.durationMinutes,
         priority: input.priority,
         starts_on: input.startsOn,
+        match_rest_days: input.matchRestDays,
         allowed_weekdays: input.allowedWeekdays as IsoWeekday[],
         earliest_start: input.earliestStart,
         latest_end: input.latestEnd,
@@ -160,6 +169,7 @@ export async function saveTrainingRequirement(
       duration_minutes: input.durationMinutes,
       priority: input.priority,
       starts_on: input.startsOn,
+      match_rest_days: input.matchRestDays,
     },
   });
 

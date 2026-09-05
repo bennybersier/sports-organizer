@@ -263,6 +263,16 @@ interface TeamSpec {
   /** Overrides the profile where a specific side differs. */
   sessions?: number;
   priority?: number;
+  /**
+   * Days either side of a fixture this side keeps clear.
+   *
+   * Only the first team, and deliberately. Playing on Sunday and resting the
+   * Saturday and Monday around it leaves Tuesday to Friday for four sessions —
+   * exactly enough, which is the kind of pressure worth watching. Applying it
+   * to every senior side would take four Mondays a week out of the Codogno
+   * evenings and turn a tight fixture into an unsolvable one.
+   */
+  restDays?: number;
 }
 
 const TEAMS: TeamSpec[] = [
@@ -281,6 +291,7 @@ const TEAMS: TeamSpec[] = [
     gyms: ["CAMPUS"],
     preferredGyms: ["CAMPUS"],
     startsOn: START_SENIOR,
+    restDays: 1,
   },
   {
     name: "Divisione Regionale 1",
@@ -1396,6 +1407,7 @@ async function main() {
         duration_minutes: profile.duration,
         priority: priorityOf(team),
         starts_on: team.startsOn,
+        match_rest_days: team.restDays ?? 0,
         allowed_weekdays: team.weekdays,
         earliest_start: profile.earliest,
         latest_end: profile.latest,

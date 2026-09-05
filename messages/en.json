@@ -504,7 +504,9 @@
     "priority5": "5 — Lowest",
     "priorityHint": "When two teams want the same slot, the higher priority gets it. It never lets a team break a rule — it decides who is served first.",
     "startsOn": "First training date",
-    "startsOnHint": "Leave empty to start with the schedule. Sessions before this date are not created."
+    "startsOnHint": "Leave empty to start with the schedule. Sessions before this date are not created.",
+    "matchRestDays": "Rest days around a match",
+    "matchRestDaysHint": "The match day itself is always kept free. This is how many days either side of it the team also rests."
   },
   "detail": {
     "back": "Back",
@@ -722,7 +724,8 @@
     "SKIP_EVENT": "{title} took the hall",
     "SKIP_GYM_CLOSED": "The hall was closed that week",
     "SKIP_TRAINER_AWAY": "The coach was away that week",
-    "SKIP_TEAM_AWAY": "The team was away that week"
+    "SKIP_TEAM_AWAY": "The team was away that week",
+    "SKIP_REST_DAY": "Resting around {title}"
   },
   "members": {
     "title": "Members",

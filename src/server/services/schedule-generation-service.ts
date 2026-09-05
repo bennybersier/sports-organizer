@@ -92,6 +92,8 @@ export async function buildScheduleInput(
   weekStart: string;
   rawAvailability: RawAvailability;
   teamStartDates: Map<string, string | null>;
+  /** Days either side of a fixture each team keeps clear. */
+  teamRestDays: Map<string, number>;
 }> {
   assertPermission(context, "schedule.generate");
 
@@ -277,6 +279,9 @@ export async function buildScheduleInput(
     teamStartDates: new Map(
       teams.map((team) => [team.id, requirements.get(team.id)?.starts_on ?? null]),
     ),
+    teamRestDays: new Map(
+      teams.map((team) => [team.id, requirements.get(team.id)?.match_rest_days ?? 0]),
+    ),
   };
 }
 
@@ -392,7 +397,7 @@ export async function generateAndStore(
   assertPermission(context, "schedule.generate");
 
   const season = await getSeason(context, options.seasonId);
-  const { input, weekStart, rawAvailability, teamStartDates } = await buildScheduleInput(
+  const { input, weekStart, rawAvailability, teamStartDates, teamRestDays } = await buildScheduleInput(
     context,
     options,
   );
@@ -437,6 +442,7 @@ export async function generateAndStore(
     until: appliesUntil,
     rawAvailability,
     teamStartDates,
+    teamRestDays,
   });
 
   const { data: version, error: versionError } = await context.db
@@ -545,6 +551,7 @@ async function planOccurrences(
     until: string;
     rawAvailability: RawAvailability;
     teamStartDates: Map<string, string | null>;
+    teamRestDays: Map<string, number>;
   },
 ): Promise<{
   rows: Omit<
@@ -617,9 +624,30 @@ async function planOccurrences(
         same as being free during its own fixture.
       */
       if (fixtures) {
-        const playing = restDayReason(fixtures, date, 0);
+        // The match day itself always goes, and says so plainly. A rest day is
+        // a different sentence — the team is not playing, it is recovering or
+        // travelling — so an organizer looking at an empty Friday is not left
+        // hunting for a fixture that is not there.
+        const playing = fixtures.get(date);
         if (playing) {
-          skipped.push({ teamId: assignment.teamId, date, code: "SKIP_MATCH", values: { title: playing } });
+          skipped.push({
+            teamId: assignment.teamId,
+            date,
+            code: "SKIP_MATCH",
+            values: { title: playing },
+          });
+          continue;
+        }
+
+        const restDays = args.teamRestDays.get(assignment.teamId) ?? 0;
+        const nearby = restDays > 0 ? restDayReason(fixtures, date, restDays) : null;
+        if (nearby) {
+          skipped.push({
+            teamId: assignment.teamId,
+            date,
+            code: "SKIP_REST_DAY",
+            values: { title: nearby },
+          });
           continue;
         }
       }
@@ -719,7 +747,13 @@ async function planOccurrences(
 export interface SkippedOccurrence {
   teamId: string;
   date: string;
-  code: "SKIP_MATCH" | "SKIP_EVENT" | "SKIP_GYM_CLOSED" | "SKIP_TRAINER_AWAY" | "SKIP_TEAM_AWAY";
+  code:
+    | "SKIP_MATCH"
+    | "SKIP_REST_DAY"
+    | "SKIP_EVENT"
+    | "SKIP_GYM_CLOSED"
+    | "SKIP_TRAINER_AWAY"
+    | "SKIP_TEAM_AWAY";
   values?: { title: string };
 }
 

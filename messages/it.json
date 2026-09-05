@@ -504,7 +504,9 @@
     "priority5": "5 — Minima",
     "priorityHint": "Quando due squadre vogliono lo stesso spazio, lo ottiene quella con priorità più alta. Non consente mai di violare una regola: stabilisce solo chi viene servito per primo.",
     "startsOn": "Primo giorno di allenamento",
-    "startsOnHint": "Lascia vuoto per iniziare insieme al calendario. Gli allenamenti precedenti a questa data non vengono creati."
+    "startsOnHint": "Lascia vuoto per iniziare insieme al calendario. Gli allenamenti precedenti a questa data non vengono creati.",
+    "matchRestDays": "Giorni di riposo attorno alle partite",
+    "matchRestDaysHint": "Il giorno della partita è sempre libero. Questo indica quanti giorni prima e dopo la squadra riposa in più."
   },
   "detail": {
     "back": "Indietro",
@@ -722,7 +724,8 @@
     "SKIP_EVENT": "{title} occupava la palestra",
     "SKIP_GYM_CLOSED": "La palestra era chiusa quella settimana",
     "SKIP_TRAINER_AWAY": "L'allenatore era assente quella settimana",
-    "SKIP_TEAM_AWAY": "La squadra era assente quella settimana"
+    "SKIP_TEAM_AWAY": "La squadra era assente quella settimana",
+    "SKIP_REST_DAY": "Riposo attorno a {title}"
   },
   "members": {
     "title": "Membri",
