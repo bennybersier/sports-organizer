@@ -108,18 +108,7 @@ export async function listCalendarItems(
   const rangeEnd = endOfDayInZone(to, zone).toISOString();
 
   // The published version is what the club sees; drafts live in the organizer.
-  let publishedVersionId: string | null = null;
-  {
-    let query = context.db
-      .from("schedule_versions")
-      .select("id, season_id")
-      .eq("tenant_id", context.tenant.id)
-      .eq("status", "PUBLISHED");
-    if (filters.seasonId) query = query.eq("season_id", filters.seasonId);
-
-    const { data } = await query.limit(1).maybeSingle();
-    publishedVersionId = data?.id ?? null;
-  }
+  const publishedVersionId = await publishedVersionFor(context, from, to, filters.seasonId);
 
   const [entries, events, lookups] = await Promise.all([
     publishedVersionId
@@ -464,6 +453,36 @@ export async function checkPlacement(
   );
 }
 
+/**
+ * The published schedule covering a span of dates.
+ *
+ * "The published version" is unambiguous only while a club has one season. It
+ * keeps one published version *per season*, so the moment next season is
+ * published alongside this one, taking the first row the database returns shows
+ * whichever it happened to hand back. The dates being asked about decide it,
+ * and the most recently starting one wins a tie — a season that overlaps its
+ * predecessor by a week should show the new schedule, not the old.
+ */
+async function publishedVersionFor(
+  context: AuthContext,
+  from: string,
+  to: string,
+  seasonId?: string,
+): Promise<string | null> {
+  let query = context.db
+    .from("schedule_versions")
+    .select("id")
+    .eq("tenant_id", context.tenant.id)
+    .eq("status", "PUBLISHED")
+    .lte("applies_from", to)
+    .gte("applies_until", from);
+
+  if (seasonId) query = query.eq("season_id", seasonId);
+
+  const { data } = await query.order("applies_from", { ascending: false }).limit(1).maybeSingle();
+  return data?.id ?? null;
+}
+
 /** Everything already booked in the window a candidate would occupy. */
 async function collectBookings(
   context: AuthContext,
@@ -472,21 +491,18 @@ async function collectBookings(
 ): Promise<Booking[]> {
   const zone = context.tenant.timezone;
 
-  const { data: published } = await context.db
-    .from("schedule_versions")
-    .select("id")
-    .eq("tenant_id", context.tenant.id)
-    .eq("status", "PUBLISHED")
-    .limit(1)
-    .maybeSingle();
+  // Bookings are checked for one placement, so the day it falls on is what
+  // decides which season's schedule it could possibly collide with.
+  const day = toWallClock(startAt, zone).date;
+  const publishedId = await publishedVersionFor(context, day, day);
 
   const [entries, events, teams] = await Promise.all([
-    published
+    publishedId
       ? context.db
           .from("schedule_entries")
           .select("id, team_id, trainer_id, gym_id, start_at, end_at")
           .eq("tenant_id", context.tenant.id)
-          .eq("schedule_version_id", published.id)
+          .eq("schedule_version_id", publishedId)
           .neq("status", "CANCELLED")
           .lt("start_at", endAt)
           .gt("end_at", startAt)
@@ -597,21 +613,16 @@ export async function getTeamTrainingWeek(
 
   const zone = context.tenant.timezone;
 
-  const { data: published } = await context.db
-    .from("schedule_versions")
-    .select("id")
-    .eq("tenant_id", context.tenant.id)
-    .eq("status", "PUBLISHED")
-    .limit(1)
-    .maybeSingle();
-
-  const span = published
-    ? await scheduleSpan(context, published.id)
-    : { first: null, last: null };
-
+  // Which week, before which schedule: a coach stepping into next season's
+  // first week should see next season's schedule, and the week decides that.
   const anchor = weekOf ?? (await nextTrainingDate(context, teamId)) ?? todayInZone(zone);
   const weekStart = startOfWeek(anchor, context.tenant.weekStart);
   const weekEnd = addDays(weekStart, 6);
+
+  const publishedId = await publishedVersionFor(context, weekStart, weekEnd);
+  const span = publishedId
+    ? await scheduleSpan(context, publishedId)
+    : { first: null, last: null };
 
   // Training *and* whatever else lands on this team's week — its fixtures
   // above all, which is half of what a coach comes to this page to see.
@@ -685,23 +696,17 @@ export async function getTeamTrainingMonth(
   const zone = context.tenant.timezone;
   const weekStart = context.tenant.weekStart;
 
-  const { data: published } = await context.db
-    .from("schedule_versions")
-    .select("id")
-    .eq("tenant_id", context.tenant.id)
-    .eq("status", "PUBLISHED")
-    .limit(1)
-    .maybeSingle();
-
-  const span = published ? await scheduleSpan(context, published.id) : { first: null, last: null };
-
   // Same rule as the week view: land where the team actually trains rather
-  // than on a month that happens to be empty.
+  // than on a month that happens to be empty, and then read the schedule that
+  // covers that month rather than whichever one comes back first.
   const anchor = monthOf ?? (await nextTrainingDate(context, teamId)) ?? todayInZone(zone);
   const monthStart = startOfMonth(anchor);
   const monthEnd = endOfMonth(anchor);
   const from = startOfWeek(monthStart, weekStart);
   const to = addDays(startOfWeek(monthEnd, weekStart), 6);
+
+  const publishedId = await publishedVersionFor(context, from, to);
+  const span = publishedId ? await scheduleSpan(context, publishedId) : { first: null, last: null };
 
   const items = await listCalendarItems(context, from, to, { teamId });
 
@@ -779,21 +784,26 @@ async function nextTrainingDate(
   context: AuthContext,
   teamId: string,
 ): Promise<string | null> {
-  const { data: version } = await context.db
+  /*
+    Every schedule that has not finished yet, not just one. In June a club may
+    have this season published and next season's already public, and the team's
+    next session could legitimately be in either.
+  */
+  const { data: versions } = await context.db
     .from("schedule_versions")
     .select("id")
     .eq("tenant_id", context.tenant.id)
     .eq("status", "PUBLISHED")
-    .limit(1)
-    .maybeSingle();
+    .gte("applies_until", todayInZone(context.tenant.timezone));
 
-  if (!version) return null;
+  const versionIds = (versions ?? []).map((version) => version.id);
+  if (versionIds.length === 0) return null;
 
   const { data } = await context.db
     .from("schedule_entries")
     .select("start_at")
     .eq("tenant_id", context.tenant.id)
-    .eq("schedule_version_id", version.id)
+    .in("schedule_version_id", versionIds)
     .eq("team_id", teamId)
     .gte("start_at", new Date().toISOString())
     .order("start_at")
