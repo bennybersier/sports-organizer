@@ -23,6 +23,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -49,6 +50,7 @@ export interface TeamFormValues {
   category: string | null;
   ageGroup: string | null;
   gender: string;
+  homeGymId: string | null;
   color: string;
   notes: string | null;
 }
@@ -62,6 +64,7 @@ const schema = z.object({
   category: z.string().trim().max(80).optional(),
   ageGroup: z.string().trim().max(40).optional(),
   gender: z.enum(GENDERS),
+  homeGymId: z.string(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   notes: z.string().trim().max(2000).optional(),
 });
@@ -73,6 +76,7 @@ export function TeamFormDialog({
   team,
   seasons,
   trainers,
+  gyms,
   defaultSeasonId,
   initialTrainerIds,
   open: controlledOpen,
@@ -82,6 +86,7 @@ export function TeamFormDialog({
   team?: TeamFormValues;
   seasons: MultiSelectOption[];
   trainers: MultiSelectOption[];
+  gyms: MultiSelectOption[];
   defaultSeasonId?: string;
   initialTrainerIds?: string[];
   open?: boolean;
@@ -105,6 +110,7 @@ export function TeamFormDialog({
       category: team?.category ?? "",
       ageGroup: team?.ageGroup ?? "",
       gender: (team?.gender as (typeof GENDERS)[number]) ?? "UNSPECIFIED",
+      homeGymId: team?.homeGymId ?? "",
       color: team?.color ?? "#2563eb",
       notes: team?.notes ?? "",
     },
@@ -267,6 +273,37 @@ export function TeamFormDialog({
                         ))}
                       </SelectContent>
                     </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="homeGymId"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>{t("homeGym")}</FormLabel>
+                    <Select
+                      onValueChange={(value) => field.onChange(value === "none" ? "" : value)}
+                      value={field.value || "none"}
+                    >
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {/* A side may genuinely have none — every fixture away,
+                            or the hall not settled yet. */}
+                        <SelectItem value="none">{tCommon("none")}</SelectItem>
+                        {gyms.map((gym) => (
+                          <SelectItem key={gym.value} value={gym.value}>
+                            {gym.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <FormDescription>{t("homeGymHint")}</FormDescription>
                     <FormMessage />
                   </FormItem>
                 )}

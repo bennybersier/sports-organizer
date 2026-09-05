@@ -9,6 +9,11 @@ const baseTeam = z.object({
   category: optionalText(80),
   ageGroup: optionalText(40),
   gender: genderSchema.default("UNSPECIFIED"),
+  /**
+   * The hall this team hosts in. Empty is a real answer: a side may play every
+   * fixture away, or not have settled a hall yet.
+   */
+  homeGymId: z.union([z.literal(""), uuidSchema]).optional().transform((v) => v || null),
   color: hexColorSchema.default("#2563eb"),
   notes: optionalText(2000),
   trainerIds: z.array(uuidSchema).default([]),

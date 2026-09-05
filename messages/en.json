@@ -389,7 +389,9 @@
     "sessionsThisWeek": "{count} of {required} sessions",
     "sessionsThisMonth": "{count, plural, one {# session} other {# sessions}}",
     "noTrainingThisWeek": "No training scheduled this week. Generate and publish a schedule in the Smart Organizer, or step through the weeks above.",
-    "noTrainingThisMonth": "No training scheduled this month. Generate and publish a schedule in the Smart Organizer, or step through the months above."
+    "noTrainingThisMonth": "No training scheduled this month. Generate and publish a schedule in the Smart Organizer, or step through the months above.",
+    "homeGym": "Home hall",
+    "homeGymHint": "Where this team plays its home fixtures. Not necessarily where it trains."
   },
   "athletes": {
     "title": "Athletes",

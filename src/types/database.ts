@@ -219,6 +219,8 @@ export interface TeamRow extends Timestamps {
   category: string | null;
   age_group: string | null;
   gender: GenderCategory;
+  /** Where this team plays home fixtures. Distinct from where it trains. */
+  home_gym_id: string | null;
   color: string;
   notes: string | null;
   status: EntityStatus;

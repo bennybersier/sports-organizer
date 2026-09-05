@@ -389,7 +389,9 @@
     "sessionsThisWeek": "{count} di {required} allenamenti",
     "sessionsThisMonth": "{count, plural, one {# sessione} other {# sessioni}}",
     "noTrainingThisWeek": "Nessun allenamento programmato questa settimana. Genera e pubblica un calendario nell'Organizzatore intelligente oppure sfoglia le settimane qui sopra.",
-    "noTrainingThisMonth": "Nessun allenamento programmato questo mese. Genera e pubblica un calendario nell'Organizzatore, oppure sfoglia i mesi qui sopra."
+    "noTrainingThisMonth": "Nessun allenamento programmato questo mese. Genera e pubblica un calendario nell'Organizzatore, oppure sfoglia i mesi qui sopra.",
+    "homeGym": "Palestra di casa",
+    "homeGymHint": "Dove questa squadra gioca le partite in casa. Non necessariamente dove si allena."
   },
   "athletes": {
     "title": "Atleti",

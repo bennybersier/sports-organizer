@@ -24,12 +24,14 @@ export function TeamRowActions({
   team,
   seasons,
   trainers,
+  gyms,
   canUpdate,
   canDelete,
 }: {
   team: TeamFormValues & { id: string; status: string };
   seasons: MultiSelectOption[];
   trainers: MultiSelectOption[];
+  gyms: MultiSelectOption[];
   canUpdate: boolean;
   canDelete: boolean;
 }) {
@@ -98,6 +100,7 @@ export function TeamRowActions({
           team={team}
           seasons={seasons}
           trainers={trainers}
+          gyms={gyms}
           initialTrainerIds={trainerIds}
           open={editOpen}
           onOpenChange={setEditOpen}

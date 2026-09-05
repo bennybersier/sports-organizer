@@ -195,6 +195,7 @@ function toRow(input: CreateTeamInput) {
     category: input.category,
     age_group: input.ageGroup,
     gender: input.gender,
+    home_gym_id: input.homeGymId,
     color: input.color,
     notes: input.notes,
   };

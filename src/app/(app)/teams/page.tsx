@@ -24,6 +24,7 @@ import { parseListParams } from "@/server/services/list-query";
 import { listSeasonOptions } from "@/server/services/season-service";
 import { listTeamSports, listTeams } from "@/server/services/team-service";
 import { listTrainerOptions } from "@/server/services/trainer-service";
+import { listGymOptions } from "@/server/services/gym-service";
 
 import { TeamFormDialog } from "./team-form-dialog";
 import { TeamRowActions } from "./team-row-actions";
@@ -54,11 +55,12 @@ export default async function TeamsPage({
 
   const canManageTrainers = hasPermission(context, "trainers.read");
 
-  const [result, seasons, sports, trainers] = await Promise.all([
+  const [result, seasons, sports, trainers, gyms] = await Promise.all([
     listTeams(context, params, { seasonId, sport, status }),
     listSeasonOptions(context),
     listTeamSports(context),
     canManageTrainers ? listTrainerOptions(context) : Promise.resolve([]),
+    hasPermission(context, "gyms.read") ? listGymOptions(context) : Promise.resolve([]),
   ]);
 
   const canCreate = hasPermission(context, "teams.create");
@@ -70,6 +72,7 @@ export default async function TeamsPage({
     label: `${trainer.first_name} ${trainer.last_name}`,
   }));
   const seasonOptions = seasons.map((season) => ({ value: season.id, label: season.name }));
+  const gymOptions = gyms.map((gym) => ({ value: gym.id, label: gym.name }));
   const activeSeasonId = seasons.find((season) => season.status === "ACTIVE")?.id;
 
   // Teams belong to a season, so with none there is nothing to create against.
@@ -97,6 +100,7 @@ export default async function TeamsPage({
               mode="create"
               seasons={seasonOptions}
               trainers={trainerOptions}
+              gyms={gymOptions}
               defaultSeasonId={seasonId ?? activeSeasonId ?? seasonOptions[0]?.value}
             />
           ) : null
@@ -145,6 +149,7 @@ export default async function TeamsPage({
                 mode="create"
                 seasons={seasonOptions}
                 trainers={trainerOptions}
+                gyms={gymOptions}
                 defaultSeasonId={activeSeasonId ?? seasonOptions[0]?.value}
               />
             ) : null
@@ -204,12 +209,14 @@ export default async function TeamsPage({
                           category: team.category,
                           ageGroup: team.age_group,
                           gender: team.gender,
+                          homeGymId: team.home_gym_id,
                           color: team.color,
                           notes: team.notes,
                           status: team.status,
                         }}
                         seasons={seasonOptions}
                         trainers={trainerOptions}
+                        gyms={gymOptions}
                         canUpdate={canUpdate}
                         canDelete={canDelete}
                       />
