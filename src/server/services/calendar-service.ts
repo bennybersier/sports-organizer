@@ -13,9 +13,12 @@ import {
 } from "@/domain/scheduling/conflicts";
 import {
   addDays,
+  eachDay,
   endOfDayInZone,
+  endOfMonth,
   isoWeekdayOfDate,
   startOfDayInZone,
+  startOfMonth,
   startOfWeek,
   todayInZone,
   toWallClock,
@@ -44,8 +47,15 @@ export interface CalendarItem {
   color: string | null;
   status: string;
   validationState: string;
+  /**
+   * The single team, when there is exactly one. Null for training with no team
+   * (impossible) and for a club-wide event or a derby, which have none or two.
+   */
   teamId: string | null;
   teamName: string | null;
+  /** Every team involved. One for training; zero or more for an event. */
+  teamIds: string[];
+  teamNames: string[];
   trainerId: string | null;
   trainerName: string | null;
   gymId: string | null;
@@ -54,6 +64,21 @@ export interface CalendarItem {
   editable: boolean;
   blocksScheduling: boolean;
   allowsGymSharing: boolean;
+  /** Where an away fixture is played, when it is not one of our halls. */
+  location: string | null;
+  /* --- Fixtures only. Null on everything else. --------------------------- */
+  opponent: string | null;
+  isHome: boolean | null;
+  competition: string | null;
+  /**
+   * When the hall is actually held, setup and pack-down included.
+   *
+   * Equal to the item's own times when there is no buffer. The calendar draws
+   * the event at its real times and shades this behind it — telling a parent to
+   * arrive at 16:30 for an 18:00 game would be worse than saying nothing.
+   */
+  heldFrom: string;
+  heldUntil: string;
 }
 
 export interface CalendarFilters {
@@ -104,6 +129,11 @@ export async function listCalendarItems(
     fetchLookups(context),
   ]);
 
+  const teamsByEvent = await eventTeamLinks(
+    context,
+    events.map((event) => event.id),
+  );
+
   const items: CalendarItem[] = [];
 
   for (const entry of entries) {
@@ -111,6 +141,19 @@ export async function listCalendarItems(
   }
 
   for (const event of events) {
+    const linked = teamsByEvent.get(event.id) ?? [];
+    const names = linked.map((id) => lookups.teams.get(id)?.name).filter((n): n is string => !!n);
+
+    /*
+      A team filter keeps this event when it names that team — and also when it
+      names none at all, because a holiday or a hall closure is every team's
+      business. Done here rather than in the query: the range is a week or a
+      month, and the rule is not an equality.
+    */
+    if (filters.teamId && linked.length > 0 && !linked.includes(filters.teamId)) continue;
+
+    const held = occupiedWindow(toOccupyingEvent(event));
+
     items.push({
       id: event.id,
       source: "EVENT",
@@ -122,8 +165,10 @@ export async function listCalendarItems(
       color: event.color,
       status: event.status,
       validationState: "VALID",
-      teamId: null,
-      teamName: null,
+      teamId: linked.length === 1 ? linked[0] : null,
+      teamName: names.length === 1 ? names[0] : null,
+      teamIds: linked,
+      teamNames: names,
       trainerId: event.trainer_id,
       trainerName: event.trainer_id ? (lookups.trainers.get(event.trainer_id) ?? null) : null,
       gymId: event.gym_id,
@@ -131,10 +176,42 @@ export async function listCalendarItems(
       editable: true,
       blocksScheduling: event.blocks_scheduling,
       allowsGymSharing: event.allows_gym_sharing,
+      location: event.location,
+      opponent: event.opponent,
+      isHome: event.is_home,
+      competition: event.competition,
+      heldFrom: held.startAt,
+      heldUntil: held.endAt,
     });
   }
 
   return items.sort((a, b) => a.startAt.localeCompare(b.startAt));
+}
+
+/**
+ * Which teams each event involves.
+ *
+ * Kept as one function because three callers need it and the join table is
+ * otherwise easy to forget: it has been written since the beginning and, until
+ * fixtures, read only to prefill an edit form.
+ */
+async function eventTeamLinks(
+  context: AuthContext,
+  eventIds: string[],
+): Promise<Map<string, string[]>> {
+  const byEvent = new Map<string, string[]>();
+  if (eventIds.length === 0) return byEvent;
+
+  const { data } = await context.db
+    .from("calendar_event_teams")
+    .select("event_id, team_id")
+    .eq("tenant_id", context.tenant.id)
+    .in("event_id", eventIds);
+
+  for (const link of data ?? []) {
+    byEvent.set(link.event_id, [...(byEvent.get(link.event_id) ?? []), link.team_id]);
+  }
+  return byEvent;
 }
 
 type ScheduleEntryRecord = Awaited<ReturnType<typeof fetchScheduleEntries>>[number];
@@ -155,6 +232,8 @@ function toCalendarItem(entry: ScheduleEntryRecord, lookups: Lookups): CalendarI
     validationState: entry.validation_state,
     teamId: entry.team_id,
     teamName: team?.name ?? null,
+    teamIds: [entry.team_id],
+    teamNames: team?.name ? [team.name] : [],
     trainerId: entry.trainer_id,
     trainerName: entry.trainer_id ? (lookups.trainers.get(entry.trainer_id) ?? null) : null,
     gymId: entry.gym_id,
@@ -162,6 +241,13 @@ function toCalendarItem(entry: ScheduleEntryRecord, lookups: Lookups): CalendarI
     editable: true,
     blocksScheduling: false,
     allowsGymSharing: false,
+    location: null,
+    opponent: null,
+    isHome: null,
+    competition: null,
+    // Training holds the hall for exactly as long as it runs.
+    heldFrom: entry.start_at,
+    heldUntil: entry.end_at,
   };
 }
 
@@ -201,7 +287,7 @@ async function fetchCalendarEvents(
   let query = context.db
     .from("calendar_events")
     .select(
-      "id, type, title, start_at, end_at, all_day, color, status, gym_id, trainer_id, blocks_scheduling, allows_gym_sharing, season_id",
+      "id, type, title, start_at, end_at, all_day, color, status, gym_id, trainer_id, blocks_scheduling, allows_gym_sharing, season_id, location, opponent, is_home, competition, buffer_before_minutes, buffer_after_minutes",
     )
     .eq("tenant_id", context.tenant.id)
     .lt("start_at", rangeEnd)
@@ -403,18 +489,11 @@ async function collectBookings(
 
   const teamNames = new Map((teams.data ?? []).map((team) => [team.id, team.name]));
 
-  // Which teams each event involves, so a match shows as that team's business
-  // rather than nobody's.
-  const eventTeams = await context.db
-    .from("calendar_event_teams")
-    .select("event_id, team_id")
-    .eq("tenant_id", context.tenant.id)
-    .in("event_id", (events.data ?? []).map((event) => event.id));
-
-  const teamsByEvent = new Map<string, string[]>();
-  for (const link of eventTeams.data ?? []) {
-    teamsByEvent.set(link.event_id, [...(teamsByEvent.get(link.event_id) ?? []), link.team_id]);
-  }
+  // A match is that team's business, not nobody's.
+  const teamsByEvent = await eventTeamLinks(
+    context,
+    (events.data ?? []).map((event) => event.id),
+  );
 
   const toWindow = (from: string, to: string) => {
     const a = toWallClock(from, zone);
@@ -514,10 +593,9 @@ export async function getTeamTrainingWeek(
   const weekStart = startOfWeek(anchor, context.tenant.weekStart);
   const weekEnd = addDays(weekStart, 6);
 
-  const items = await listCalendarItems(context, weekStart, weekEnd, {
-    teamId,
-    type: "TRAINING",
-  });
+  // Training *and* whatever else lands on this team's week — its fixtures
+  // above all, which is half of what a coach comes to this page to see.
+  const items = await listCalendarItems(context, weekStart, weekEnd, { teamId });
 
   const days = Array.from({ length: 7 }, (_, offset) => {
     const date = addDays(weekStart, offset);
@@ -536,7 +614,104 @@ export async function getTeamTrainingWeek(
     previousWeek: addDays(weekStart, -7),
     nextWeek: addDays(weekStart, 7),
     days,
-    scheduledCount: items.filter((item) => item.status !== "CANCELLED").length,
+    // Training only. Counting fixtures here would have the badge reading
+    // "3 of 2 sessions" the moment a team played a game.
+    scheduledCount: items.filter(
+      (item) => item.source === "SCHEDULE" && item.status !== "CANCELLED",
+    ).length,
+    coverageStart: span.first,
+  };
+}
+
+export interface TrainingMonth {
+  /** First day of the month being shown. */
+  monthStart: string;
+  /** The padded range actually rendered — whole weeks, so the grid is square. */
+  from: string;
+  to: string;
+  previousMonth: string;
+  nextMonth: string;
+  weeks: {
+    date: string;
+    isoWeekday: number;
+    /** False for the padding days borrowed from the neighbouring months. */
+    inMonth: boolean;
+    items: CalendarItem[];
+  }[][];
+  /** Training going ahead this month; cancelled sessions do not flatter it. */
+  scheduledCount: number;
+  coverageStart: string | null;
+}
+
+/**
+ * One team's month.
+ *
+ * The week answers "when are we in the hall on Thursday"; the month answers
+ * "how much are we actually training in November, and where are the gaps" —
+ * which is the question asked when a fixture needs moving or a hall falls
+ * through. Same data, same team filter, a wider window.
+ *
+ * Padded to whole weeks so the grid is rectangular, with the borrowed days
+ * marked rather than blanked: a session on the 1st is worth seeing even when it
+ * sits under the previous month's last Sunday.
+ */
+export async function getTeamTrainingMonth(
+  context: AuthContext,
+  teamId: string,
+  monthOf?: string,
+): Promise<TrainingMonth> {
+  assertPermission(context, "calendar.read");
+
+  const zone = context.tenant.timezone;
+  const weekStart = context.tenant.weekStart;
+
+  const { data: published } = await context.db
+    .from("schedule_versions")
+    .select("id")
+    .eq("tenant_id", context.tenant.id)
+    .eq("status", "PUBLISHED")
+    .limit(1)
+    .maybeSingle();
+
+  const span = published ? await scheduleSpan(context, published.id) : { first: null, last: null };
+
+  // Same rule as the week view: land where the team actually trains rather
+  // than on a month that happens to be empty.
+  const anchor = monthOf ?? (await nextTrainingDate(context, teamId)) ?? todayInZone(zone);
+  const monthStart = startOfMonth(anchor);
+  const monthEnd = endOfMonth(anchor);
+  const from = startOfWeek(monthStart, weekStart);
+  const to = addDays(startOfWeek(monthEnd, weekStart), 6);
+
+  const items = await listCalendarItems(context, from, to, { teamId });
+
+  const month = monthStart.slice(0, 7);
+  const dates = eachDay(from, to);
+  const weeks: TrainingMonth["weeks"] = [];
+
+  for (let index = 0; index < dates.length; index += 7) {
+    weeks.push(
+      dates.slice(index, index + 7).map((date) => ({
+        date,
+        isoWeekday: isoWeekdayOfDate(date),
+        inMonth: date.slice(0, 7) === month,
+        // The club's local date, not UTC: a 22:00 session in Rome is already
+        // tomorrow in UTC and would land on the wrong day.
+        items: items.filter((item) => toWallClock(item.startAt, zone).date === date),
+      })),
+    );
+  }
+
+  return {
+    monthStart,
+    from,
+    to,
+    previousMonth: addDays(monthStart, -1),
+    nextMonth: addDays(monthEnd, 1),
+    weeks,
+    scheduledCount: items.filter(
+      (item) => item.source === "SCHEDULE" && item.status !== "CANCELLED",
+    ).length,
     coverageStart: span.first,
   };
 }

@@ -26,6 +26,7 @@
  * surfacing later as a mysterious shortfall that looks like an algorithm bug.
  */
 import { adminClient, arg } from "./lib/admin";
+import { planFixtures, type FixturePool } from "./lib/fixture-generator";
 import { fromMinutes, toMinutes, type IsoWeekday, type MinuteWindow } from "../src/domain/availability";
 import { analyseWeekdays, weeklyCeiling } from "../src/domain/scheduling/capacity";
 import { generateSchedule } from "../src/domain/scheduling/optimizer";
@@ -41,6 +42,7 @@ const DRY_RUN = process.argv.includes("--dry-run");
 const WIPE = process.argv.includes("--wipe");
 const CONFIRMED = process.argv.includes("--yes");
 const SKIP_CHECK = process.argv.includes("--no-check");
+const NO_FIXTURES = process.argv.includes("--no-fixtures");
 
 if (process.env.APP_ENV === "production") {
   console.error("Refusing to seed a production environment.");
@@ -817,6 +819,146 @@ const COACHES: CoachSpec[] = [
 ];
 
 // ---------------------------------------------------------------------------
+// The season's fixtures
+// ---------------------------------------------------------------------------
+
+/**
+ * Who plays when.
+ *
+ * Home games for the senior and Eccellenza sides are at the club's own hall:
+ * it is the only one open on a Sunday, and a club plays its home fixtures in
+ * its main hall whatever the training pattern says. The youth and minibasket
+ * groups play where they train.
+ *
+ * The U19 midweek rotation is the case the whole per-date blocking mechanism
+ * exists for. Closing Tuesday, Wednesday and Thursday to U19 training
+ * permanently — the obvious reading of "U19 play midweek" — would cap the side
+ * at two sessions a week and contradict its Eccellenza load. Playing on one of
+ * the three, and losing only that evening, is what actually happens.
+ */
+const FIXTURE_POOLS: Record<string, FixturePool> = {
+  SENIOR: {
+    competition: "Serie C / Divisione Regionale",
+    weekdays: [7],
+    tipOffs: [17 * 60 + 30, 20 * 60],
+    durationMinutes: 120,
+    rounds: 22,
+    bufferBefore: 90,
+    bufferAfter: 60,
+    opponents: [
+      { club: "Virtus Cremona", town: "Cremona" },
+      { club: "Pallacanestro Crema", town: "Crema" },
+      { club: "Basket Pavia", town: "Pavia" },
+      { club: "Vigevano Basket", town: "Vigevano" },
+      { club: "Piacenza Bakery", town: "Piacenza" },
+      { club: "Sansebasket Cremona", town: "Cremona" },
+      { club: "Social Osa Milano", town: "Milano" },
+      { club: "Gorla Basket", town: "Gorla" },
+      { club: "Rovello Porro", town: "Rovello Porro" },
+      { club: "Busnago Basket", town: "Busnago" },
+      { club: "Sesto Basket", town: "Sesto San Giovanni" },
+    ],
+  },
+  U19: {
+    competition: "Under 19 Eccellenza",
+    // Tuesday, Wednesday, Thursday in rotation.
+    weekdays: [2, 3, 4],
+    tipOffs: [20 * 60 + 30],
+    durationMinutes: 120,
+    rounds: 20,
+    bufferBefore: 90,
+    bufferAfter: 60,
+    opponents: [
+      { club: "Olimpia Milano U19", town: "Milano" },
+      { club: "Cantù U19", town: "Cantù" },
+      { club: "Varese U19", town: "Varese" },
+      { club: "Bergamo Basket U19", town: "Bergamo" },
+      { club: "Brescia Leonessa U19", town: "Brescia" },
+      { club: "Cremona U19", town: "Cremona" },
+      { club: "Pavia U19", town: "Pavia" },
+      { club: "Treviglio U19", town: "Treviglio" },
+    ],
+  },
+  ECCELLENZA: {
+    competition: "Eccellenza Regionale",
+    weekdays: [7],
+    tipOffs: [13 * 60, 15 * 60],
+    durationMinutes: 120,
+    rounds: 20,
+    bufferBefore: 90,
+    bufferAfter: 60,
+    opponents: [
+      { club: "Cantù Giovanile", town: "Cantù" },
+      { club: "Varese Giovanile", town: "Varese" },
+      { club: "Bergamo Giovanile", town: "Bergamo" },
+      { club: "Brescia Giovanile", town: "Brescia" },
+      { club: "Cremona Giovanile", town: "Cremona" },
+      { club: "Monza Giovanile", town: "Monza" },
+      { club: "Treviglio Giovanile", town: "Treviglio" },
+      { club: "Pavia Giovanile", town: "Pavia" },
+    ],
+  },
+  YOUTH: {
+    competition: "Campionato Regionale",
+    weekdays: [6],
+    tipOffs: [14 * 60, 16 * 60, 18 * 60],
+    durationMinutes: 90,
+    rounds: 18,
+    bufferBefore: 60,
+    bufferAfter: 0,
+    opponents: [
+      { club: "Basket Lodi", town: "Lodi" },
+      { club: "Sant'Angelo Basket", town: "Sant'Angelo Lodigiano" },
+      { club: "Melegnano Basket", town: "Melegnano" },
+      { club: "Crema Giovanile", town: "Crema" },
+      { club: "Pizzighettone", town: "Pizzighettone" },
+      { club: "Casale Basket", town: "Casalpusterlengo" },
+      { club: "Borghetto Lodigiano", town: "Borghetto Lodigiano" },
+      { club: "Castiglione d'Adda", town: "Castiglione d'Adda" },
+    ],
+  },
+  MINI: {
+    // Minibasket plays concentrations rather than a league, so far fewer
+    // dates — and on Saturday morning, when the halls are otherwise quiet.
+    competition: "Concentramento Minibasket",
+    weekdays: [6],
+    tipOffs: [9 * 60 + 30, 10 * 60 + 45, 12 * 60],
+    durationMinutes: 60,
+    rounds: 8,
+    bufferBefore: 60,
+    bufferAfter: 0,
+    opponents: [
+      { club: "Minibasket Lodi", town: "Lodi" },
+      { club: "Minibasket Crema", town: "Crema" },
+      { club: "Minibasket Melegnano", town: "Melegnano" },
+      { club: "Minibasket Casale", town: "Casalpusterlengo" },
+      { club: "Minibasket Piacenza", town: "Piacenza" },
+      { club: "Minibasket Pavia", town: "Pavia" },
+    ],
+  },
+};
+
+/** Which competition a side plays in, from what it is. */
+function poolOf(team: TeamSpec): string {
+  if (team.name.startsWith("Under 19")) return "U19";
+  if (team.profile === "SENIOR") return "SENIOR";
+  if (team.profile === "ECCELLENZA") return "ECCELLENZA";
+  if (team.profile === "MINI" || team.profile === "ESORDIENTI") return "MINI";
+  return "YOUTH";
+}
+
+/**
+ * Where a side hosts.
+ *
+ * The senior and Eccellenza sides play at the Campus: it is the only hall open
+ * on a Sunday, and it is the club's own. Everyone else hosts where they train.
+ */
+function homeGymFor(team: TeamSpec, pool: string, gymIds: Record<string, string>): string | null {
+  if (pool === "SENIOR" || pool === "U19" || pool === "ECCELLENZA") return gymIds.CAMPUS;
+  return gymIds[team.preferredGyms[0]] ?? null;
+}
+
+// ---------------------------------------------------------------------------
 // Feasibility — run the real engine over the fixture before touching the DB
 // ---------------------------------------------------------------------------
 
@@ -1268,6 +1410,73 @@ async function main() {
   );
   if (requirementError) throw requirementError;
   console.log(`• Training requirements for ${TEAMS.length} teams`);
+
+  // --- Fixtures -----------------------------------------------------------
+  if (!NO_FIXTURES) {
+    const planned = planFixtures({
+      teams: TEAMS.map((team) => {
+        const pool = poolOf(team);
+        return {
+          id: teamIds[team.name],
+          name: team.name,
+          pool,
+          homeGymId: homeGymFor(team, pool, gymIds),
+          startsOn: team.startsOn,
+        };
+      }),
+      pools: FIXTURE_POOLS,
+      seasonStart: season.start_date,
+      seasonEnd: season.end_date,
+      timeZone: tenant.timezone,
+    });
+
+    // Chunked, mirroring the schedule writer: a season of fixtures for thirty
+    // teams is a few hundred rows and PostgREST would rather have them in
+    // batches than one statement.
+    const CHUNK = 500;
+    let written = 0;
+    for (let index = 0; index < planned.length; index += CHUNK) {
+      const batch = planned.slice(index, index + CHUNK);
+
+      const { data: rows, error } = await supabase
+        .from("calendar_events")
+        .insert(
+          batch.map((fixture) => ({
+            tenant_id: tenantId,
+            season_id: seasonId,
+            type: "MATCH" as const,
+            title: fixture.title,
+            opponent: fixture.opponent,
+            is_home: fixture.isHome,
+            competition: fixture.competition,
+            gym_id: fixture.gymId,
+            location: fixture.location,
+            start_at: fixture.startAt,
+            end_at: fixture.endAt,
+            buffer_before_minutes: fixture.bufferBeforeMinutes,
+            buffer_after_minutes: fixture.bufferAfterMinutes,
+          })),
+        )
+        .select("id");
+      if (error) throw new Error(`inserting fixtures: ${error.message}`);
+
+      const { error: linkError } = await supabase.from("calendar_event_teams").insert(
+        rows.map((row, position) => ({
+          tenant_id: tenantId,
+          event_id: row.id,
+          team_id: batch[position].teamId,
+        })),
+      );
+      if (linkError) throw new Error(`linking fixtures: ${linkError.message}`);
+
+      written += rows.length;
+    }
+
+    const home = planned.filter((fixture) => fixture.isHome).length;
+    console.log(
+      `• ${written} fixtures (${home} at home), U19 midweek and everyone else at the weekend`,
+    );
+  }
 
   if (!SKIP_CHECK) {
     const ok = report(buildInput(gymIds, teamIds), gymIds);
