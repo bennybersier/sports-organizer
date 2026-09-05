@@ -138,6 +138,7 @@ try {
     "schedule_versions", "schedule_entries", "calendar_events",
     "tenant_memberships", "user_permission_overrides", "audit_logs",
     "gym_availability", "team_training_requirements", "notifications",
+    "competitions", "competition_entries", "fixtures",
   ]) {
     const column = table === "tenants" ? "id" : "tenant_id";
     const result = await asA(`${table}?${column}=eq.${b.tenantId}&select=*`);
@@ -161,6 +162,7 @@ try {
     ["gyms", { tenant_id: b.tenantId, name: "Injected Hall" }],
     ["seasons", { tenant_id: b.tenantId, name: "Injected", start_date: "2026-01-01", end_date: "2026-12-01" }],
     ["calendar_events", { tenant_id: b.tenantId, type: "MATCH", title: "Injected", start_at: "2026-09-08T16:00:00Z", end_at: "2026-09-08T17:00:00Z" }],
+    ["competitions", { tenant_id: b.tenantId, season_id: b.seasonId, team_id: b.teamId, name: "Injected Cup" }],
     ["audit_logs", { tenant_id: b.tenantId, action: "FORGED", resource_type: "test" }],
     ["user_permission_overrides", { tenant_id: b.tenantId, user_id: a.userId, permission_key: "tenant.delete", effect: "ALLOW" }],
     ["tenant_memberships", { tenant_id: b.tenantId, user_id: a.userId, role_id: ((await asAdmin("roles?key=eq.OWNER&tenant_id=is.null&select=id")).body as { id: string }[])[0].id }],

@@ -106,6 +106,7 @@ const TENANT_TABLES = [
   "trainer_availability", "trainer_availability_exceptions",
   "team_availability", "team_availability_exceptions",
   "schedule_versions", "schedule_entries", "calendar_events", "calendar_event_teams",
+  "competitions", "competition_entries", "fixtures", "fixture_participants",
   "jobs", "audit_logs", "notifications", "notification_preferences",
   "onboarding_progress", "integrations", "invitations",
   "tenant_memberships", "user_permission_overrides",

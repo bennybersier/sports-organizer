@@ -8,6 +8,7 @@ import {
   Plug,
   ScrollText,
   Settings,
+  Swords,
   Sparkles,
   Trophy,
   UserCog,
@@ -64,6 +65,12 @@ export const NAVIGATION: NavSection[] = [
       { titleKey: "athletes", href: "/athletes", icon: Dumbbell, permission: "athletes.read" },
       { titleKey: "trainers", href: "/trainers", icon: UserCog, permission: "trainers.read" },
       { titleKey: "gyms", href: "/gyms", icon: MapPin, permission: "gyms.read" },
+      {
+        titleKey: "competitions",
+        href: "/competitions",
+        icon: Swords,
+        permission: "competitions.read",
+      },
     ],
   },
   {
