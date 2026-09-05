@@ -275,7 +275,7 @@ export async function checkPlacement(
   // as impossible rather than silently validating the wrong window.
   const endMinutes = end.date === start.date ? end.minutes : 1440;
 
-  const [gymWindows, gymExceptions, teamWindows, teamExceptions, requirement, bookings] =
+  const [gymWindows, gymExceptions, teamWindows, teamExceptions, requirement, bookings, gym] =
     await Promise.all([
       listAvailability(context, "gym", input.gymId),
       listExceptions(context, "gym", input.gymId),
@@ -283,6 +283,16 @@ export async function checkPlacement(
       listExceptions(context, "team", input.teamId),
       getTrainingRequirement(context, input.teamId, input.seasonId),
       collectBookings(context, input.startAt, input.endAt),
+      // The hall's own policy: whether it tolerates a changeover overlap, and
+      // how long. Without this the calendar would refuse placements the
+      // optimizer is willing to make, which is exactly the disagreement
+      // `validatePlacement` exists to prevent.
+      context.db
+        .from("gyms")
+        .select("max_concurrent_teams, max_shared_overlap_minutes")
+        .eq("tenant_id", context.tenant.id)
+        .eq("id", input.gymId)
+        .maybeSingle(),
     ]);
 
   const [trainerWindows, trainerExceptions] = input.trainerId
@@ -336,6 +346,14 @@ export async function checkPlacement(
     },
     bookings,
     rules,
+    {
+      gymSharing: gym.data
+        ? {
+            maxConcurrentTeams: gym.data.max_concurrent_teams,
+            maxSharedOverlapMinutes: gym.data.max_shared_overlap_minutes,
+          }
+        : undefined,
+    },
   );
 }
 

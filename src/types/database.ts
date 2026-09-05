@@ -181,6 +181,10 @@ export interface GymRow extends Timestamps {
   city: string | null;
   country: string | null;
   capacity: number | null;
+  /** How many sessions may run here at once. 1 is a normal hall. */
+  max_concurrent_teams: number;
+  /** Longest overlap allowed between any two of them, in minutes. */
+  max_shared_overlap_minutes: number;
   sport_types: string[];
   equipment: string[];
   color: string | null;
@@ -380,6 +384,12 @@ export interface ScheduleEntryRow extends Timestamps {
   explanation: Json;
   score: number | null;
   manually_adjusted: boolean;
+  /**
+   * Whether this entry's hall permits overlapping sessions, copied from the gym
+   * by a trigger. Read by the exclusion constraint, which protects every
+   * exclusive hall with an index and leaves the rest to a check trigger.
+   */
+  gym_shares: boolean;
   validation_state: ValidationState;
   validation_details: Json;
   notes: string | null;

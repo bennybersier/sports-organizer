@@ -1,4 +1,11 @@
-import { overlaps, type IsoWeekday } from "../availability";
+import { overlaps, type IsoWeekday, type MinuteWindow } from "../availability";
+import {
+  NO_GYM_SHARING,
+  assessGymShare,
+  type GymSharingPolicy,
+  type ShareAssessment,
+  type ShareVerdict,
+} from "./sharing";
 import { generateCandidates, diagnoseNoCandidates, type Candidate } from "./candidates";
 import {
   analyseWeekdays,
@@ -44,6 +51,15 @@ import {
  * solver can replace `assign` without touching anything else.
  */
 
+/**
+ * What a shared placement costs, for display only.
+ *
+ * Not a weight: selection is already decided by the strict/shared partition, so
+ * this cannot move a session. It exists so a schedule that leaned on a hall's
+ * changeover tolerance does not score identically to one that did not.
+ */
+const SHARED_PLACEMENT_DEDUCTION = 10;
+
 interface Occupancy {
   gym: Map<string, { window: { start: number; end: number }; weekday: number }[]>;
   trainer: Map<string, { window: { start: number; end: number }; weekday: number }[]>;
@@ -54,7 +70,27 @@ function emptyOccupancy(): Occupancy {
   return { gym: new Map(), trainer: new Map(), team: new Map() };
 }
 
-function isFree(occupancy: Occupancy, candidate: Candidate): boolean {
+interface CandidateAssessment {
+  verdict: ShareVerdict;
+  /** Which resource refused it, for the shortfall explanation. */
+  blockedBy: "GYM" | "TRAINER" | "TEAM" | null;
+  share: ShareAssessment;
+}
+
+const NOT_SHARED: ShareAssessment = { verdict: "FREE", sharedWith: 0, longestOverlap: 0 };
+
+/**
+ * Can this candidate be placed, and would it have to share the hall?
+ *
+ * A coach and a team can only be in one place, so those clashes stay absolute
+ * however tolerant a hall is. Only the hall itself has a policy, and only it
+ * can come back "yes, but shared".
+ */
+function assessCandidate(
+  occupancy: Occupancy,
+  candidate: Candidate,
+  sharing: Map<string, GymSharingPolicy>,
+): CandidateAssessment {
   const clashes = (
     map: Map<string, { window: { start: number; end: number }; weekday: number }[]>,
     key: string | null,
@@ -66,11 +102,28 @@ function isFree(occupancy: Occupancy, candidate: Candidate): boolean {
     );
   };
 
-  return (
-    !clashes(occupancy.gym, candidate.gymId) &&
-    !clashes(occupancy.trainer, candidate.trainerId) &&
-    !clashes(occupancy.team, candidate.teamId)
+  if (clashes(occupancy.trainer, candidate.trainerId)) {
+    return { verdict: "BLOCKED", blockedBy: "TRAINER", share: NOT_SHARED };
+  }
+  if (clashes(occupancy.team, candidate.teamId)) {
+    return { verdict: "BLOCKED", blockedBy: "TEAM", share: NOT_SHARED };
+  }
+
+  const booked: MinuteWindow[] = (occupancy.gym.get(candidate.gymId) ?? [])
+    .filter((entry) => entry.weekday === candidate.isoWeekday)
+    .map((entry) => entry.window);
+
+  const share = assessGymShare(
+    booked,
+    candidate.window,
+    sharing.get(candidate.gymId) ?? NO_GYM_SHARING,
   );
+
+  return {
+    verdict: share.verdict,
+    blockedBy: share.verdict === "BLOCKED" ? "GYM" : null,
+    share,
+  };
 }
 
 function occupy(occupancy: Occupancy, candidate: Candidate): void {
@@ -117,6 +170,7 @@ export function generateSchedule(input: ScheduleInput): GenerationResult {
   const unmet: UnmetRequirement[] = [];
 
   const gymLoad = new Map(input.gyms.map((gym) => [gym.id, 0]));
+  const sharing = new Map(input.gyms.map((gym) => [gym.id, gym.sharing ?? NO_GYM_SHARING]));
   const totalSessions = input.teams.reduce((sum, team) => sum + team.sessionsPerWeek, 0);
 
   // Candidates are generated once per team; placement only filters them.
@@ -157,18 +211,26 @@ export function generateSchedule(input: ScheduleInput): GenerationResult {
   const shortfalls: EngineTeam[] = [];
 
   for (const team of order) {
-    if (placeSessionsFor(team, candidatesByTeam.get(team.id) ?? []) < team.sessionsPerWeek) {
-      shortfalls.push(team);
-    }
+    const placed = placeSessionsFor(team, candidatesByTeam.get(team.id) ?? [], {
+      allowSharing: false,
+    });
+    if (placed < team.sessionsPerWeek) shortfalls.push(team);
   }
 
   /*
     Repair pass. A team that ran out of room early may have options now that
     everything else has settled — placements are not re-shuffled, but the
     leftovers get a second look against the finished picture.
+
+    This is also where a hall's changeover tolerance is allowed to count. Only a
+    team that could not be placed without it ever reaches here, so sharing stays
+    a concession rather than a default, and the highest-priority short team gets
+    first refusal on the shared slots.
   */
   for (const team of shortfalls) {
-    const total = placeSessionsFor(team, candidatesByTeam.get(team.id) ?? []);
+    const total = placeSessionsFor(team, candidatesByTeam.get(team.id) ?? [], {
+      allowSharing: true,
+    });
 
     if (total < team.sessionsPerWeek) {
       unmet.push({
@@ -186,16 +248,37 @@ export function generateSchedule(input: ScheduleInput): GenerationResult {
    * room. Returns the team's *total* placed count, not the number added by this
    * call, so the repair pass can be re-entered safely.
    */
-  function placeSessionsFor(team: EngineTeam, candidates: Candidate[]): number {
+  function placeSessionsFor(
+    team: EngineTeam,
+    candidates: Candidate[],
+    options: { allowSharing: boolean },
+  ): number {
     let placed = assignments.filter((a) => a.teamId === team.id).length;
 
     while (placed < team.sessionsPerWeek) {
       const context: ScoreContext = { placed: assignments, gymLoad, totalSessions };
 
-      const viable = candidates
-        .filter((candidate) => isFree(occupancy, candidate))
-        .filter((candidate) => respectsSpacing(team, candidate, assignments))
-        .map((candidate) => scoreCandidate(candidate, team, weights, context));
+      const usable = candidates
+        .map((candidate) => ({
+          candidate,
+          assessment: assessCandidate(occupancy, candidate, sharing),
+        }))
+        .filter((entry) => entry.assessment.verdict !== "BLOCKED")
+        .filter((entry) => respectsSpacing(team, entry.candidate, assignments));
+
+      /*
+        Sharing is the fallback for this *session*, not merely for this team. In
+        the repair pass a short team may now have a slot nobody has to share,
+        and it should take it even when a shared slot happens to score higher —
+        otherwise the concession gets spent on convenience rather than need.
+      */
+      const exclusive = usable.filter((entry) => entry.assessment.verdict === "FREE");
+      const pool = exclusive.length > 0 || !options.allowSharing ? exclusive : usable;
+
+      const viable = pool.map((entry) => ({
+        ...scoreCandidate(entry.candidate, team, weights, context),
+        assessment: entry.assessment,
+      }));
 
       if (viable.length === 0) break;
 
@@ -216,17 +299,41 @@ export function generateSchedule(input: ScheduleInput): GenerationResult {
       occupy(occupancy, best.candidate);
       gymLoad.set(best.candidate.gymId, (gymLoad.get(best.candidate.gymId) ?? 0) + 1);
 
+      /*
+        A shared placement is a real compromise and is recorded as one. The
+        deduction is applied after the choice, not inside `scoreCandidate`:
+        every candidate in a shared pool takes it equally, so it cannot change
+        which slot wins, and keeping it out of `OptimizerWeights` means no club
+        can accidentally tune sharing *up*. Its job is to stop a shared session
+        reading as though it cost nothing.
+      */
+      const shared = best.assessment.verdict === "SHARED";
+      const score = shared ? Math.max(0, best.score - SHARED_PLACEMENT_DEDUCTION) : best.score;
+      const tradeOffs = shared
+        ? [
+            ...best.tradeOffs,
+            {
+              code: "GYM_SHARED" as const,
+              severity: "WARNING" as const,
+              values: {
+                minutes: best.assessment.share.longestOverlap,
+                teams: best.assessment.share.sharedWith + 1,
+              },
+            },
+          ]
+        : best.tradeOffs;
+
       assignments.push({
         teamId: team.id,
         trainerId: best.candidate.trainerId,
         gymId: best.candidate.gymId,
         isoWeekday: best.candidate.isoWeekday as IsoWeekday,
         window: best.candidate.window,
-        score: best.score,
+        score,
         explanation: {
           satisfied: best.satisfied,
-          tradeOffs: best.tradeOffs,
-          score: best.score,
+          tradeOffs,
+          score,
           alternatives: viable.length,
         },
       });
@@ -274,14 +381,15 @@ export function generateSchedule(input: ScheduleInput): GenerationResult {
 
     // Candidates existed but were taken. Say which resource ran out, since that
     // is the difference between "add a gym" and "ask a coach for another night".
-    const free = candidates.filter((candidate) => isFree(occupancy, candidate));
+    // The same predicate the placement loop used, sharing included — a team
+    // that could not be placed *even with* the concession must not be told the
+    // hall was merely booked, or an organizer goes hunting for a clash that is
+    // not the story.
+    const assessed = candidates.map((candidate) => assessCandidate(occupancy, candidate, sharing));
+    const free = assessed.filter((assessment) => assessment.verdict !== "BLOCKED");
+
     if (free.length === 0) {
-      const gymBlocked = candidates.every((candidate) =>
-        (occupancy.gym.get(candidate.gymId) ?? []).some(
-          (booked) =>
-            booked.weekday === candidate.isoWeekday && overlaps(candidate.window, booked.window),
-        ),
-      );
+      const gymBlocked = assessed.every((assessment) => assessment.blockedBy === "GYM");
       return [
         {
           code: (gymBlocked ? "GYM_DOUBLE_BOOKED" : "TRAINER_DOUBLE_BOOKED") as Finding["code"],

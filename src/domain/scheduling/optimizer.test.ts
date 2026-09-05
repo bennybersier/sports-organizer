@@ -503,3 +503,120 @@ describe("result quality", () => {
     expect(result.stats.candidatesConsidered).toBeGreaterThan(0);
   });
 });
+
+describe("limited gym sharing", () => {
+  /**
+   * One hall, one evening, and only enough room for two 90-minute sessions if
+   * they overlap at the changeover. Both teams are eligible for both slots.
+   */
+  const tightDay = (sharing?: EngineGym["sharing"]): ScheduleInput => ({
+    teams: [
+      team("early", { sessionsPerWeek: 1, allowedWeekdays: [1], earliestStart: 1080, latestEnd: 1260 }),
+      team("late", { sessionsPerWeek: 1, allowedWeekdays: [1], earliestStart: 1080, latestEnd: 1260 }),
+    ],
+    // 18:00–21:00 fits one 90-minute session twice only if they may overlap.
+    gyms: [{ id: "hall", name: "hall", availability: { 1: [{ start: 1080, end: 1230 }] }, sharing }],
+    trainers: [trainer("a", ["early"], [1]), trainer("b", ["late"], [1])],
+    blockedSlots: [],
+  });
+
+  it("leaves a team short when the hall takes one at a time", () => {
+    const result = generateSchedule(tightDay());
+    expect(result.stats.sessionsScheduled).toBe(1);
+    expect(result.unmet).toHaveLength(1);
+    expect(result.unmet[0].reasons.map((r) => r.code)).toContain("GYM_DOUBLE_BOOKED");
+  });
+
+  it("places both when the hall permits a changeover, and says that it did", () => {
+    const result = generateSchedule(
+      tightDay({ maxConcurrentTeams: 2, maxSharedOverlapMinutes: 30 }),
+    );
+
+    expect(result.stats.sessionsScheduled).toBe(2);
+    expect(result.unmet).toEqual([]);
+
+    const shared = result.assignments.filter((a) =>
+      a.explanation.tradeOffs.some((finding) => finding.code === "GYM_SHARED"),
+    );
+    // Exactly one of the two had to share — the first fitted on its own.
+    expect(shared).toHaveLength(1);
+    expect(shared[0].explanation.tradeOffs.find((f) => f.code === "GYM_SHARED")?.values).toMatchObject(
+      { teams: 2 },
+    );
+  });
+
+  it("refuses an overlap longer than the hall allows", () => {
+    // The two sessions would have to overlap by 60 minutes to both fit here,
+    // and this hall tolerates 30.
+    const input = tightDay({ maxConcurrentTeams: 2, maxSharedOverlapMinutes: 30 });
+    input.gyms[0].availability = { 1: [{ start: 1080, end: 1200 }] };
+
+    const result = generateSchedule(input);
+    expect(result.stats.sessionsScheduled).toBe(1);
+  });
+
+  it("prefers a slot nobody has to share over a higher-scoring shared one", () => {
+    /*
+      The second team's preferred hall is the contended one, so a shared slot
+      there scores higher than the empty hall next door. Sharing is a
+      concession, so it must lose to a slot that needs no concession at all.
+    */
+    const result = generateSchedule({
+      teams: [
+        team("first", { sessionsPerWeek: 1, allowedWeekdays: [1], earliestStart: 1080, latestEnd: 1260 }),
+        team("second", {
+          sessionsPerWeek: 1,
+          allowedWeekdays: [1],
+          earliestStart: 1080,
+          latestEnd: 1260,
+          priority: 4,
+          preferredGymIds: ["shared"],
+        }),
+      ],
+      gyms: [
+        {
+          id: "shared",
+          name: "shared",
+          availability: { 1: [{ start: 1080, end: 1230 }] },
+          sharing: { maxConcurrentTeams: 2, maxSharedOverlapMinutes: 30 },
+        },
+        { id: "spare", name: "spare", availability: { 1: [{ start: 1080, end: 1260 }] } },
+      ],
+      trainers: [trainer("a", ["first", "second"], [1])],
+      blockedSlots: [],
+    });
+
+    // Both placed, and the second is in the empty hall despite preferring the
+    // other — no GYM_SHARED anywhere, because sharing was never needed.
+    expect(result.stats.sessionsScheduled).toBe(2);
+    expect(
+      result.assignments.flatMap((a) => a.explanation.tradeOffs.map((f) => f.code)),
+    ).not.toContain("GYM_SHARED");
+  });
+
+  it("is still deterministic with sharing on", () => {
+    const once = generateSchedule(tightDay({ maxConcurrentTeams: 2, maxSharedOverlapMinutes: 30 }));
+    const twice = generateSchedule(tightDay({ maxConcurrentTeams: 2, maxSharedOverlapMinutes: 30 }));
+    expect(once.assignments).toEqual(twice.assignments);
+  });
+
+  it("still blames the weekday ceiling rather than contention when that is the cause", () => {
+    // Sharing can only ever place more sessions, so a team limited by how many
+    // days it can train at all must keep getting the sharper diagnosis.
+    const result = generateSchedule({
+      teams: [team("t1", { sessionsPerWeek: 3, allowedWeekdays: [1] })],
+      gyms: [
+        {
+          id: "hall",
+          name: "hall",
+          availability: { 1: [evening] },
+          sharing: { maxConcurrentTeams: 2, maxSharedOverlapMinutes: 30 },
+        },
+      ],
+      trainers: [trainer("a", ["t1"], [1])],
+      blockedSlots: [],
+    });
+
+    expect(result.unmet[0].reasons[0].code).toBe("WEEKLY_CAPACITY");
+  });
+});

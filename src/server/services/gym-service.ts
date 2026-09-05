@@ -99,6 +99,10 @@ function toRow(input: CreateGymInput) {
     city: input.city,
     country: input.country,
     capacity: input.capacity,
+    // A hall either takes one team or takes two with a stated tolerance; the
+    // database rejects any other combination, so they are written as a pair.
+    max_concurrent_teams: input.sharesHall ? 2 : 1,
+    max_shared_overlap_minutes: input.sharesHall ? input.sharedOverlapMinutes : 0,
     sport_types: input.sportTypes,
     equipment: input.equipment,
     color: input.color,

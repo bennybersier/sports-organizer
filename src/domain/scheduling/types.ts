@@ -14,6 +14,7 @@
 
 import type { IsoWeekday, MinuteWindow } from "../availability";
 import type { Finding } from "./conflicts";
+import type { GymSharingPolicy } from "./sharing";
 
 export interface EngineGym {
   id: string;
@@ -28,6 +29,13 @@ export interface EngineGym {
    * but entirely different things for a club to go and fix.
    */
   hasConfiguredAvailability?: boolean;
+  /**
+   * Whether this hall tolerates two teams at once, and by how much.
+   *
+   * Absent means one team at a time, which is what almost every hall does and
+   * what the engine did unconditionally before this existed.
+   */
+  sharing?: GymSharingPolicy;
 }
 
 export interface EngineTrainer {

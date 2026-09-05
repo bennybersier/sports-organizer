@@ -29,7 +29,16 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useFormDialog } from "@/hooks/use-form-dialog";
 import { createGymAction, updateGymAction } from "@/server/actions/gyms";
@@ -43,6 +52,8 @@ export interface GymFormValues {
   city: string | null;
   country: string | null;
   capacity: number | null;
+  sharesHall: boolean;
+  sharedOverlapMinutes: number;
   sportTypes: string[];
   equipment: string[];
   color: string | null;
@@ -56,6 +67,8 @@ const schema = z.object({
   postalCode: z.string().trim().max(20).optional(),
   city: z.string().trim().max(120).optional(),
   capacity: z.string().trim().optional(),
+  sharesHall: z.boolean(),
+  sharedOverlapMinutes: z.string(),
   sportTypesText: z.string().optional(),
   equipmentText: z.string().optional(),
   color: z.string().optional(),
@@ -94,6 +107,8 @@ export function GymFormDialog({
     postalCode: "",
     city: "",
     capacity: "",
+    sharesHall: false,
+    sharedOverlapMinutes: "30",
     sportTypesText: "",
     equipmentText: "",
     color: "",
@@ -109,6 +124,8 @@ export function GymFormDialog({
       postalCode: gym?.postalCode ?? "",
       city: gym?.city ?? "",
       capacity: gym?.capacity ? String(gym.capacity) : "",
+      sharesHall: gym?.sharesHall ?? false,
+      sharedOverlapMinutes: String(gym?.sharedOverlapMinutes ?? 30),
       sportTypesText: (gym?.sportTypes ?? []).join("\n"),
       equipmentText: (gym?.equipment ?? []).join("\n"),
       color: gym?.color ?? "",
@@ -135,6 +152,8 @@ export function GymFormDialog({
       postalCode: values.postalCode,
       city: values.city,
       capacity: values.capacity,
+      sharesHall: values.sharesHall,
+      sharedOverlapMinutes: values.sharedOverlapMinutes,
       sportTypes: toList(values.sportTypesText),
       equipment: toList(values.equipmentText),
       color: values.color,
@@ -270,6 +289,57 @@ export function GymFormDialog({
                     )}
                   />
                 </div>
+
+                <FormField
+                  control={form.control}
+                  name="sharesHall"
+                  render={({ field }) => (
+                    <FormItem className="rounded-lg border p-3">
+                      <div className="flex items-start gap-3">
+                        <FormControl>
+                          <Checkbox
+                            id="gym-shares"
+                            checked={field.value}
+                            onCheckedChange={(value) => field.onChange(value === true)}
+                          />
+                        </FormControl>
+                        <div className="grid gap-1">
+                          <Label htmlFor="gym-shares" className="font-normal">
+                            {t("sharesHall")}
+                          </Label>
+                          <p className="text-muted-foreground text-xs">{t("sharesHallHint")}</p>
+                        </div>
+                      </div>
+
+                      {field.value ? (
+                        <FormField
+                          control={form.control}
+                          name="sharedOverlapMinutes"
+                          render={({ field: overlap }) => (
+                            <FormItem className="mt-3 sm:max-w-56">
+                              <FormLabel>{t("sharedOverlap")}</FormLabel>
+                              <Select value={overlap.value} onValueChange={overlap.onChange}>
+                                <FormControl>
+                                  <SelectTrigger>
+                                    <SelectValue />
+                                  </SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                  {["15", "30", "45"].map((minutes) => (
+                                    <SelectItem key={minutes} value={minutes}>
+                                      {t("sharedOverlapMinutes", { minutes: Number(minutes) })}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                      ) : null}
+                    </FormItem>
+                  )}
+                />
 
                 <FormField
                   control={form.control}

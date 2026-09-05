@@ -19,6 +19,19 @@ const baseGym = z.object({
     .union([z.literal(""), z.coerce.number().int().positive().max(100_000)])
     .optional()
     .transform((v) => (v === "" || v === undefined ? null : v)),
+  /**
+   * Whether this hall can hold two teams at the changeover, and for how long.
+   *
+   * Exposed as a switch plus a short list rather than a free number, because a
+   * club typing 90 here does not mean a changeover — it means two sessions at
+   * once, which is a different decision about a different hall.
+   */
+  sharesHall: z.union([z.boolean(), z.literal("on"), z.literal("")]).optional()
+    .transform((v) => v === true || v === "on"),
+  sharedOverlapMinutes: z
+    .union([z.literal(""), z.coerce.number().int().min(15).max(45)])
+    .optional()
+    .transform((v) => (v === "" || v === undefined ? 30 : v)),
   sportTypes: stringArray,
   equipment: stringArray,
   color: z.union([z.literal(""), hexColorSchema]).optional().transform((v) => v || null),

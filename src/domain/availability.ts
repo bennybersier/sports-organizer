@@ -88,6 +88,20 @@ export function overlaps(a: MinuteWindow, b: MinuteWindow): boolean {
   return a.start < b.end && b.start < a.end;
 }
 
+/**
+ * How many minutes two windows share.
+ *
+ * `overlaps` answers whether they collide at all, which is the only question a
+ * hall taking one team at a time ever has to ask. A hall that tolerates a
+ * changeover needs the magnitude as well — thirty minutes of two groups on one
+ * floor is a handover, ninety is two sessions at once.
+ *
+ * Half-open like `overlaps`, so windows that merely touch share nothing.
+ */
+export function overlapMinutes(a: MinuteWindow, b: MinuteWindow): number {
+  return Math.max(0, Math.min(a.end, b.end) - Math.max(a.start, b.start));
+}
+
 export function durationMinutes(window: MinuteWindow): number {
   return window.end - window.start;
 }

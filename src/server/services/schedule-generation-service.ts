@@ -126,7 +126,7 @@ export async function buildScheduleInput(
         .is("deleted_at", null),
       context.db
         .from("gyms")
-        .select("id, name")
+        .select("id, name, max_concurrent_teams, max_shared_overlap_minutes")
         .eq("tenant_id", tenantId)
         .eq("status", "ACTIVE")
         .is("deleted_at", null),
@@ -210,6 +210,10 @@ export async function buildScheduleInput(
       // Distinguishes "no hours entered" from "hours entered but not in force
       // for this week" — two different problems with two different fixes.
       hasConfiguredAvailability: (await loadRaw("gym", gym.id)).windows.length > 0,
+      sharing: {
+        maxConcurrentTeams: gym.max_concurrent_teams,
+        maxSharedOverlapMinutes: gym.max_shared_overlap_minutes,
+      },
     })),
   );
 

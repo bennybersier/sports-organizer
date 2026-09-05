@@ -17,6 +17,7 @@
  */
 
 import { overlaps, type MinuteWindow } from "../availability";
+import { NO_GYM_SHARING, assessGymShare, type GymSharingPolicy } from "./sharing";
 
 /** Ordered by seriousness; the overall verdict is the worst finding present. */
 export type PlacementSeverity = "VALID" | "WARNING" | "CONFLICT" | "INVALID";
@@ -39,6 +40,10 @@ export type FindingCode =
   | "OUTSIDE_TRAINER_HOURS"
   | "OUTSIDE_TEAM_HOURS"
   | "GYM_DOUBLE_BOOKED"
+  /* A hall that permits a changeover, and this placement is using it. */
+  | "GYM_SHARED"
+  | "GYM_OVERLAP_TOO_LONG"
+  | "GYM_AT_CAPACITY"
   | "TRAINER_DOUBLE_BOOKED"
   | "TEAM_DOUBLE_BOOKED"
   | "OUTSIDE_ALLOWED_HOURS"
@@ -102,6 +107,18 @@ export interface AvailabilityContext {
   team: MinuteWindow[] | null;
 }
 
+/**
+ * Policy belonging to the resources a placement uses, as opposed to the team.
+ *
+ * Separate from `PlacementRules` because that type is documented as the team's
+ * requirements, and a hall's tolerance for two groups at once is not one of
+ * them. Optional throughout, so a caller that omits it gets exactly the
+ * behaviour this function had before halls could be shared.
+ */
+export interface PlacementResources {
+  gymSharing?: GymSharingPolicy;
+}
+
 /** The subset of a team's requirements that constrains a single placement. */
 export interface PlacementRules {
   durationMinutes?: number;
@@ -138,6 +155,7 @@ export function validatePlacement(
   availability: AvailabilityContext,
   bookings: Booking[],
   rules: PlacementRules = {},
+  resources: PlacementResources = {},
 ): PlacementResult {
   const findings: Finding[] = [];
   const { window } = candidate;
@@ -170,17 +188,69 @@ export function validatePlacement(
   }
 
   // --- Hard: double-booking ------------------------------------------------
+  /*
+    The hall is judged as a set, not booking by booking: "may two teams be in
+    here at once, and for how long" is a question about everything already in
+    the room, which a per-booking loop cannot ask. The coach and the team stay
+    per-booking below, because those clashes are absolute however tolerant a
+    hall is.
+  */
+  const contended = bookings.filter(
+    (booking) =>
+      booking.id !== candidate.id &&
+      booking.gymId === candidate.gymId &&
+      overlaps(window, booking.window) &&
+      // A deliberate multi-team event — an in-house match — is exempt outright.
+      // That escape hatch predates hall sharing and means something different:
+      // "this booking does not own the hall", not "this hall takes two teams".
+      !booking.allowsGymSharing,
+  );
+
+  const policy = resources.gymSharing ?? NO_GYM_SHARING;
+  const share = assessGymShare(
+    contended.map((booking) => booking.window),
+    window,
+    policy,
+  );
+
+  if (share.verdict === "SHARED") {
+    findings.push({
+      code: "GYM_SHARED",
+      severity: "WARNING",
+      values: { minutes: share.longestOverlap, teams: share.sharedWith + 1 },
+    });
+  } else if (share.verdict === "BLOCKED") {
+    if (share.reason === "OVERLAP_TOO_LONG") {
+      findings.push({
+        code: "GYM_OVERLAP_TOO_LONG",
+        severity: "CONFLICT",
+        values: {
+          team: contended[0]?.teamName ?? "",
+          minutes: share.longestOverlap,
+          allowed: policy.maxSharedOverlapMinutes,
+        },
+      });
+    } else if (policy.maxConcurrentTeams > 1) {
+      findings.push({
+        code: "GYM_AT_CAPACITY",
+        severity: "CONFLICT",
+        values: { teams: share.sharedWith + 1, allowed: policy.maxConcurrentTeams },
+      });
+    } else {
+      // An ordinary hall produces exactly the finding it always did, values
+      // included, so nothing downstream can tell this refactor happened.
+      findings.push({
+        code: "GYM_DOUBLE_BOOKED",
+        severity: "CONFLICT",
+        values: { team: contended[0]?.teamName ?? "" },
+      });
+    }
+  }
+
   for (const booking of bookings) {
     if (booking.id === candidate.id) continue;
     if (!overlaps(window, booking.window)) continue;
 
-    if (booking.gymId === candidate.gymId && !booking.allowsGymSharing) {
-      findings.push({
-        code: "GYM_DOUBLE_BOOKED",
-        severity: "CONFLICT",
-        values: { team: booking.teamName ?? "" },
-      });
-    }
     if (candidate.trainerId && booking.trainerId === candidate.trainerId) {
       findings.push({
         code: "TRAINER_DOUBLE_BOOKED",

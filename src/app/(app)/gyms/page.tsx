@@ -162,6 +162,8 @@ export default async function GymsPage({
                           city: gym.city,
                           country: gym.country,
                           capacity: gym.capacity,
+                          sharesHall: gym.max_concurrent_teams > 1,
+                          sharedOverlapMinutes: gym.max_shared_overlap_minutes,
                           sportTypes: gym.sport_types,
                           equipment: gym.equipment,
                           color: gym.color,
