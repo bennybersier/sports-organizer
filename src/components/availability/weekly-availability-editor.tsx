@@ -23,6 +23,11 @@ import type { AvailabilityWindow } from "@/server/services/availability-service"
  * actually thinks about it — "what happens on Tuesdays" is the question being
  * answered, not "list every row in the database".
  *
+ * An empty day does not mean the same thing for every owner, and the copy says
+ * so rather than leaving it to be discovered. A hall or a coach with no hours
+ * on a weekday is unavailable; a team is simply not restricted that day, and
+ * falls back to the time window in its training requirements.
+ *
  * Overlapping windows on the same day are rejected by the database; the
  * translated explanation arrives as a toast from the action hook.
  */
@@ -43,6 +48,9 @@ export function WeeklyAvailabilityEditor({
   const tWeekdays = useTranslations("weekdays");
   const tCommon = useTranslations("common");
   const { run, isPending } = useAction();
+
+  // Teams are open until told otherwise; halls and coaches are shut until told.
+  const isTeam = domain === "team";
 
   const [addingTo, setAddingTo] = useState<IsoWeekday | null>(null);
   const [start, setStart] = useState("18:00");
@@ -72,7 +80,7 @@ export function WeeklyAvailabilityEditor({
           {t("weeklyTitle")}
         </CardTitle>
         <CardDescription>
-          {t("weeklySubtitle")}
+          {isTeam ? t("weeklySubtitleTeam") : t("weeklySubtitle")}
           {windows.length > 0 ? ` · ${t("weeklyTotal", { hours: totalHours })}` : null}
         </CardDescription>
       </CardHeader>
@@ -89,7 +97,9 @@ export function WeeklyAvailabilityEditor({
 
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                   {dayWindows.length === 0 && addingTo !== weekday ? (
-                    <span className="text-sm text-muted-foreground">{t("noWindows")}</span>
+                    <span className="text-sm text-muted-foreground">
+                      {isTeam ? t("unrestricted") : t("noWindows")}
+                    </span>
                   ) : null}
 
                   {dayWindows.map((window) => (

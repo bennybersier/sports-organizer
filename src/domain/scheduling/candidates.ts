@@ -80,20 +80,22 @@ export function generateCandidates(
       : gyms;
 
   for (const weekday of weekdays) {
-    const teamWindows = team.availability[weekday];
-    // No rows at all means "unconstrained"; an explicitly empty day means shut.
-    const teamConstraint =
-      Object.keys(team.availability).length === 0
-        ? null
-        : (teamWindows ?? []);
-
-    if (teamConstraint !== null && teamConstraint.length === 0) continue;
+    /*
+      A day the team has said nothing about is unconstrained, not shut. Which
+      weekdays a team may train at all is `allowedWeekdays`, filtered above;
+      the weekly pattern only ever narrows the hours on the days it covers.
+      Reading a silent day as closed made adding Tuesday hours quietly ban
+      Monday through Friday, and made the generator disagree with the
+      calendar's own placement check about the same session.
+    */
+    const teamWindows = team.availability[weekday] ?? [];
 
     for (const gym of usableGyms) {
+      // A hall, unlike a team, is shut until someone enters hours for it.
       const gymWindows = gym.availability[weekday] ?? [];
       if (gymWindows.length === 0) continue;
 
-      const base = teamConstraint ? intersect(gymWindows, teamConstraint) : gymWindows;
+      const base = teamWindows.length > 0 ? intersect(gymWindows, teamWindows) : gymWindows;
       if (base.length === 0) continue;
 
       // With no eligible trainer the slot is still generated unstaffed: an

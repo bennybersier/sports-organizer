@@ -7,6 +7,9 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { TIME_FORMAT } from "@/lib/time-format";
 import type { CalendarItem } from "@/server/services/calendar-service";
+import type { EventDialogOptions } from "@/app/(app)/calendar/new-event-button";
+
+import { AddEventButton } from "./add-event-button";
 
 /**
  * Month overview: density at a glance, detail on click.
@@ -21,6 +24,7 @@ export function MonthGrid({
   weekdayLabels,
   timeZone,
   onSelect,
+  eventOptions,
 }: {
   weeks: {
     date: string;
@@ -33,12 +37,23 @@ export function MonthGrid({
   /** The club's zone: a session is at the club's clock, not the viewer's. */
   timeZone: string;
   onSelect: (item: CalendarItem) => void;
+  /** Absent when the viewer may not create events; the "+" then never appears. */
+  eventOptions?: EventDialogOptions;
 }) {
   const t = useTranslations("calendar");
   const format = useFormatter();
 
   const time = (value: string) =>
     format.dateTime(new Date(value), { ...TIME_FORMAT, timeZone });
+
+  // Noon UTC keeps a date-only value on its own day in every zone.
+  const dayLabel = (date: string) =>
+    format.dateTime(new Date(`${date}T12:00:00Z`), {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      timeZone: "UTC",
+    });
 
   return (
     <div className="overflow-x-auto rounded-lg border">
@@ -56,18 +71,31 @@ export function MonthGrid({
           <div
             key={day.date}
             className={cn(
-              "min-h-24 border-b border-r p-1 last:border-r-0",
+              "group min-h-24 border-b border-r p-1 last:border-r-0",
               !day.inMonth && "bg-muted/30 text-muted-foreground",
               day.isToday && "bg-primary/5",
             )}
           >
-            <div
-              className={cn(
-                "px-1 text-xs tabular-nums",
-                day.isToday && "font-semibold text-primary",
-              )}
-            >
-              {day.day}
+            <div className="flex items-center justify-between gap-1">
+              <span
+                className={cn(
+                  "px-1 text-xs tabular-nums",
+                  day.isToday && "font-semibold text-primary",
+                )}
+              >
+                {day.day}
+              </span>
+              {eventOptions ? (
+                <AddEventButton
+                  date={day.date}
+                  label={dayLabel(day.date)}
+                  options={eventOptions}
+                  // Always drawn rather than revealed on hover: a touch device
+                  // has no hover, and an invisible-but-tappable target is worse
+                  // than a quiet visible one.
+                  className="text-muted-foreground/40 hover:text-foreground group-hover:text-muted-foreground"
+                />
+              ) : null}
             </div>
             <ul className="space-y-0.5">
               {day.items.slice(0, 3).map((item) => (

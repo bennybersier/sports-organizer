@@ -134,15 +134,53 @@ describe("hard constraints are never violated", () => {
     expect(result.unmet).toHaveLength(1);
   });
 
-  it("respects a team's own availability when it has some", () => {
+  it("narrows a session to the team's own hours on the day they cover", () => {
     const result = run({
       teams: [
         team("t1", {
           sessionsPerWeek: 1,
+          allowedWeekdays: [3],
+          // The hall is open 16:00–22:00; the team only 18:00–20:00.
           availability: { 3: [{ start: 1080, end: 1200 }] },
         }),
       ],
       gyms: [gym("g1")],
+      trainers: [trainer("tr1", ["t1"])],
+    });
+
+    expect(result.assignments).toHaveLength(1);
+    expect(result.assignments[0].window.start).toBeGreaterThanOrEqual(1080);
+    expect(result.assignments[0].window.end).toBeLessThanOrEqual(1200);
+  });
+
+  it("leaves a day the team said nothing about open", () => {
+    /*
+      The trap this replaced: entering Wednesday hours used to ban every other
+      weekday silently. Which days a team may train is `allowedWeekdays`, and
+      Monday is still one of them here.
+    */
+    const result = run({
+      teams: [
+        team("t1", {
+          sessionsPerWeek: 1,
+          allowedWeekdays: [1],
+          availability: { 3: [{ start: 1080, end: 1200 }] },
+        }),
+      ],
+      gyms: [gym("g1")],
+      trainers: [trainer("tr1", ["t1"])],
+    });
+
+    expect(result.unmet).toEqual([]);
+    expect(result.assignments).toHaveLength(1);
+    expect(result.assignments[0].isoWeekday).toBe(1);
+  });
+
+  it("still shuts a hall that has no hours on a weekday", () => {
+    // Teams are open by default; halls are not.
+    const result = run({
+      teams: [team("t1", { sessionsPerWeek: 1, allowedWeekdays: [1, 3] })],
+      gyms: [gym("g1", [3])],
       trainers: [trainer("tr1", ["t1"])],
     });
 

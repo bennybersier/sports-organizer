@@ -385,9 +385,11 @@
     "archiveConfirmBody": "Its history and past schedules are preserved.",
     "allSeasons": "All seasons",
     "allSports": "All sports",
-    "trainingWeek": "Training week",
+    "trainingCalendar": "Training calendar",
     "sessionsThisWeek": "{count} of {required} sessions",
-    "noTrainingThisWeek": "No training scheduled this week. Generate and publish a schedule in the Smart Organizer, or step through the weeks above."
+    "sessionsThisMonth": "{count, plural, one {# session} other {# sessions}}",
+    "noTrainingThisWeek": "No training scheduled this week. Generate and publish a schedule in the Smart Organizer, or step through the weeks above.",
+    "noTrainingThisMonth": "No training scheduled this month. Generate and publish a schedule in the Smart Organizer, or step through the months above."
   },
   "athletes": {
     "title": "Athletes",
@@ -437,7 +439,8 @@
   "availability": {
     "title": "Availability",
     "weeklyTitle": "Weekly pattern",
-    "weeklySubtitle": "The hours normally available, week after week.",
+    "weeklySubtitle": "The hours normally available, week after week. Nothing can be scheduled here without them.",
+    "weeklySubtitleTeam": "Optional. Set hours only where a squad's differ from day to day — days left empty follow the time window in its requirements.",
     "exceptionsTitle": "Exceptions",
     "exceptionsSubtitle": "Holidays, closures and one-off changes. These always win over the weekly pattern.",
     "addWindow": "Add hours",
@@ -456,7 +459,8 @@
     "AVAILABLE_OVERRIDE": "Extra availability",
     "wholeDay": "Whole day",
     "partOfDay": "Part of the day",
-    "noWindows": "Nothing set for this day",
+    "noWindows": "Not available",
+    "unrestricted": "No limit",
     "emptyTitle": "No availability set",
     "emptyBody": "Add the hours normally available each week. The scheduler can't place anything without them.",
     "noExceptions": "No upcoming exceptions.",
@@ -518,6 +522,7 @@
     "previous": "Previous",
     "next": "Next",
     "newEvent": "New event",
+    "newEventOn": "New event on {day}",
     "editEvent": "Edit event",
     "createEvent": "Create event",
     "saveEvent": "Save event",
@@ -588,7 +593,19 @@
     "restoreSeries": "Restore this event",
     "seriesRestored": "{count, plural, one {# session restored} other {# sessions restored}}.",
     "scheduleStartsOn": "This schedule starts on {date}, so the days before it are empty. Later weeks show the full pattern.",
-    "beforeStart": "Before the schedule starts"
+    "beforeStart": "Before the schedule starts",
+    "opponent": "Opponent",
+    "opponentPlaceholder": "Leave empty for a match between two of your own teams",
+    "homeAway": "Home or away",
+    "home": "Home",
+    "away": "Away",
+    "inHouse": "In-house",
+    "competition": "Competition",
+    "competitionPlaceholder": "e.g. U19 Eccellenza",
+    "hallHeld": "Hall held either side",
+    "hallHeldHint": "Setup, warm-up and pack-down. No training is scheduled in this hall during that time.",
+    "bufferBefore": "Minutes before",
+    "bufferAfter": "Minutes after"
   },
   "conflicts": {
     "VALID": "Valid",
@@ -698,7 +715,14 @@
     "howToFix": "How to fix",
     "preview": "Preview",
     "previewDescription": "This draft, week by week. Nothing here is on the club's calendar until you publish it.",
-    "previewEmptyWeek": "No sessions in this week. Step forward or back to find the ones that were scheduled."
+    "previewEmptyWeek": "No sessions in this week. Step forward or back to find the ones that were scheduled.",
+    "skipped": "{count, plural, one {# session not created} other {# sessions not created}}",
+    "skippedHint": "The weekly pattern asked for these, but the date could not take them. They are not a shortfall in the pattern itself.",
+    "SKIP_MATCH": "{title} — the team was playing",
+    "SKIP_EVENT": "{title} took the hall",
+    "SKIP_GYM_CLOSED": "The hall was closed that week",
+    "SKIP_TRAINER_AWAY": "The coach was away that week",
+    "SKIP_TEAM_AWAY": "The team was away that week"
   },
   "members": {
     "title": "Members",

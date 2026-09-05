@@ -8,6 +8,9 @@ import { EmptyState } from "@/components/data/empty-state";
 import { cn } from "@/lib/utils";
 import { SHORT_TIME_FORMAT } from "@/lib/time-format";
 import type { CalendarItem } from "@/server/services/calendar-service";
+import type { EventDialogOptions } from "@/app/(app)/calendar/new-event-button";
+
+import { AddEventButton } from "./add-event-button";
 
 /**
  * Agenda: a chronological list grouped by day.
@@ -19,6 +22,7 @@ export function AgendaView({
   groups,
   timeZone,
   onSelect,
+  eventOptions,
 }: {
   groups: { date: string; label: string; isToday: boolean; items: CalendarItem[] }[];
   /**
@@ -28,6 +32,8 @@ export function AgendaView({
    */
   timeZone: string;
   onSelect: (item: CalendarItem) => void;
+  /** Absent when the viewer may not create events; the "+" then never appears. */
+  eventOptions?: EventDialogOptions;
 }) {
   const t = useTranslations("calendar");
   const format = useFormatter();
@@ -42,14 +48,21 @@ export function AgendaView({
     <div className="space-y-5">
       {withItems.map((group) => (
         <section key={group.date}>
-          <h3
+          <div
             className={cn(
-              "sticky top-14 z-10 bg-background/95 py-1 text-sm font-medium backdrop-blur",
+              "sticky top-14 z-10 flex items-center gap-1 bg-background/95 py-1 backdrop-blur",
               group.isToday && "text-primary",
             )}
           >
-            {group.label}
-          </h3>
+            <h3 className="text-sm font-medium">{group.label}</h3>
+            {eventOptions ? (
+              <AddEventButton
+                date={group.date}
+                label={group.label}
+                options={eventOptions}
+              />
+            ) : null}
+          </div>
           <ul className="divide-y rounded-lg border">
             {group.items.map((item) => (
               <li key={item.id}>

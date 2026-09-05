@@ -7,6 +7,9 @@ import { MapPin, UserCog } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TIME_FORMAT } from "@/lib/time-format";
 import type { CalendarItem } from "@/server/services/calendar-service";
+import type { EventDialogOptions } from "@/app/(app)/calendar/new-event-button";
+
+import { AddEventButton } from "./add-event-button";
 
 export interface MobileCalendarDay {
   date: string;
@@ -30,11 +33,14 @@ export function MobileCalendar({
   weekdayLabels,
   timeZone,
   onSelect,
+  eventOptions,
 }: {
   weeks: MobileCalendarDay[][];
   weekdayLabels: string[];
   timeZone: string;
   onSelect: (item: CalendarItem) => void;
+  /** Absent when the viewer may not create events; the "+" then never appears. */
+  eventOptions?: EventDialogOptions;
 }) {
   const t = useTranslations("calendar");
   const format = useFormatter();
@@ -57,6 +63,15 @@ export function MobileCalendar({
 
   const time = (value: string) =>
     format.dateTime(new Date(value), { ...TIME_FORMAT, timeZone });
+
+  const selectedLabel = selected
+    ? format.dateTime(new Date(`${selected.date}T12:00:00Z`), {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        timeZone: "UTC",
+      })
+    : "";
 
   return (
     <div className="flex flex-col gap-3">
@@ -113,14 +128,22 @@ export function MobileCalendar({
 
       {selected ? (
         <div className="flex flex-col gap-2">
-          <h3 className="text-sm font-medium">
-            {format.dateTime(new Date(`${selected.date}T12:00:00Z`), {
-              weekday: "long",
-              day: "numeric",
-              month: "long",
-              timeZone: "UTC",
-            })}
-          </h3>
+          {/*
+            One "+" on the day being read, not one per date in the grid: a month
+            of tap targets six pixels apart is a mis-tap waiting to happen, and
+            the day you want is the day you already tapped.
+          */}
+          <div className="flex items-center justify-between gap-2">
+            <h3 className="text-sm font-medium">{selectedLabel}</h3>
+            {eventOptions ? (
+              <AddEventButton
+                date={selected.date}
+                label={selectedLabel}
+                options={eventOptions}
+                className="size-8"
+              />
+            ) : null}
+          </div>
 
           {selected.items.length === 0 ? (
             <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">

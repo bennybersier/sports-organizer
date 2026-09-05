@@ -385,9 +385,11 @@
     "archiveConfirmBody": "Lo storico e i calendari passati vengono conservati.",
     "allSeasons": "Tutte le stagioni",
     "allSports": "Tutti gli sport",
-    "trainingWeek": "Settimana di allenamenti",
+    "trainingCalendar": "Calendario allenamenti",
     "sessionsThisWeek": "{count} di {required} allenamenti",
-    "noTrainingThisWeek": "Nessun allenamento programmato questa settimana. Genera e pubblica un calendario nell'Organizzatore intelligente oppure sfoglia le settimane qui sopra."
+    "sessionsThisMonth": "{count, plural, one {# sessione} other {# sessioni}}",
+    "noTrainingThisWeek": "Nessun allenamento programmato questa settimana. Genera e pubblica un calendario nell'Organizzatore intelligente oppure sfoglia le settimane qui sopra.",
+    "noTrainingThisMonth": "Nessun allenamento programmato questo mese. Genera e pubblica un calendario nell'Organizzatore, oppure sfoglia i mesi qui sopra."
   },
   "athletes": {
     "title": "Atleti",
@@ -437,7 +439,8 @@
   "availability": {
     "title": "Disponibilità",
     "weeklyTitle": "Schema settimanale",
-    "weeklySubtitle": "Le ore normalmente disponibili, settimana dopo settimana.",
+    "weeklySubtitle": "Le ore normalmente disponibili, settimana dopo settimana. Senza di esse non si può programmare nulla.",
+    "weeklySubtitleTeam": "Facoltativo. Inserisci gli orari solo dove quelli della squadra cambiano da un giorno all'altro: i giorni lasciati vuoti seguono la fascia oraria dei requisiti.",
     "exceptionsTitle": "Eccezioni",
     "exceptionsSubtitle": "Festività, chiusure e variazioni occasionali. Hanno sempre la precedenza sullo schema settimanale.",
     "addWindow": "Aggiungi orario",
@@ -456,7 +459,8 @@
     "AVAILABLE_OVERRIDE": "Disponibilità extra",
     "wholeDay": "Tutto il giorno",
     "partOfDay": "Parte della giornata",
-    "noWindows": "Nulla impostato per questo giorno",
+    "noWindows": "Non disponibile",
+    "unrestricted": "Nessun limite",
     "emptyTitle": "Nessuna disponibilità impostata",
     "emptyBody": "Aggiungi le ore normalmente disponibili ogni settimana. Senza queste, la pianificazione non può collocare nulla.",
     "noExceptions": "Nessuna eccezione in programma.",
@@ -518,6 +522,7 @@
     "previous": "Precedente",
     "next": "Successivo",
     "newEvent": "Nuovo evento",
+    "newEventOn": "Nuovo evento il {day}",
     "editEvent": "Modifica evento",
     "createEvent": "Crea evento",
     "saveEvent": "Salva evento",
@@ -588,7 +593,19 @@
     "restoreSeries": "Ripristina questo evento",
     "seriesRestored": "{count, plural, one {# allenamento ripristinato} other {# allenamenti ripristinati}}.",
     "scheduleStartsOn": "Questo calendario inizia il {date}, quindi i giorni precedenti sono vuoti. Le settimane successive mostrano il ritmo completo.",
-    "beforeStart": "Prima dell'inizio del calendario"
+    "beforeStart": "Prima dell'inizio del calendario",
+    "opponent": "Avversario",
+    "opponentPlaceholder": "Lascia vuoto per una partita fra due squadre della società",
+    "homeAway": "Casa o trasferta",
+    "home": "Casa",
+    "away": "Trasferta",
+    "inHouse": "In casa (derby)",
+    "competition": "Competizione",
+    "competitionPlaceholder": "es. U19 Eccellenza",
+    "hallHeld": "Palestra occupata prima e dopo",
+    "hallHeldHint": "Montaggio, riscaldamento e smontaggio. In questo intervallo non viene programmato alcun allenamento in palestra.",
+    "bufferBefore": "Minuti prima",
+    "bufferAfter": "Minuti dopo"
   },
   "conflicts": {
     "VALID": "Valido",
@@ -698,7 +715,14 @@
     "howToFix": "Come risolvere",
     "preview": "Anteprima",
     "previewDescription": "Questa bozza, settimana per settimana. Nulla di ciò che vedi è nel calendario della società finché non lo pubblichi.",
-    "previewEmptyWeek": "Nessun allenamento in questa settimana. Vai avanti o indietro per trovare quelli programmati."
+    "previewEmptyWeek": "Nessun allenamento in questa settimana. Vai avanti o indietro per trovare quelli programmati.",
+    "skipped": "{count, plural, one {# allenamento non creato} other {# allenamenti non creati}}",
+    "skippedHint": "Il modello settimanale li prevedeva, ma quella data non poteva ospitarli. Non sono una carenza del modello.",
+    "SKIP_MATCH": "{title} — la squadra giocava",
+    "SKIP_EVENT": "{title} occupava la palestra",
+    "SKIP_GYM_CLOSED": "La palestra era chiusa quella settimana",
+    "SKIP_TRAINER_AWAY": "L'allenatore era assente quella settimana",
+    "SKIP_TEAM_AWAY": "La squadra era assente quella settimana"
   },
   "members": {
     "title": "Membri",

@@ -113,7 +113,13 @@ export interface Candidate {
 /** Resolved availability for the date in question. */
 export interface AvailabilityContext {
   gym: MinuteWindow[];
+  /** Null when no coach is assigned — not a constraint anyone has stated. */
   trainer: MinuteWindow[] | null;
+  /**
+   * Null when the team's availability says nothing about this date; an array —
+   * possibly empty — when it does. An empty array therefore means "closed",
+   * not "unknown". See `constrainsDate` for why the two must not be conflated.
+   */
   team: MinuteWindow[] | null;
 }
 
@@ -192,8 +198,12 @@ export function validatePlacement(
   if (availability.trainer !== null && !within(window, availability.trainer)) {
     findings.push({ code: "OUTSIDE_TRAINER_HOURS", severity: "CONFLICT" });
   }
-  // A team with no availability configured is unconstrained, not unavailable.
-  if (availability.team !== null && availability.team.length > 0 && !within(window, availability.team)) {
+  /*
+    An empty array is a refusal, not a shrug: a team that closed the day with an
+    exception, or keeps hours on this weekday that the session falls outside.
+    "Says nothing" arrives as null and is not a conflict.
+  */
+  if (availability.team !== null && !within(window, availability.team)) {
     findings.push({ code: "OUTSIDE_TEAM_HOURS", severity: "CONFLICT" });
   }
 

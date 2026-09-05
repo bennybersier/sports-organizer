@@ -8,7 +8,10 @@ import { z } from "zod";
 import { runAction, parseInput, type ActionResult } from "@/lib/action";
 import { ConflictError, fromDatabaseError } from "@/lib/errors";
 import { requirePermission } from "@/server/auth/authorization";
-import { generateAndStore } from "@/server/services/schedule-generation-service";
+import {
+  generateAndStore,
+  type SkippedOccurrence,
+} from "@/server/services/schedule-generation-service";
 import {
   cancelScheduleEntry,
   cancelScheduleSeries,
@@ -28,21 +31,40 @@ const generateSchema = z.object({
 
 export async function generateScheduleAction(
   input: unknown,
-): Promise<ActionResult<{ versionId: string; result: GenerationResult }>> {
+): Promise<
+  ActionResult<{
+    versionId: string;
+    result: GenerationResult;
+    /** Sessions the pattern called for that the season could not take. */
+    skipped: SkippedOccurrence[];
+    teamNames: Record<string, string>;
+  }>
+> {
   return runAction(async () => {
     const context = await requirePermission("schedule.generate");
     const values = parseInput(generateSchema, input);
 
-    const { versionId, result } = await generateAndStore(context, {
+    const { versionId, result, skipped } = await generateAndStore(context, {
       seasonId: values.seasonId,
       teamIds: values.teamIds,
       gymIds: values.gymIds,
       name: values.name,
     });
 
+    // The skip list is by id; the panel needs names, and only the teams that
+    // actually lost something.
+    const shortTeamIds = new Set(skipped.map((entry) => entry.teamId));
+    const { data: teams } = await context.db
+      .from("teams")
+      .select("id, name")
+      .eq("tenant_id", context.tenant.id)
+      .in("id", [...shortTeamIds]);
+
+    const teamNames = Object.fromEntries((teams ?? []).map((team) => [team.id, team.name]));
+
     revalidatePath("/organizer");
     revalidatePath("/calendar");
-    return { versionId, result };
+    return { versionId, result, skipped, teamNames };
   });
 }
 

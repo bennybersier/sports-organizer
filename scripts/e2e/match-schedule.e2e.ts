@@ -203,7 +203,7 @@ afterAll(async () => {
 
 describe("fixtures and training", () => {
   let dates: Record<string, string[]> = {};
-  let skipped: { teamId: string; date: string; reason: string }[] = [];
+  let skipped: { teamId: string; date: string; code: string }[] = [];
 
   beforeAll(async () => {
     const stored = await generateAndStore(context, { seasonId, name: "with fixtures" });
@@ -231,7 +231,7 @@ describe("fixtures and training", () => {
       .single();
 
     const summary = version!.result_summary as {
-      skipped?: { teamId: string; date: string; reason: string }[];
+      skipped?: { teamId: string; date: string; code: string }[];
     };
     skipped = summary.skipped ?? [];
   }, 180_000);
@@ -255,13 +255,17 @@ describe("fixtures and training", () => {
 
   it("says why the sessions were not created", () => {
     const reasons = skipped.filter((entry) => entry.date === MATCH_DATE);
-    const named = reasons.map((entry) => entry.teamId);
+    const codeFor = (teamId: string) =>
+      reasons.find((entry) => entry.teamId === teamId)?.code;
 
-    // Both sides that played are accounted for, each with a reason an
-    // organizer can read rather than a silently missing session.
-    expect(named).toContain(team.playing);
-    expect(named).toContain(team.travelling);
-    expect(reasons.every((entry) => entry.reason.length > 0)).toBe(true);
+    // Both sides that played are told they were playing — a code the UI can
+    // translate, not an English sentence baked in at the point of the skip.
+    expect(codeFor(team.playing)).toBe("SKIP_MATCH");
+    expect(codeFor(team.travelling)).toBe("SKIP_MATCH");
+
+    // A bystander whose pattern put it in the held hall is told something
+    // different and true: the hall was taken, not that it was playing.
+    if (codeFor(team.resting)) expect(codeFor(team.resting)).toBe("SKIP_EVENT");
   });
 
   it("holds the hall for setup and pack-down, not just the game", async () => {

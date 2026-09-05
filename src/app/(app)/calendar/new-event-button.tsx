@@ -28,6 +28,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MultiSelect, type MultiSelectOption } from "@/components/data/multi-select";
+import { toInstant, toWallClock } from "@/domain/scheduling/timezone";
+import { fromMinutes, toMinutes } from "@/domain/availability";
 import { useFormDialog } from "@/hooks/use-form-dialog";
 import { createEventAction, updateEventAction } from "@/server/actions/calendar";
 
@@ -39,6 +41,9 @@ const TYPES = [
   "SPECIAL_EVENT",
   "MEETING",
 ] as const;
+
+/** Opponent, home/away and competition only mean anything on these. */
+const FIXTURE_TYPES = new Set(["MATCH", "TOURNAMENT"]);
 
 export interface EventFormValues {
   id: string;
@@ -53,6 +58,11 @@ export interface EventFormValues {
   allDay: boolean;
   allowsGymSharing: boolean;
   blocksScheduling: boolean;
+  opponent: string | null;
+  isHome: boolean | null;
+  competition: string | null;
+  bufferBeforeMinutes: number;
+  bufferAfterMinutes: number;
 }
 
 export interface EventDialogOptions {
@@ -60,6 +70,15 @@ export interface EventDialogOptions {
   gyms: MultiSelectOption[];
   trainers: MultiSelectOption[];
   teams: MultiSelectOption[];
+  /**
+   * The club's scheduling timezone.
+   *
+   * Load-bearing, not cosmetic: what a coach types here decides which date a
+   * fixture falls on, and a fixture's date decides which training disappears.
+   * Reading the browser's zone instead would move a late Saturday game to
+   * Sunday for anyone travelling, and take the wrong session with it.
+   */
+  timeZone: string;
 }
 
 /**
@@ -75,12 +94,23 @@ export function NewEventButton({
   gyms,
   trainers,
   teams,
+  timeZone,
   event,
+  defaultDate,
+  defaultTeamIds,
   open: controlledOpen,
   onOpenChange,
 }: EventDialogOptions & {
   /** Present when editing an existing event. */
   event?: EventFormValues;
+  /**
+   * The day a "+" was pressed on, as a club-local `YYYY-MM-DD`. Prefilling it
+   * is the whole point of the per-day buttons: the date is the one thing the
+   * click already said.
+   */
+  defaultDate?: string;
+  /** Preselected squads — the team page knows which team you are looking at. */
+  defaultTeamIds?: string[];
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -93,13 +123,10 @@ export function NewEventButton({
 
   // An existing event's instants are split back into the date and times the
   // form works in, using the browser's zone — the same one the inputs use.
+  // The club's wall clock, not this laptop's.
   const local = (iso: string) => {
-    const value = new Date(iso);
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return {
-      date: `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`,
-      time: `${pad(value.getHours())}:${pad(value.getMinutes())}`,
-    };
+    const wall = toWallClock(iso, timeZone);
+    return { date: wall.date, time: fromMinutes(wall.minutes) };
   };
 
   const [type, setType] = useState<(typeof TYPES)[number]>(
@@ -109,13 +136,22 @@ export function NewEventButton({
   const [seasonId, setSeasonId] = useState(event?.seasonId ?? seasons[0]?.value ?? "");
   const [gymId, setGymId] = useState(event?.gymId ?? "");
   const [trainerId, setTrainerId] = useState(event?.trainerId ?? "");
-  const [teamIds, setTeamIds] = useState<string[]>(event?.teamIds ?? []);
-  const [date, setDate] = useState(event ? local(event.startAt).date : "");
+  const [teamIds, setTeamIds] = useState<string[]>(event?.teamIds ?? defaultTeamIds ?? []);
+  const [date, setDate] = useState(event ? local(event.startAt).date : (defaultDate ?? ""));
   const [start, setStart] = useState(event ? local(event.startAt).time : "18:00");
   const [end, setEnd] = useState(event ? local(event.endAt).time : "20:00");
   const [allDay, setAllDay] = useState(event?.allDay ?? false);
   const [sharing, setSharing] = useState(event?.allowsGymSharing ?? false);
   const [blocking, setBlocking] = useState(event?.blocksScheduling ?? false);
+  const [opponent, setOpponent] = useState(event?.opponent ?? "");
+  const [homeAway, setHomeAway] = useState<"" | "home" | "away">(
+    event?.isHome === true ? "home" : event?.isHome === false ? "away" : "",
+  );
+  const [competition, setCompetition] = useState(event?.competition ?? "");
+  const [bufferBefore, setBufferBefore] = useState(event?.bufferBeforeMinutes ?? 0);
+  const [bufferAfter, setBufferAfter] = useState(event?.bufferAfterMinutes ?? 0);
+
+  const isFixture = FIXTURE_TYPES.has(type);
 
   const [open, setOpen] = useFormDialog({
     open: controlledOpen,
@@ -128,13 +164,18 @@ export function NewEventButton({
       setSeasonId(seasons[0]?.value ?? "");
       setGymId("");
       setTrainerId("");
-      setTeamIds([]);
-      setDate("");
+      setTeamIds(defaultTeamIds ?? []);
+      setDate(defaultDate ?? "");
       setStart("18:00");
       setEnd("20:00");
       setAllDay(false);
       setSharing(false);
       setBlocking(false);
+      setOpponent("");
+      setHomeAway("");
+      setCompetition("");
+      setBufferBefore(0);
+      setBufferAfter(0);
     },
   });
 
@@ -142,9 +183,9 @@ export function NewEventButton({
     setError(null);
     setPending(true);
 
-    // Sent as instants with the browser's offset; the server re-reads them in
-    // the club's timezone, which is what actually governs scheduling.
-    const toIso = (time: string) => new Date(`${date}T${time}:00`).toISOString();
+    // Read in the club's timezone, which is what governs scheduling. 18:00
+    // means six in the evening in Codogno wherever the person typing it is.
+    const toIso = (time: string) => toInstant(date, toMinutes(time), timeZone).toISOString();
 
     const payload = {
       seasonId,
@@ -158,6 +199,13 @@ export function NewEventButton({
       allDay,
       allowsGymSharing: sharing,
       blocksScheduling: blocking,
+      opponent: isFixture ? opponent : "",
+      isHome: isFixture ? homeAway : "",
+      competition: isFixture ? competition : "",
+      // An all-day event already holds the whole day; the database refuses a
+      // buffer on one.
+      bufferBeforeMinutes: allDay ? 0 : bufferBefore,
+      bufferAfterMinutes: allDay ? 0 : bufferAfter,
     };
 
     const result = isEdit
@@ -181,7 +229,11 @@ export function NewEventButton({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {isEdit ? null : (
+      {/*
+        Editing, and the per-day "+" buttons, both open this from outside — the
+        built-in trigger is only for the page header's own button.
+      */}
+      {isEdit || controlledOpen !== undefined ? null : (
         <DialogTrigger asChild>
           <Button>
             <Plus aria-hidden />
@@ -252,6 +304,89 @@ export function NewEventButton({
                 {t("allDay")}
               </Label>
             </div>
+
+            {isFixture ? (
+              <div className="grid gap-4 rounded-lg border p-3">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-1">
+                    <Label htmlFor="event-opponent">{t("opponent")}</Label>
+                    <Input
+                      id="event-opponent"
+                      value={opponent}
+                      onChange={(e) => setOpponent(e.target.value)}
+                      placeholder={t("opponentPlaceholder")}
+                    />
+                  </div>
+                  <div className="grid gap-1">
+                    <Label htmlFor="event-homeaway">{t("homeAway")}</Label>
+                    <Select
+                      value={homeAway || "unset"}
+                      onValueChange={(value) =>
+                        setHomeAway(value === "unset" ? "" : (value as "home" | "away"))
+                      }
+                    >
+                      <SelectTrigger id="event-homeaway">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {/* Neither, for a derby between two of our own teams. */}
+                        <SelectItem value="unset">{t("inHouse")}</SelectItem>
+                        <SelectItem value="home">{t("home")}</SelectItem>
+                        <SelectItem value="away">{t("away")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="grid gap-1">
+                  <Label htmlFor="event-competition">{t("competition")}</Label>
+                  <Input
+                    id="event-competition"
+                    value={competition}
+                    onChange={(e) => setCompetition(e.target.value)}
+                    placeholder={t("competitionPlaceholder")}
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {!allDay ? (
+              <div className="grid gap-2 rounded-lg border p-3">
+                <div className="grid gap-0.5">
+                  <Label>{t("hallHeld")}</Label>
+                  <p className="text-muted-foreground text-xs">{t("hallHeldHint")}</p>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid gap-1">
+                    <Label htmlFor="event-buffer-before" className="text-xs font-normal">
+                      {t("bufferBefore")}
+                    </Label>
+                    <Input
+                      id="event-buffer-before"
+                      type="number"
+                      min={0}
+                      max={240}
+                      step={15}
+                      value={bufferBefore}
+                      onChange={(e) => setBufferBefore(Number(e.target.value) || 0)}
+                    />
+                  </div>
+                  <div className="grid gap-1">
+                    <Label htmlFor="event-buffer-after" className="text-xs font-normal">
+                      {t("bufferAfter")}
+                    </Label>
+                    <Input
+                      id="event-buffer-after"
+                      type="number"
+                      min={0}
+                      max={240}
+                      step={15}
+                      value={bufferAfter}
+                      onChange={(e) => setBufferAfter(Number(e.target.value) || 0)}
+                    />
+                  </div>
+                </div>
+              </div>
+            ) : null}
 
             {!allDay ? (
               <div className="grid gap-4 sm:grid-cols-2">

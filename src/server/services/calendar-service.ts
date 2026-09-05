@@ -3,7 +3,7 @@ import "server-only";
 import { NotFoundError, fromDatabaseError } from "@/lib/errors";
 import type { AuthContext } from "@/server/auth/context";
 import { assertPermission } from "@/server/auth/authorization";
-import { resolveAvailability, type IsoWeekday } from "@/domain/availability";
+import { constrainsDate, resolveAvailability, type IsoWeekday } from "@/domain/availability";
 import { occupiedWindow, toOccupyingEvent } from "@/domain/scheduling/fixtures";
 import {
   validatePlacement,
@@ -389,6 +389,16 @@ export async function checkPlacement(
       ])
     : [null, null];
 
+  const toDomainExceptions = (
+    exceptions: { exceptionDate: string; startTime: string | null; endTime: string | null; type: "UNAVAILABLE" | "AVAILABLE_OVERRIDE" }[],
+  ) =>
+    exceptions.map((exception) => ({
+      date: exception.exceptionDate,
+      startTime: exception.startTime,
+      endTime: exception.endTime,
+      type: exception.type,
+    }));
+
   const resolve = (
     windows: { isoWeekday: IsoWeekday; startTime: string; endTime: string; validFrom: string; validUntil: string | null }[],
     exceptions: { exceptionDate: string; startTime: string | null; endTime: string | null; type: "UNAVAILABLE" | "AVAILABLE_OVERRIDE" }[],
@@ -397,13 +407,23 @@ export async function checkPlacement(
       start.date,
       start.isoWeekday as IsoWeekday,
       windows,
-      exceptions.map((exception) => ({
-        date: exception.exceptionDate,
-        startTime: exception.startTime,
-        endTime: exception.endTime,
-        type: exception.type,
-      })),
+      toDomainExceptions(exceptions),
     );
+
+  /*
+    Null when the team's availability has nothing to say about this date, so the
+    check matches the generator: a silent day is unconstrained, a day the team
+    closed is a conflict. Resolving first and testing for emptiness cannot tell
+    those apart — both come back `[]`.
+  */
+  const teamAvailability = constrainsDate(
+    start.date,
+    start.isoWeekday as IsoWeekday,
+    teamWindows,
+    toDomainExceptions(teamExceptions),
+  )
+    ? resolve(teamWindows, teamExceptions)
+    : null;
 
   const rules: PlacementRules = {
     durationMinutes: requirement.durationMinutes,
@@ -429,7 +449,7 @@ export async function checkPlacement(
     {
       gym: resolve(gymWindows, gymExceptions),
       trainer: trainerWindows ? resolve(trainerWindows, trainerExceptions!) : null,
-      team: resolve(teamWindows, teamExceptions),
+      team: teamAvailability,
     },
     bookings,
     rules,

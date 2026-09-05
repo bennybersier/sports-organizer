@@ -74,10 +74,23 @@ describe("validatePlacement — availability", () => {
     expect(codes(result)).toContain("OUTSIDE_GYM_HOURS");
   });
 
-  it("treats a team with no availability rows as unconstrained, not unavailable", () => {
-    const result = validatePlacement(candidate, { ...availability, team: [] }, []);
+  it("treats a team that says nothing about the date as unconstrained", () => {
+    // Null, not `[]`: no weekly hours on this weekday and no exception on it.
+    const result = validatePlacement(candidate, { ...availability, team: null }, []);
     expect(codes(result)).not.toContain("OUTSIDE_TEAM_HOURS");
     expect(result.severity).toBe("VALID");
+  });
+
+  it("treats a team that closed the date as unavailable", () => {
+    /*
+      An empty array is a refusal — an exception that cleared the day, most
+      often "we are away". The generator skips those dates, and this check has
+      to agree or the calendar would happily accept a session the schedule
+      would never have produced.
+    */
+    const result = validatePlacement(candidate, { ...availability, team: [] }, []);
+    expect(codes(result)).toContain("OUTSIDE_TEAM_HOURS");
+    expect(result.severity).toBe("CONFLICT");
   });
 
   it("skips the trainer check when no trainer is assigned", () => {

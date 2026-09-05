@@ -5,6 +5,7 @@ import type { AuthContext } from "@/server/auth/context";
 import { assertPermission } from "@/server/auth/authorization";
 import { AUDIT_ACTIONS, recordAudit } from "@/server/services/audit-service";
 import {
+  constrainsDate,
   resolveAvailability,
   toMinutes,
   type IsoWeekday,
@@ -387,7 +388,7 @@ async function teamsForEvents(
 export async function generateAndStore(
   context: AuthContext,
   options: GenerationOptions,
-): Promise<{ versionId: string; result: GenerationResult }> {
+): Promise<{ versionId: string; result: GenerationResult; skipped: SkippedOccurrence[] }> {
   assertPermission(context, "schedule.generate");
 
   const season = await getSeason(context, options.seasonId);
@@ -516,7 +517,7 @@ export async function generateAndStore(
     },
   });
 
-  return { versionId: version.id, result };
+  return { versionId: version.id, result, skipped: plan.skipped };
 }
 
 
@@ -551,18 +552,13 @@ async function planOccurrences(
     "tenant_id" | "season_id" | "schedule_version_id" | "created_by"
   >[];
   seriesCount: number;
-  skipped: { teamId: string; date: string; reason: string }[];
+  skipped: SkippedOccurrence[];
 }> {
   const zone = context.tenant.timezone;
   const blocking = await collectBlockingEvents(context, args.from, args.until);
   const rows: Awaited<ReturnType<typeof planOccurrences>>["rows"] = [];
-  const skipped: { teamId: string; date: string; reason: string }[] = [];
+  const skipped: SkippedOccurrence[] = [];
 
-  /* Mirrors the engine exactly: a team with no hours anywhere is
-     unconstrained, but one that has hours must be free on the date. */
-  const constrainedTeams = new Set(
-    args.teams.filter((team) => Object.keys(team.availability).length > 0).map((team) => team.id),
-  );
 
   /*
     Two indexes, built once. `byDate` is keyed on the dates the hall is actually
@@ -623,36 +619,41 @@ async function planOccurrences(
       if (fixtures) {
         const playing = restDayReason(fixtures, date, 0);
         if (playing) {
-          skipped.push({ teamId: assignment.teamId, date, reason: playing });
+          skipped.push({ teamId: assignment.teamId, date, code: "SKIP_MATCH", values: { title: playing } });
           continue;
         }
       }
 
       if (!covers(`gym:${assignment.gymId}`, date, assignment.window)) {
-        skipped.push({ teamId: assignment.teamId, date, reason: "Gym unavailable that week" });
+        skipped.push({ teamId: assignment.teamId, date, code: "SKIP_GYM_CLOSED" });
         continue;
       }
       if (
         assignment.trainerId &&
         !covers(`trainer:${assignment.trainerId}`, date, assignment.window)
       ) {
-        skipped.push({ teamId: assignment.teamId, date, reason: "Trainer unavailable that week" });
+        skipped.push({ teamId: assignment.teamId, date, code: "SKIP_TRAINER_AWAY" });
         continue;
       }
       /*
-        A team that entered "we are away on the 12th" meant it, whether or not
-        it also keeps a weekly pattern. Without the second clause an exception
-        on an otherwise unconstrained team is silently ignored all season —
-        latent until fixtures made teams without weekly hours common.
+        Judged per date, exactly as the engine and the calendar's placement
+        check now judge it. Per *team* was the old rule and it cut both ways: a
+        team that entered "we are away on the 12th" but keeps no weekly pattern
+        had the exception ignored all season, while a team with Tuesday hours
+        placed on a Thursday lost every single occurrence to SKIP_TEAM_AWAY.
       */
-      const hasExceptionToday = (args.rawAvailability.get(`team:${assignment.teamId}`)?.exceptions ??
-        []).some((exception) => exception.date === date);
+      const teamAvailability = args.rawAvailability.get(`team:${assignment.teamId}`);
+      const teamSpeaksToday =
+        teamAvailability !== undefined &&
+        constrainsDate(
+          date,
+          isoWeekdayOfDate(date),
+          teamAvailability.windows,
+          teamAvailability.exceptions,
+        );
 
-      if (
-        (constrainedTeams.has(assignment.teamId) || hasExceptionToday) &&
-        !covers(`team:${assignment.teamId}`, date, assignment.window)
-      ) {
-        skipped.push({ teamId: assignment.teamId, date, reason: "Team unavailable that week" });
+      if (teamSpeaksToday && !covers(`team:${assignment.teamId}`, date, assignment.window)) {
+        skipped.push({ teamId: assignment.teamId, date, code: "SKIP_TEAM_AWAY" });
         continue;
       }
 
@@ -681,7 +682,7 @@ async function planOccurrences(
       });
 
       if (clash) {
-        skipped.push({ teamId: assignment.teamId, date, reason: clash.title });
+        skipped.push({ teamId: assignment.teamId, date, code: "SKIP_EVENT", values: { title: clash.title } });
         continue;
       }
 
@@ -705,6 +706,21 @@ async function planOccurrences(
   }
 
   return { rows, seriesCount: args.assignments.length, skipped };
+}
+
+/**
+ * An occurrence the weekly pattern called for and the season did not get.
+ *
+ * A code rather than a sentence, for the same reason findings are: the club
+ * reads this in Italian, and "Gym unavailable that week" written here would
+ * arrive in English however the app is set. The one piece of genuine prose — an
+ * event's own title — travels as a value, because that is data.
+ */
+export interface SkippedOccurrence {
+  teamId: string;
+  date: string;
+  code: "SKIP_MATCH" | "SKIP_EVENT" | "SKIP_GYM_CLOSED" | "SKIP_TRAINER_AWAY" | "SKIP_TEAM_AWAY";
+  values?: { title: string };
 }
 
 /** Everything already occupying time across the whole schedule window. */

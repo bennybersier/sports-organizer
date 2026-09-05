@@ -221,6 +221,42 @@ export function resolveAvailability(
   return windows;
 }
 
+/**
+ * Whether an owner's availability says anything at all about a given date.
+ *
+ * The distinction this draws is load-bearing, and it is the reason three
+ * different pieces of the scheduler used to disagree with each other. An empty
+ * result from `resolveAvailability` means two entirely different things:
+ *
+ *  - *Nothing was said.* No recurring window covers this weekday and no
+ *    exception names this date. For a team that means unconstrained — which
+ *    weekdays a team may train is `allowedWeekdays` on its requirements, and
+ *    having a second, silent mechanism for the same thing is how a coach who
+ *    adds Tuesday hours accidentally bans the rest of the week.
+ *  - *Something was said, and the answer is no.* Hours exist for this weekday
+ *    but the session falls outside them, or an exception closed the day. That
+ *    is a hard conflict, and "we are away on the 12th" must hold whether or not
+ *    the team also keeps a weekly pattern.
+ *
+ * Halls and coaches are not read this way: they are shut until told otherwise,
+ * because a hall nobody has entered hours for is not a hall standing open.
+ */
+export function constrainsDate(
+  date: string,
+  isoWeekday: IsoWeekday,
+  recurring: RecurringWindow[],
+  exceptions: AvailabilityException[],
+): boolean {
+  const hasWindow = recurring.some(
+    (window) =>
+      window.isoWeekday === isoWeekday &&
+      window.validFrom <= date &&
+      (window.validUntil === null || window.validUntil >= date),
+  );
+
+  return hasWindow || exceptions.some((exception) => exception.date === date);
+}
+
 /** ISO weekday for an ISO date string, without timezone drift. */
 export function isoWeekdayOf(date: string): IsoWeekday {
   // Parsed as UTC deliberately: the input is a plain calendar date, and local

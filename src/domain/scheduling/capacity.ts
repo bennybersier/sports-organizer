@@ -77,9 +77,6 @@ export function analyseWeekdays(
   const trainerOptions: (EngineTrainer | null)[] =
     eligibleTrainers.length > 0 ? eligibleTrainers : [null];
 
-  // No rows at all means unconstrained; an explicitly empty day means shut.
-  const teamConstrained = Object.keys(team.availability).length > 0;
-
   return weekdays.map((weekday) => {
     const openGyms = usableGyms.filter((gym) => (gym.availability[weekday] ?? []).length > 0);
     if (openGyms.length === 0) return { isoWeekday: weekday, blocker: "NO_GYM_OPEN" };
@@ -95,10 +92,13 @@ export function analyseWeekdays(
       };
     }
 
-    const teamWindows = teamConstrained ? (team.availability[weekday] ?? []) : null;
-    if (teamWindows !== null && teamWindows.length === 0) {
-      return { isoWeekday: weekday, blocker: "TEAM_UNAVAILABLE" };
-    }
+    /*
+      Mirrors candidate generation: a day the team has said nothing about is
+      unconstrained, not shut. Reporting TEAM_UNAVAILABLE for a silent day sent
+      organizers looking for availability that was never the problem.
+    */
+    const dayWindows = team.availability[weekday] ?? [];
+    const teamWindows = dayWindows.length > 0 ? dayWindows : null;
 
     let longest = 0;
     let bestGym = openGyms[0];

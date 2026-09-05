@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   canFit,
+  constrainsDate,
   fromMinutes,
   isoWeekdayOf,
   mergeWindows,
@@ -172,6 +173,51 @@ describe("resolveAvailability", () => {
       { date: "2026-09-14", startTime: null, endTime: null, type: "UNAVAILABLE" },
     ];
     expect(resolveAvailability("2026-09-07", 1, recurring, exceptions)).toEqual([w(960, 1320)]);
+  });
+});
+
+describe("constrainsDate", () => {
+  const recurring: RecurringWindow[] = [
+    { isoWeekday: 1, startTime: "16:00", endTime: "22:00", validFrom: "2026-08-01", validUntil: null },
+  ];
+
+  it("is false for a weekday the pattern says nothing about", () => {
+    // 2026-09-08 is a Tuesday, and only Monday has hours.
+    expect(constrainsDate("2026-09-08", 2, recurring, [])).toBe(false);
+  });
+
+  it("is true for a weekday the pattern covers", () => {
+    expect(constrainsDate("2026-09-07", 1, recurring, [])).toBe(true);
+  });
+
+  it("is false once the window's validity has lapsed", () => {
+    const expired: RecurringWindow[] = [
+      { isoWeekday: 1, startTime: "16:00", endTime: "22:00", validFrom: "2026-08-01", validUntil: "2026-08-31" },
+    ];
+    expect(constrainsDate("2026-09-07", 1, expired, [])).toBe(false);
+    expect(constrainsDate("2026-08-10", 1, expired, [])).toBe(true);
+  });
+
+  it("is true for a date with an exception even with no pattern at all", () => {
+    /*
+      The hole this closes: "we are away on the 12th" resolves to no windows,
+      which is indistinguishable from "nothing was said" unless asked directly.
+      A team with no weekly hours had the exception ignored entirely.
+    */
+    const away: AvailabilityException[] = [
+      { date: "2026-09-12", startTime: null, endTime: null, type: "UNAVAILABLE" },
+    ];
+    expect(constrainsDate("2026-09-12", 6, [], away)).toBe(true);
+    expect(resolveAvailability("2026-09-12", 6, [], away)).toEqual([]);
+    // The day either side is untouched.
+    expect(constrainsDate("2026-09-13", 7, [], away)).toBe(false);
+  });
+
+  it("is true for an override that adds hours to an otherwise silent day", () => {
+    const extra: AvailabilityException[] = [
+      { date: "2026-09-12", startTime: "10:00", endTime: "12:00", type: "AVAILABLE_OVERRIDE" },
+    ];
+    expect(constrainsDate("2026-09-12", 6, [], extra)).toBe(true);
   });
 });
 

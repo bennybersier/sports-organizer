@@ -1,12 +1,18 @@
 "use client";
 
-import { useTranslations } from "next-intl";
-import { AlertTriangle, CheckCircle2, Lightbulb } from "lucide-react";
+import { useFormatter, useTranslations } from "next-intl";
+import { AlertTriangle, CalendarX, CheckCircle2, ChevronDown, Lightbulb } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import type { GenerationResult } from "@/domain/scheduling/types";
+import type { SkippedOccurrence } from "@/server/services/schedule-generation-service";
 import { useFindingText } from "@/components/calendar/use-finding-text";
 
 /**
@@ -17,10 +23,33 @@ import { useFindingText } from "@/components/calendar/use-finding-text";
  * unmet requirement carries the engine's reasons, which is what turns
  * "impossible" into something actionable.
  */
-export function GenerationSummary({ result }: { result: GenerationResult }) {
+export function GenerationSummary({
+  result,
+  skipped = [],
+  teamNames = {},
+}: {
+  result: GenerationResult;
+  /** Dates the weekly pattern called for that the season could not take. */
+  skipped?: SkippedOccurrence[];
+  teamNames?: Record<string, string>;
+}) {
   const t = useTranslations("organizer");
+  const format = useFormatter();
   const findingText = useFindingText();
   const { stats } = result;
+
+  /*
+    Grouped by team, worst first. A single number for the whole run would be
+    useless — losing forty sessions spread evenly is a different problem from
+    one side losing forty — and the club needs to know which side to look at.
+  */
+  const skippedByTeam = [...Map.groupBy(skipped, (entry) => entry.teamId)]
+    .map(([teamId, entries]) => ({
+      teamId,
+      name: teamNames[teamId] ?? teamId,
+      entries: [...entries].sort((a, b) => a.date.localeCompare(b.date)),
+    }))
+    .sort((a, b) => b.entries.length - a.entries.length);
 
   const completion =
     stats.sessionsRequested === 0
@@ -64,6 +93,48 @@ export function GenerationSummary({ result }: { result: GenerationResult }) {
             </ul>
           </div>
         </div>
+
+        {/*
+          Sessions the pattern wanted and the calendar refused. Without this the
+          run reports a lower total and says nothing about why: a side playing
+          most weekends can lose twenty evenings to its own fixtures, and the
+          first reading is that the optimizer got worse.
+        */}
+        {skipped.length > 0 ? (
+          <Collapsible className="rounded-lg border">
+            <CollapsibleTrigger className="flex w-full items-center gap-2 p-3 text-left text-sm font-medium">
+              <CalendarX className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+              {t("skipped", { count: skipped.length })}
+              <ChevronDown
+                className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform [[data-state=open]_&]:rotate-180"
+                aria-hidden
+              />
+            </CollapsibleTrigger>
+            <CollapsibleContent className="space-y-3 border-t p-3">
+              <p className="text-xs text-muted-foreground">{t("skippedHint")}</p>
+              {skippedByTeam.map((team) => (
+                <div key={team.teamId} className="space-y-1">
+                  <p className="flex flex-wrap items-center gap-2 text-sm font-medium">
+                    {team.name}
+                    <Badge variant="secondary">{team.entries.length}</Badge>
+                  </p>
+                  <ul className="space-y-0.5 pl-1">
+                    {team.entries.map((entry) => (
+                      <li key={`${entry.date}-${entry.code}`} className="text-sm text-muted-foreground">
+                        {format.dateTime(new Date(`${entry.date}T00:00:00`), {
+                          day: "numeric",
+                          month: "short",
+                        })}
+                        {" — "}
+                        {t(entry.code, { title: entry.values?.title ?? "" })}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </CollapsibleContent>
+          </Collapsible>
+        ) : null}
 
         <div className="space-y-2">
           <h3 className="text-sm font-medium">{t("unmet")}</h3>

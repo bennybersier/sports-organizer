@@ -18,14 +18,18 @@ import { requireAuthContext } from "@/server/auth/context";
 import { listAvailability, listExceptions } from "@/server/services/availability-service";
 import { listGymOptions } from "@/server/services/gym-service";
 import { getTeamRelations } from "@/server/services/relations-service";
-import { getSeason } from "@/server/services/season-service";
-import { getTeam } from "@/server/services/team-service";
+import { getSeason, listSeasonOptions } from "@/server/services/season-service";
+import { getTeam, listTeamOptions } from "@/server/services/team-service";
+import { listTrainerOptions } from "@/server/services/trainer-service";
 import { getTrainingRequirement } from "@/server/services/training-requirement-service";
 
-import { getTeamTrainingWeek } from "@/server/services/calendar-service";
+import {
+  getTeamTrainingMonth,
+  getTeamTrainingWeek,
+} from "@/server/services/calendar-service";
 
 import { RequirementsCard } from "./requirements-form";
-import { TrainingWeek } from "./training-week";
+import { TeamSchedule, type TeamScheduleView } from "./team-schedule";
 
 /** Guards the week query param: anything else falls back to the next session. */
 function isIsoDate(value: string | undefined): value is string {
@@ -52,9 +56,9 @@ export default async function TeamDetailPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  // The week being viewed lives in the URL so it survives a refresh and can be
+  // The range being viewed lives in the URL so it survives a refresh and can be
   // linked to — "here is the week we are arguing about" is a real message.
-  searchParams: Promise<{ week?: string }>;
+  searchParams: Promise<{ view?: string; date?: string; week?: string }>;
 }) {
   const context = await requireAuthContext();
   if (!hasPermission(context, "teams.read")) return <AccessDenied />;
@@ -74,29 +78,103 @@ export default async function TeamDetailPage({
     throw error;
   }
 
-  const { week: weekParam } = await searchParams;
+  const { view: viewParam, date: dateParam, week: legacyWeekParam } = await searchParams;
+  const scheduleView: TeamScheduleView = viewParam === "month" ? "month" : "week";
+  // `week` is what this page used before it had two views; links out there
+  // still carry it.
+  const anchorParam = isIsoDate(dateParam) ? dateParam : isIsoDate(legacyWeekParam) ? legacyWeekParam : undefined;
   const canEditTeam = hasPermission(context, "teams.update");
   const canReadCalendar = hasPermission(context, "calendar.read");
   const canReadAvailability = hasPermission(context, "availability.read");
   const canEditAvailability = hasPermission(context, "availability.create");
 
+  const canCreateEvents = hasPermission(context, "calendar.create");
+
   const today = new Date().toISOString().slice(0, 10);
-  const [season, requirement, gyms, windows, exceptions, trainingWeek] = await Promise.all([
-    getSeason(context, team.season_id),
-    getTrainingRequirement(context, id, team.season_id),
-    hasPermission(context, "gyms.read") ? listGymOptions(context) : Promise.resolve([]),
-    canReadAvailability ? listAvailability(context, "team", id) : Promise.resolve([]),
-    canReadAvailability ? listExceptions(context, "team", id, { from: today }) : Promise.resolve([]),
-    canReadCalendar
-      ? getTeamTrainingWeek(context, id, isIsoDate(weekParam) ? weekParam : undefined)
-      : Promise.resolve(null),
-  ]);
+  const [
+    season,
+    requirement,
+    gyms,
+    windows,
+    exceptions,
+    trainingWeek,
+    trainingMonth,
+    seasons,
+    trainers,
+    teams,
+  ] = await Promise.all([
+      getSeason(context, team.season_id),
+      getTrainingRequirement(context, id, team.season_id),
+      hasPermission(context, "gyms.read") ? listGymOptions(context) : Promise.resolve([]),
+      canReadAvailability ? listAvailability(context, "team", id) : Promise.resolve([]),
+      canReadAvailability
+        ? listExceptions(context, "team", id, { from: today })
+        : Promise.resolve([]),
+      canReadCalendar && scheduleView === "week"
+        ? getTeamTrainingWeek(context, id, anchorParam)
+        : Promise.resolve(null),
+      canReadCalendar && scheduleView === "month"
+        ? getTeamTrainingMonth(context, id, anchorParam)
+        : Promise.resolve(null),
+      // Only for the training week's "+" — the event editor needs the same
+      // pickers the calendar page gives it.
+      canCreateEvents && hasPermission(context, "seasons.read")
+        ? listSeasonOptions(context)
+        : Promise.resolve([]),
+      canCreateEvents && hasPermission(context, "trainers.read")
+        ? listTrainerOptions(context)
+        : Promise.resolve([]),
+      canCreateEvents ? listTeamOptions(context) : Promise.resolve([]),
+    ]);
+
+  /*
+    One shape for the card, whichever range was asked for. The week and the
+    month are read by different queries — a month is not seven days with a
+    bigger number — but they render the same cell, so the difference is
+    flattened here rather than in the component.
+  */
+  const schedule = trainingWeek
+    ? {
+        weeks: [trainingWeek.days.map((entry) => ({ ...entry, inMonth: true }))],
+        anchor: trainingWeek.weekStart,
+        rangeStart: trainingWeek.weekStart,
+        rangeEnd: trainingWeek.weekEnd,
+        previous: trainingWeek.previousWeek,
+        next: trainingWeek.nextWeek,
+        scheduledCount: trainingWeek.scheduledCount,
+        coverageStart: trainingWeek.coverageStart,
+      }
+    : trainingMonth
+      ? {
+          weeks: trainingMonth.weeks,
+          anchor: trainingMonth.monthStart,
+          rangeStart: trainingMonth.from,
+          rangeEnd: trainingMonth.to,
+          previous: trainingMonth.previousMonth,
+          next: trainingMonth.nextMonth,
+          scheduledCount: trainingMonth.scheduledCount,
+          coverageStart: trainingMonth.coverageStart,
+        }
+      : null;
 
   // Needs the requirement above it: which halls are related to a team is partly
   // a question its requirements answer.
   const relations = await getTeamRelations(context, id, requirement);
 
   const gymOptions = gyms.map((gym) => ({ value: gym.id, label: gym.name }));
+  const eventOptions = canCreateEvents
+    ? {
+        seasons: seasons.map((entry) => ({ value: entry.id, label: entry.name })),
+        gyms: gymOptions,
+        trainers: trainers.map((trainer) => ({
+          value: trainer.id,
+          label: `${trainer.first_name} ${trainer.last_name}`,
+        })),
+        teams: teams.map((entry) => ({ value: entry.id, label: entry.name })),
+        // What a coach types is read on the club's clock, not the browser's.
+        timeZone: context.tenant.timezone,
+      }
+    : undefined;
   const canReadTrainers = hasPermission(context, "trainers.read");
   const canReadAthletes = hasPermission(context, "athletes.read");
   const canReadGyms = hasPermission(context, "gyms.read");
@@ -224,12 +302,21 @@ export default async function TeamDetailPage({
         />
       ) : null}
 
-      {trainingWeek ? (
-        <TrainingWeek
+      {schedule ? (
+        <TeamSchedule
           teamId={team.id}
-          week={trainingWeek}
+          view={scheduleView}
+          weeks={schedule.weeks}
+          anchor={schedule.anchor}
+          rangeStart={schedule.rangeStart}
+          rangeEnd={schedule.rangeEnd}
+          previous={schedule.previous}
+          next={schedule.next}
+          scheduledCount={schedule.scheduledCount}
+          coverageStart={schedule.coverageStart}
           timezone={context.tenant.timezone}
           requiredPerWeek={requirement?.sessionsPerWeek ?? null}
+          eventOptions={eventOptions}
         />
       ) : null}
 

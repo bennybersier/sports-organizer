@@ -20,6 +20,7 @@ import {
 import { MultiSelect, type MultiSelectOption } from "@/components/data/multi-select";
 import { generateScheduleAction } from "@/server/actions/organizer";
 import type { GenerationResult } from "@/domain/scheduling/types";
+import type { SkippedOccurrence } from "@/server/services/schedule-generation-service";
 
 import { GenerationSummary } from "./generation-summary";
 
@@ -57,6 +58,8 @@ export function OrganizerWorkflow({
   const [gymIds, setGymIds] = useState<string[]>([]);
   const [pending, setPending] = useState(false);
   const [result, setResult] = useState<GenerationResult | null>(null);
+  const [skipped, setSkipped] = useState<SkippedOccurrence[]>([]);
+  const [skippedTeams, setSkippedTeams] = useState<Record<string, string>>({});
 
   function changeSeason(seasonId: string) {
     const next = new URLSearchParams(searchParams);
@@ -82,6 +85,8 @@ export function OrganizerWorkflow({
     }
 
     setResult(response.data.result);
+    setSkipped(response.data.skipped);
+    setSkippedTeams(response.data.teamNames);
     toast.success(t("generated"));
     router.refresh();
   }
@@ -206,7 +211,9 @@ export function OrganizerWorkflow({
         </CardContent>
       </Card>
 
-      {result ? <GenerationSummary result={result} /> : null}
+      {result ? (
+        <GenerationSummary result={result} skipped={skipped} teamNames={skippedTeams} />
+      ) : null}
     </div>
   );
 }

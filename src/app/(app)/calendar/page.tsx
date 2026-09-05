@@ -89,6 +89,8 @@ export default async function CalendarPage({
       label: `${trainer.first_name} ${trainer.last_name}`,
     })),
     teams: teams.map((team) => ({ value: team.id, label: team.name })),
+    // What a coach types is read on the club's clock, not the browser's.
+    timeZone: zone,
   };
 
   // Position every item on the club's wall clock, once, on the server.
@@ -173,6 +175,7 @@ export default async function CalendarPage({
         timeZone={zone}
         canEdit={hasPermission(context, "calendar.update")}
         canDelete={hasPermission(context, "calendar.delete")}
+        canCreate={hasPermission(context, "calendar.create")}
         eventOptions={eventOptions}
         days={days}
         positioned={positioned}

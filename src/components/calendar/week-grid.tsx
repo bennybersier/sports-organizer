@@ -8,6 +8,9 @@ import { SHORT_TIME_FORMAT } from "@/lib/time-format";
 import { useAction } from "@/hooks/use-action";
 import { moveCalendarItemAction } from "@/server/actions/calendar";
 import type { CalendarItem } from "@/server/services/calendar-service";
+import type { EventDialogOptions } from "@/app/(app)/calendar/new-event-button";
+
+import { AddEventButton } from "./add-event-button";
 
 export interface WeekGridProps {
   days: { date: string; label: string; isToday: boolean }[];
@@ -18,6 +21,8 @@ export interface WeekGridProps {
   timeZone: string;
   canEdit: boolean;
   onSelect: (item: CalendarItem) => void;
+  /** Absent when the viewer may not create events; the "+" then never appears. */
+  eventOptions?: EventDialogOptions;
 }
 
 const SLOT_MINUTES = 30;
@@ -48,6 +53,7 @@ export function WeekGrid({
   timeZone,
   canEdit,
   onSelect,
+  eventOptions,
 }: WeekGridProps) {
   const t = useTranslations("calendar");
   const format = useFormatter();
@@ -100,11 +106,19 @@ export function WeekGrid({
           <div
             key={day.date}
             className={cn(
-              "border-b border-r p-2 text-center text-sm font-medium last:border-r-0",
+              "flex items-center justify-center gap-1 border-b border-r p-2 text-center text-sm font-medium last:border-r-0",
               day.isToday && "bg-primary/5 text-primary",
             )}
           >
             {day.label}
+            {/*
+              In the day header rather than in an hour cell: the hour grid is a
+              drop target for dragging sessions, and a button inside it would
+              fight that. The time is a field in the form anyway.
+            */}
+            {eventOptions ? (
+              <AddEventButton date={day.date} label={day.label} options={eventOptions} />
+            ) : null}
           </div>
         ))}
 

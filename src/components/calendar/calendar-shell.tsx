@@ -18,6 +18,8 @@ export interface CalendarShellProps {
   timeZone: string;
   canEdit: boolean;
   canDelete: boolean;
+  /** Drives the per-day "+" buttons; false hides them everywhere. */
+  canCreate: boolean;
   /** Pickers the event editor needs. */
   eventOptions: EventDialogOptions;
   days: { date: string; label: string; isToday: boolean }[];
@@ -47,6 +49,10 @@ export function CalendarShell(props: CalendarShellProps) {
   const t = useTranslations("calendar");
   const format = useFormatter();
 
+  // Passing the pickers is what turns the "+" on, so permission is expressed
+  // once here rather than as a boolean threaded through four views.
+  const addOptions = props.canCreate ? props.eventOptions : undefined;
+
   const view = (
     <>
       {props.view === "month" ? (
@@ -59,6 +65,7 @@ export function CalendarShell(props: CalendarShellProps) {
               weekdayLabels={props.weekdayLabels}
               timeZone={props.timeZone}
               onSelect={setSelected}
+              eventOptions={addOptions}
             />
           </div>
           <div className="lg:hidden">
@@ -67,11 +74,17 @@ export function CalendarShell(props: CalendarShellProps) {
               weekdayLabels={props.weekdayLabels}
               timeZone={props.timeZone}
               onSelect={setSelected}
+              eventOptions={addOptions}
             />
           </div>
         </>
       ) : props.view === "agenda" ? (
-        <AgendaView groups={props.groups} timeZone={props.timeZone} onSelect={setSelected} />
+        <AgendaView
+          groups={props.groups}
+          timeZone={props.timeZone}
+          onSelect={setSelected}
+          eventOptions={addOptions}
+        />
       ) : (
         <>
           {/* An hour grid needs width it does not have on a phone or on a
@@ -86,6 +99,7 @@ export function CalendarShell(props: CalendarShellProps) {
               timeZone={props.timeZone}
               canEdit={props.canEdit}
               onSelect={setSelected}
+              eventOptions={addOptions}
             />
           </div>
           {/* The same shape as the month, one week wide. */}
@@ -103,6 +117,7 @@ export function CalendarShell(props: CalendarShellProps) {
               weekdayLabels={props.weekdayLabels}
               timeZone={props.timeZone}
               onSelect={setSelected}
+              eventOptions={addOptions}
             />
           </div>
         </>
