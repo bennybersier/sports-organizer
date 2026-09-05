@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { Dumbbell } from "lucide-react";
 
@@ -65,7 +66,7 @@ export default async function AthletesPage({
   const teamOptions = teams.map((team) => ({ value: team.id, label: team.name }));
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <PageHeader
         title={t("title")}
         description={t("subtitle")}
@@ -125,9 +126,12 @@ export default async function AthletesPage({
                 {result.rows.map((athlete) => (
                   <TableRow key={athlete.id}>
                     <TableCell variant="primary">
-                      <div className="font-medium">
+                      <Link
+                        href={`/athletes/${athlete.id}`}
+                        className="font-medium hover:underline"
+                      >
                         {athlete.first_name} {athlete.last_name}
-                      </div>
+                      </Link>
                       {athlete.email ? (
                         <div className="text-xs text-muted-foreground">{athlete.email}</div>
                       ) : null}

@@ -29,7 +29,7 @@ export default async function SettingsPage() {
   const done = steps.filter((step) => step.done).length;
 
   return (
-    <div className="mx-auto flex w-full max-w-3xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <PageHeader title={t("title")} description={t("subtitle")} />
 
       {done < steps.length ? (

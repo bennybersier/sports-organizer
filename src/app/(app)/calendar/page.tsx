@@ -136,7 +136,7 @@ export default async function CalendarPage({
     items.every((item) => item.source !== "SCHEDULE") && seasons.length > 0;
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-4">
+    <div className="flex w-full flex-col gap-4">
       <PageHeader
         title={t("title")}
         description={t("subtitle")}

@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { ArrowLeft, UserCog } from "lucide-react";
+import { ArrowLeft, Dumbbell, MapPin, UserCog, Users } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccessDenied } from "@/components/data/access-denied";
 import { PageHeader } from "@/components/data/page-header";
+import { RelatedCard } from "@/components/data/related-card";
 import { StatusBadge } from "@/components/data/status-badge";
 import { ExceptionsEditor } from "@/components/availability/exceptions-editor";
 import { WeeklyAvailabilityEditor } from "@/components/availability/weekly-availability-editor";
@@ -16,6 +17,7 @@ import { isAppError } from "@/lib/errors";
 import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
 import { listAvailability, listExceptions } from "@/server/services/availability-service";
+import { getTrainerRelations } from "@/server/services/relations-service";
 import { getAvailabilityAnchorDate } from "@/server/services/season-service";
 import { getTrainer } from "@/server/services/trainer-service";
 
@@ -45,6 +47,8 @@ export default async function TrainerDetailPage({
   const { id } = await params;
   const t = await getTranslations("trainers");
   const tCommon = await getTranslations("common");
+  const tRelated = await getTranslations("related");
+  const tMembership = await getTranslations("membershipState");
 
   let trainer;
   try {
@@ -62,17 +66,22 @@ export default async function TrainerDetailPage({
   const canEditAvailability = hasPermission(context, "availability.create");
   const canReadAvailability = hasPermission(context, "availability.read");
 
+  const canReadTeams = hasPermission(context, "teams.read");
+  const canReadAthletes = hasPermission(context, "athletes.read");
+  const canReadGyms = hasPermission(context, "gyms.read");
+
   const today = new Date().toISOString().slice(0, 10);
-  const [windows, exceptions, seasonStart] = await Promise.all([
+  const [windows, exceptions, seasonStart, relations] = await Promise.all([
     canReadAvailability ? listAvailability(context, "trainer", id) : Promise.resolve([]),
     canReadAvailability
       ? listExceptions(context, "trainer", id, { from: today })
       : Promise.resolve([]),
     getAvailabilityAnchorDate(context),
+    getTrainerRelations(context, id),
   ]);
 
   return (
-    <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <Button asChild variant="ghost" size="sm" className="-ml-2 w-fit">
         <Link href="/trainers">
           <ArrowLeft aria-hidden />
@@ -120,6 +129,61 @@ export default async function TrainerDetailPage({
           ) : null}
         </CardContent>
       </Card>
+
+      {canReadTeams ? (
+        <RelatedCard
+          icon={Users}
+          title={tRelated("teams")}
+          empty={tRelated("noTeams")}
+          items={relations.teams.map((team) => ({
+            id: team.id,
+            name: team.name,
+            href: `/teams/${team.id}`,
+            color: team.color,
+            meta: [team.sport, team.ageGroup].filter(Boolean).join(" · "),
+            tags: team.sessions
+              ? [{ label: tRelated("sessions", { count: team.sessions }), variant: "outline" as const }]
+              : [],
+          }))}
+        />
+      ) : null}
+
+      {canReadAthletes ? (
+        <RelatedCard
+          icon={Dumbbell}
+          title={tRelated("athletes")}
+          empty={tRelated("noAthletes")}
+          items={relations.athletes.map((athlete) => ({
+            id: athlete.id,
+            name: athlete.name,
+            href: `/athletes/${athlete.id}`,
+            // Athletes reach a trainer only through a squad, so the squad is
+            // the thing worth showing next to the name.
+            meta: athlete.via?.length ? tRelated("inTeams", { teams: athlete.via.join(", ") }) : null,
+            tags:
+              athlete.membershipStatus !== "ACTIVE"
+                ? [{ label: tMembership(athlete.membershipStatus), variant: "outline" as const }]
+                : [],
+          }))}
+        />
+      ) : null}
+
+      {canReadGyms ? (
+        <RelatedCard
+          icon={MapPin}
+          title={tRelated("gyms")}
+          empty={tRelated("noGymsForTrainer")}
+          items={relations.gyms.map((gym) => ({
+            id: gym.id,
+            name: gym.name,
+            href: `/gyms/${gym.id}`,
+            meta: gym.city,
+            tags: gym.sessions
+              ? [{ label: tRelated("sessions", { count: gym.sessions }), variant: "outline" as const }]
+              : [],
+          }))}
+        />
+      ) : null}
 
       {canReadAvailability ? (
         <>

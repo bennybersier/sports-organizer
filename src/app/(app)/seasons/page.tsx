@@ -50,7 +50,7 @@ export default async function SeasonsPage({
   const canCreate = hasPermission(context, "seasons.create");
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <PageHeader
         title={t("title")}
         description={t("subtitle")}

@@ -69,7 +69,7 @@ export default async function DashboardPage() {
   const needsSetup = (seasons.count ?? 0) === 0;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+    <div className="flex w-full flex-col gap-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">{tenant.name}</h1>

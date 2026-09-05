@@ -14,7 +14,7 @@ export default async function AppLoading() {
   const t = await getTranslations("common");
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6" aria-busy="true" aria-live="polite">
+    <div className="flex w-full flex-col gap-6" aria-busy="true" aria-live="polite">
       <span className="sr-only">{t("loading")}</span>
       <div className="space-y-2">
         <Skeleton className="h-8 w-56" />
