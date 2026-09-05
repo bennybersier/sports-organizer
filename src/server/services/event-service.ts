@@ -19,6 +19,11 @@ export async function createEvent(
 ): Promise<CalendarEventRow> {
   assertPermission(context, "calendar.create");
 
+  // Opponent, home/away and competition only mean anything on a fixture, and
+  // the database enforces that. Clearing them here means changing an event's
+  // type from MATCH to MEETING cannot leave a stale opponent behind.
+  const fixture = input.type === "MATCH" || input.type === "TOURNAMENT";
+
   const { data, error } = await context.db
     .from("calendar_events")
     .insert({
@@ -34,6 +39,13 @@ export async function createEvent(
       end_at: input.endAt,
       all_day: input.allDay,
       color: input.color,
+      opponent: fixture ? input.opponent : null,
+      is_home: fixture ? input.isHome : null,
+      competition: fixture ? input.competition : null,
+      // An all-day event already holds the whole day, and the database refuses
+      // to store a buffer on one.
+      buffer_before_minutes: input.allDay ? 0 : input.bufferBeforeMinutes,
+      buffer_after_minutes: input.allDay ? 0 : input.bufferAfterMinutes,
       allows_gym_sharing: input.allowsGymSharing,
       blocks_scheduling: input.blocksScheduling,
       created_by: context.user.id,
@@ -69,6 +81,11 @@ export async function updateEvent(
 ): Promise<CalendarEventRow> {
   assertPermission(context, "calendar.update");
 
+  // Opponent, home/away and competition only mean anything on a fixture, and
+  // the database enforces that. Clearing them here means changing an event's
+  // type from MATCH to MEETING cannot leave a stale opponent behind.
+  const fixture = input.type === "MATCH" || input.type === "TOURNAMENT";
+
   const { data, error } = await context.db
     .from("calendar_events")
     .update({
@@ -83,6 +100,13 @@ export async function updateEvent(
       end_at: input.endAt,
       all_day: input.allDay,
       color: input.color,
+      opponent: fixture ? input.opponent : null,
+      is_home: fixture ? input.isHome : null,
+      competition: fixture ? input.competition : null,
+      // An all-day event already holds the whole day, and the database refuses
+      // to store a buffer on one.
+      buffer_before_minutes: input.allDay ? 0 : input.bufferBeforeMinutes,
+      buffer_after_minutes: input.allDay ? 0 : input.bufferAfterMinutes,
       allows_gym_sharing: input.allowsGymSharing,
       blocks_scheduling: input.blocksScheduling,
       updated_by: context.user.id,

@@ -88,6 +88,16 @@ export interface Booking {
    * created event can legitimately share a hall.
    */
   allowsGymSharing?: boolean;
+  /**
+   * Whether a hall's changeover tolerance may apply against this booking.
+   *
+   * True for training, which is what the concession was built for. False for
+   * anything derived from a calendar event: a match holds the hall for setup
+   * and pack-down, and letting a session start thirty minutes into that would
+   * make the club's own stated buffer mean less than it says. Absent is read as
+   * false, so a caller that has not thought about it gets the safe answer.
+   */
+  sharable?: boolean;
 }
 
 export interface Candidate {
@@ -206,9 +216,24 @@ export function validatePlacement(
       !booking.allowsGymSharing,
   );
 
+  /*
+    A hall held by a match or a closure is not negotiable, however tolerant the
+    hall is the rest of the week. Splitting these out before the tolerance
+    arithmetic — rather than inside it — is what stops a future caller
+    forgetting the distinction.
+  */
+  const immovable = contended.filter((booking) => booking.sharable !== true);
+  if (immovable.length > 0) {
+    findings.push({
+      code: "GYM_DOUBLE_BOOKED",
+      severity: "CONFLICT",
+      values: { team: immovable[0].teamName ?? "" },
+    });
+  }
+
   const policy = resources.gymSharing ?? NO_GYM_SHARING;
   const share = assessGymShare(
-    contended.map((booking) => booking.window),
+    contended.filter((booking) => booking.sharable === true).map((booking) => booking.window),
     window,
     policy,
   );

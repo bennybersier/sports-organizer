@@ -25,6 +25,7 @@ import { randomUUID } from "node:crypto";
 
 import {
   addDays,
+  eachDay,
   isoWeekdayOfDate,
   toInstant,
   todayInZone,
@@ -34,6 +35,12 @@ import type { Database, ValidationState } from "@/types/database";
 import { getSeason } from "@/server/services/season-service";
 import { listAvailability, listExceptions } from "@/server/services/availability-service";
 import { occurrenceDates, overlaps } from "@/domain/scheduling/occurrences";
+import {
+  eventDates,
+  occupiedWindow,
+  restDayReason,
+  toOccupyingEvent,
+} from "@/domain/scheduling/fixtures";
 import { log } from "@/lib/observability";
 
 /**
@@ -287,37 +294,87 @@ async function collectBlockedSlots(
 
   const { data } = await context.db
     .from("calendar_events")
-    .select("id, title, gym_id, trainer_id, start_at, end_at, blocks_scheduling")
+    .select(
+      "id, title, type, gym_id, trainer_id, start_at, end_at, all_day, blocks_scheduling, buffer_before_minutes, buffer_after_minutes",
+    )
     .eq("tenant_id", context.tenant.id)
     .neq("status", "CANCELLED")
     .lt("start_at", rangeEnd)
     .gt("end_at", rangeStart);
 
+  const teamsByEvent = await teamsForEvents(
+    context,
+    (data ?? []).map((event) => event.id),
+  );
+
   const blocked: BlockedSlot[] = [];
 
   for (const event of data ?? []) {
-    // An event with no gym and no trainer blocks nothing in particular unless
-    // it is explicitly a club-wide closure.
-    if (!event.blocks_scheduling && !event.gym_id && !event.trainer_id) continue;
+    const linked = teamsByEvent.get(event.id) ?? [];
+    const occupiesTeams = linked.length > 0 && (event.blocks_scheduling || isFixture(event.type));
 
-    const start = toWallClock(event.start_at, zone);
-    const end = toWallClock(event.end_at, zone);
+    // An event with no gym and no trainer blocks nothing in particular unless
+    // it is explicitly a club-wide closure, or it is somebody's fixture.
+    if (!event.blocks_scheduling && !event.gym_id && !event.trainer_id && !occupiesTeams) continue;
+
+    // The hall is gone for setup and pack-down too, not just for the event.
+    const occupied = occupiedWindow(toOccupyingEvent(event));
+    const start = toWallClock(occupied.startAt, zone);
+    const end = toWallClock(occupied.endAt, zone);
     if (!weekDates.includes(start.date)) continue;
 
-    blocked.push({
-      isoWeekday: start.isoWeekday as IsoWeekday,
-      window: {
-        start: start.minutes,
-        end: end.date === start.date ? end.minutes : 1440,
-      },
-      gymId: event.gym_id,
-      trainerId: event.trainer_id,
-      teamId: null,
-      reason: event.title,
-    });
+    /*
+      This pass builds the ONE week that is then stamped across the whole
+      season, so a one-off fixture must not reshape it: a U19 match falling on
+      the representative Wednesday would cost the side every Wednesday until
+      June. Only an absence that swallows whole days — a tournament, a team
+      away for a week — belongs in the weekly pattern. Individual fixtures are
+      handled per date in planOccurrences, where they can only cost their own
+      evening.
+    */
+    const patternTeams: (string | null)[] = occupiesTeams && event.all_day ? linked : [null];
+
+    for (const teamId of patternTeams) {
+      blocked.push({
+        isoWeekday: start.isoWeekday as IsoWeekday,
+        window: {
+          start: start.minutes,
+          end: end.date === start.date ? end.minutes : 1440,
+        },
+        gymId: event.gym_id,
+        trainerId: event.trainer_id,
+        teamId,
+        reason: event.title,
+      });
+    }
   }
 
   return blocked;
+}
+
+/** MATCH and TOURNAMENT occupy the teams playing in them. */
+function isFixture(type: string): boolean {
+  return type === "MATCH" || type === "TOURNAMENT";
+}
+
+/** event id to the teams linked to it, for the events we already fetched. */
+async function teamsForEvents(
+  context: AuthContext,
+  eventIds: string[],
+): Promise<Map<string, string[]>> {
+  const byEvent = new Map<string, string[]>();
+  if (eventIds.length === 0) return byEvent;
+
+  const { data } = await context.db
+    .from("calendar_event_teams")
+    .select("event_id, team_id")
+    .eq("tenant_id", context.tenant.id)
+    .in("event_id", eventIds);
+
+  for (const link of data ?? []) {
+    byEvent.set(link.event_id, [...(byEvent.get(link.event_id) ?? []), link.team_id]);
+  }
+  return byEvent;
 }
 
 /**
@@ -507,6 +564,33 @@ async function planOccurrences(
     args.teams.filter((team) => Object.keys(team.availability).length > 0).map((team) => team.id),
   );
 
+  /*
+    Two indexes, built once. `byDate` is keyed on the dates the hall is actually
+    held — which for a late fixture with pack-down includes the following day —
+    while `fixturesByTeam` is keyed on the real match dates. The two lists sit
+    side by side deliberately and must not be merged: one answers "is the room
+    busy", the other "is this team playing".
+  */
+  const byDate = new Map<string, BlockingEvent[]>();
+  const fixturesByTeam = new Map<string, Map<string, string>>();
+
+  for (const event of blocking) {
+    const held = eachDay(
+      toWallClock(event.occupiedStartAt, zone).date,
+      toWallClock(event.occupiedEndAt, zone).date,
+    );
+    for (const date of held) {
+      byDate.set(date, [...(byDate.get(date) ?? []), event]);
+    }
+
+    if (!event.isFixture && !event.blocksScheduling) continue;
+    for (const teamId of event.teamIds) {
+      const dates = fixturesByTeam.get(teamId) ?? new Map<string, string>();
+      for (const date of event.dates) dates.set(date, event.title);
+      fixturesByTeam.set(teamId, dates);
+    }
+  }
+
   const covers = (key: string, date: string, window: { start: number; end: number }) => {
     const entry = args.rawAvailability.get(key);
     if (!entry) return false;
@@ -526,7 +610,24 @@ async function planOccurrences(
     const startsOn = args.teamStartDates.get(assignment.teamId) ?? null;
     const from = startsOn && startsOn > args.from ? startsOn : args.from;
 
+    const fixtures = fixturesByTeam.get(assignment.teamId);
+
     for (const date of occurrenceDates(from, assignment.isoWeekday, args.until)) {
+      /*
+        A team playing that day does not train that day, wherever the match is
+        and whether or not the team keeps weekly availability of its own. This
+        sits outside the `constrainedTeams` gate below on purpose: a team with
+        no weekly pattern is unconstrained *by availability*, which is not the
+        same as being free during its own fixture.
+      */
+      if (fixtures) {
+        const playing = restDayReason(fixtures, date, 0);
+        if (playing) {
+          skipped.push({ teamId: assignment.teamId, date, reason: playing });
+          continue;
+        }
+      }
+
       if (!covers(`gym:${assignment.gymId}`, date, assignment.window)) {
         skipped.push({ teamId: assignment.teamId, date, reason: "Gym unavailable that week" });
         continue;
@@ -538,8 +639,17 @@ async function planOccurrences(
         skipped.push({ teamId: assignment.teamId, date, reason: "Trainer unavailable that week" });
         continue;
       }
+      /*
+        A team that entered "we are away on the 12th" meant it, whether or not
+        it also keeps a weekly pattern. Without the second clause an exception
+        on an otherwise unconstrained team is silently ignored all season —
+        latent until fixtures made teams without weekly hours common.
+      */
+      const hasExceptionToday = (args.rawAvailability.get(`team:${assignment.teamId}`)?.exceptions ??
+        []).some((exception) => exception.date === date);
+
       if (
-        constrainedTeams.has(assignment.teamId) &&
+        (constrainedTeams.has(assignment.teamId) || hasExceptionToday) &&
         !covers(`team:${assignment.teamId}`, date, assignment.window)
       ) {
         skipped.push({ teamId: assignment.teamId, date, reason: "Team unavailable that week" });
@@ -549,15 +659,26 @@ async function planOccurrences(
       const startAt = toInstant(date, assignment.window.start, zone).toISOString();
       const endAt = toInstant(date, assignment.window.end, zone).toISOString();
 
-      const clash = blocking.find(
-        (event) =>
-          overlaps({ start: startAt, end: endAt }, { start: event.startAt, end: event.endAt }) &&
-          (event.gymId
-            ? event.gymId === assignment.gymId
-            : event.trainerId
-              ? event.trainerId === assignment.trainerId
-              : event.blocksScheduling),
-      );
+      const clash = (byDate.get(date) ?? []).find((event) => {
+        // The team's own fixture was already handled above, on real dates.
+        // What is left is contention for a hall or a coach, and those are
+        // contested for as long as the event holds them — setup included.
+        if (
+          !overlaps(
+            { start: startAt, end: endAt },
+            { start: event.occupiedStartAt, end: event.occupiedEndAt },
+          )
+        ) {
+          return false;
+        }
+
+        if (event.teamIds.includes(assignment.teamId)) return true;
+        if (event.gymId) return event.gymId === assignment.gymId;
+        if (event.trainerId) return event.trainerId === assignment.trainerId;
+        // A blocking event that names teams is about those teams only; one that
+        // names none is the whole club's.
+        return event.blocksScheduling && event.teamIds.length === 0;
+      });
 
       if (clash) {
         skipped.push({ teamId: assignment.teamId, date, reason: clash.title });
@@ -591,34 +712,68 @@ async function collectBlockingEvents(
   context: AuthContext,
   from: string,
   until: string,
-): Promise<
-  {
-    startAt: string;
-    endAt: string;
-    gymId: string | null;
-    trainerId: string | null;
-    blocksScheduling: boolean;
-    title: string;
-  }[]
-> {
+): Promise<BlockingEvent[]> {
   const zone = context.tenant.timezone;
 
   const { data } = await context.db
     .from("calendar_events")
-    .select("title, gym_id, trainer_id, start_at, end_at, blocks_scheduling")
+    .select(
+      "id, title, type, gym_id, trainer_id, start_at, end_at, all_day, blocks_scheduling, buffer_before_minutes, buffer_after_minutes",
+    )
     .eq("tenant_id", context.tenant.id)
     .neq("status", "CANCELLED")
     .lt("start_at", toInstant(addDays(until, 1), 0, zone).toISOString())
     .gt("end_at", toInstant(from, 0, zone).toISOString());
 
+  const teamsByEvent = await teamsForEvents(
+    context,
+    (data ?? []).map((event) => event.id),
+  );
+
   return (data ?? [])
-    .filter((event) => event.blocks_scheduling || event.gym_id || event.trainer_id)
-    .map((event) => ({
-      startAt: event.start_at,
-      endAt: event.end_at,
-      gymId: event.gym_id,
-      trainerId: event.trainer_id,
-      blocksScheduling: event.blocks_scheduling,
-      title: event.title,
-    }));
+    .map((event) => {
+      const occupying = toOccupyingEvent(event);
+      const occupied = occupiedWindow(occupying);
+      return {
+        id: event.id,
+        startAt: event.start_at,
+        endAt: event.end_at,
+        occupiedStartAt: occupied.startAt,
+        occupiedEndAt: occupied.endAt,
+        gymId: event.gym_id,
+        trainerId: event.trainer_id,
+        blocksScheduling: event.blocks_scheduling,
+        title: event.title,
+        teamIds: teamsByEvent.get(event.id) ?? [],
+        // Dates come from the event's real times: an hour's pack-down after a
+        // 22:30 fixture runs past midnight, and nobody would call the next day
+        // a match day.
+        dates: eventDates(occupying, zone),
+        isFixture: isFixture(event.type),
+      };
+    })
+    .filter(
+      (event) =>
+        event.blocksScheduling ||
+        event.gymId ||
+        event.trainerId ||
+        (event.teamIds.length > 0 && event.isFixture),
+    );
+}
+
+interface BlockingEvent {
+  id: string;
+  /** The event itself — what people attend. Dates and team rules use these. */
+  startAt: string;
+  endAt: string;
+  /** Including setup and pack-down. Every space or person clash uses these. */
+  occupiedStartAt: string;
+  occupiedEndAt: string;
+  gymId: string | null;
+  trainerId: string | null;
+  blocksScheduling: boolean;
+  title: string;
+  teamIds: string[];
+  dates: string[];
+  isFixture: boolean;
 }

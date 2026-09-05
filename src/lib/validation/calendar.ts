@@ -33,10 +33,43 @@ const baseEvent = z
     /** Holidays and closures remove time from the scheduler's view. */
     blocksScheduling: z.coerce.boolean().default(false),
     teamIds: z.array(uuidSchema).default([]),
+
+    /* --- Fixtures. Meaningless on anything but a MATCH or TOURNAMENT. ------ */
+    opponent: optionalText(120),
+    /**
+     * Null is a real answer, not a missing one: a derby between two of our own
+     * teams is both home and away, and nothing else is either.
+     */
+    isHome: z
+      .union([z.literal(""), z.literal("home"), z.literal("away")])
+      .optional()
+      .transform((v) => (v === "home" ? true : v === "away" ? false : null)),
+    competition: optionalText(120),
+
+    /**
+     * How long the hall is held either side. A match is not two hours of
+     * basketball in an otherwise free room.
+     */
+    bufferBeforeMinutes: z.coerce.number().int().min(0).max(240).default(0),
+    bufferAfterMinutes: z.coerce.number().int().min(0).max(240).default(0),
   })
   .refine((v) => v.endAt > v.startAt, {
     message: "The end must be after the start.",
     path: ["endAt"],
+  })
+  // Mirrors the database check, so a stray opponent on a holiday comes back as
+  // a field error rather than a 500 from a constraint nobody can read.
+  .superRefine((v, ctx) => {
+    if (v.type === "MATCH" || v.type === "TOURNAMENT") return;
+    for (const field of ["opponent", "competition"] as const) {
+      if (v[field]) {
+        ctx.addIssue({
+          code: "custom",
+          path: [field],
+          message: "Only a match or tournament has this.",
+        });
+      }
+    }
   });
 
 export const createEventSchema = baseEvent;

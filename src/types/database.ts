@@ -412,6 +412,15 @@ export interface CalendarEventRow extends Timestamps {
   end_at: string;
   all_day: boolean;
   color: string | null;
+  /** Opposing club. Null for an in-house match between two of our own teams. */
+  opponent: string | null;
+  /** True when we host. Null when the distinction does not apply. */
+  is_home: boolean | null;
+  competition: string | null;
+  /** Minutes the hall is held before start_at — setup, warm-up, arrivals. */
+  buffer_before_minutes: number;
+  /** Minutes the hall is held after end_at — pack-down. */
+  buffer_after_minutes: number;
   allows_gym_sharing: boolean;
   blocks_scheduling: boolean;
   external_id: string | null;

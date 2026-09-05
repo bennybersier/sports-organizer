@@ -620,3 +620,72 @@ describe("limited gym sharing", () => {
     expect(result.unmet[0].reasons[0].code).toBe("WEEKLY_CAPACITY");
   });
 });
+
+describe("team-scoped blocked slots", () => {
+  /*
+    `BlockedSlot.teamId` has existed since the engine was written and
+    `candidates.ts` has always matched on it, but nothing ever populated it, so
+    the path was never exercised. Fixtures are the first caller — a team playing
+    on Wednesday cannot train that Wednesday, while everyone else can.
+  */
+  const twoTeams = (blocked: ScheduleInput["blockedSlots"]) =>
+    generateSchedule({
+      teams: [
+        team("playing", { sessionsPerWeek: 1, allowedWeekdays: [3] }),
+        team("resting", { sessionsPerWeek: 1, allowedWeekdays: [3] }),
+      ],
+      gyms: [gym("hall", [3]), gym("annexe", [3])],
+      trainers: [trainer("coach", ["playing", "resting"], [3])],
+      blockedSlots: blocked,
+    });
+
+  it("removes only the named team's candidates", () => {
+    const result = twoTeams([
+      {
+        isoWeekday: 3,
+        window: evening,
+        gymId: null,
+        trainerId: null,
+        teamId: "playing",
+        reason: "vs Virtus",
+      },
+    ]);
+
+    expect(result.assignments.map((a) => a.teamId)).toEqual(["resting"]);
+    expect(result.unmet.map((u) => u.teamId)).toEqual(["playing"]);
+  });
+
+  it("blocks a hall for everyone when the slot names one", () => {
+    const result = twoTeams([
+      {
+        isoWeekday: 3,
+        window: evening,
+        gymId: "hall",
+        trainerId: null,
+        teamId: null,
+        reason: "Match in the main hall",
+      },
+    ]);
+
+    // Both still place, but nobody is in the hall that was held.
+    expect(result.assignments).toHaveLength(2);
+    expect(result.assignments.every((a) => a.gymId === "annexe")).toBe(true);
+  });
+
+  it("blocks the hall and the team together when a slot carries both", () => {
+    const result = twoTeams([
+      {
+        isoWeekday: 3,
+        window: evening,
+        gymId: "hall",
+        trainerId: null,
+        teamId: "playing",
+        reason: "Home match",
+      },
+    ]);
+
+    // The playing team is out entirely; the other keeps the annexe.
+    expect(result.assignments.map((a) => a.teamId)).toEqual(["resting"]);
+    expect(result.assignments[0].gymId).toBe("annexe");
+  });
+});

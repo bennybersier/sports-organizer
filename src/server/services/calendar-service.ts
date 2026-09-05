@@ -4,6 +4,7 @@ import { NotFoundError, fromDatabaseError } from "@/lib/errors";
 import type { AuthContext } from "@/server/auth/context";
 import { assertPermission } from "@/server/auth/authorization";
 import { resolveAvailability, type IsoWeekday } from "@/domain/availability";
+import { occupiedWindow, toOccupyingEvent } from "@/domain/scheduling/fixtures";
 import {
   validatePlacement,
   type Booking,
@@ -386,7 +387,9 @@ async function collectBookings(
       : Promise.resolve({ data: [] }),
     context.db
       .from("calendar_events")
-      .select("id, gym_id, trainer_id, start_at, end_at, allows_gym_sharing")
+      .select(
+        "id, gym_id, trainer_id, start_at, end_at, all_day, allows_gym_sharing, buffer_before_minutes, buffer_after_minutes",
+      )
       .eq("tenant_id", context.tenant.id)
       .neq("status", "CANCELLED")
       .lt("start_at", endAt)
@@ -399,6 +402,20 @@ async function collectBookings(
   ]);
 
   const teamNames = new Map((teams.data ?? []).map((team) => [team.id, team.name]));
+
+  // Which teams each event involves, so a match shows as that team's business
+  // rather than nobody's.
+  const eventTeams = await context.db
+    .from("calendar_event_teams")
+    .select("event_id, team_id")
+    .eq("tenant_id", context.tenant.id)
+    .in("event_id", (events.data ?? []).map((event) => event.id));
+
+  const teamsByEvent = new Map<string, string[]>();
+  for (const link of eventTeams.data ?? []) {
+    teamsByEvent.set(link.event_id, [...(teamsByEvent.get(link.event_id) ?? []), link.team_id]);
+  }
+
   const toWindow = (from: string, to: string) => {
     const a = toWallClock(from, zone);
     const b = toWallClock(to, zone);
@@ -413,15 +430,32 @@ async function collectBookings(
       trainerId: entry.trainer_id,
       gymId: entry.gym_id,
       teamName: teamNames.get(entry.team_id),
+      // Training is what a hall's changeover tolerance was built for.
+      sharable: true,
     })),
-    ...(events.data ?? []).map((event) => ({
-      id: event.id,
-      window: toWindow(event.start_at, event.end_at),
-      teamId: null,
-      trainerId: event.trainer_id,
-      gymId: event.gym_id,
-      allowsGymSharing: event.allows_gym_sharing,
-    })),
+    ...(events.data ?? []).map((event) => {
+      const linked = teamsByEvent.get(event.id) ?? [];
+      const occupied = occupiedWindow(toOccupyingEvent(event));
+      return {
+        id: event.id,
+        // The hall is gone for setup and pack-down, not just for the event, so
+        // dragging a session into the half hour after a match must fail here
+        // exactly as generation would have refused it.
+        window: toWindow(occupied.startAt, occupied.endAt),
+        // `Booking.teamId` is singular and cannot express a derby. The gym
+        // clash still fires for one played in our own hall; what it misses is
+        // dragging a session onto an away derby, which is not worth widening
+        // the type for.
+        teamId: linked.length === 1 ? linked[0] : null,
+        teamName: linked.length === 1 ? teamNames.get(linked[0]) : undefined,
+        trainerId: event.trainer_id,
+        gymId: event.gym_id,
+        allowsGymSharing: event.allows_gym_sharing,
+        // Never: a buffer the club stated is not something to be negotiated
+        // down by half an hour because the optimizer was stuck.
+        sharable: false,
+      };
+    }),
   ];
 }
 
