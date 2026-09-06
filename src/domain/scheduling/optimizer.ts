@@ -450,8 +450,6 @@ function blockedDayFinding(day: WeekdayCapacity): Finding {
       return { code: "DAY_NO_GYM_OPEN", severity: "CONFLICT", values: base };
     case "NO_TRAINER_AVAILABLE":
       return { code: "DAY_NO_TRAINER", severity: "CONFLICT", values: { ...base, ...gym } };
-    case "TEAM_UNAVAILABLE":
-      return { code: "DAY_TEAM_UNAVAILABLE", severity: "CONFLICT", values: base };
     case "WINDOW_TOO_SHORT":
       return {
         code: "DAY_WINDOW_TOO_SHORT",
