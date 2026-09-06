@@ -102,6 +102,14 @@ export interface RegisterSheet {
   lines: RegisterLine[];
   /** Whether the caller may change this sheet as it currently stands. */
   editable: boolean;
+  /**
+   * Who was called up for this team's previous match.
+   *
+   * A squad changes by one or two players from week to week, so the useful
+   * starting point for picking one is last week's. Empty for training, and for
+   * the first match of a season.
+   */
+  previousCallUps: string[];
 }
 
 /* -------------------------------------------------------------------------- */
@@ -356,6 +364,36 @@ export async function getRegisterSheet(
       : Promise.resolve({ data: null }),
   ]);
 
+  /*
+    The last squad this team put out, so "same as last game" has something to
+    copy. Only a recorded match counts: an abandoned draft is not a decision,
+    and a training register has no call-ups to speak of.
+  */
+  const previousCallUps: string[] = [];
+  if (register.occasion === "MATCH") {
+    const { data: previous } = await context.db
+      .from("attendance_registers")
+      .select("id")
+      .eq("tenant_id", context.tenant.id)
+      .eq("team_id", register.team_id)
+      .eq("occasion", "MATCH")
+      .eq("state", "RECORDED")
+      .lt("starts_at", register.starts_at)
+      .order("starts_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (previous) {
+      const { data: picked } = await context.db
+        .from("attendance_records")
+        .select("athlete_id")
+        .eq("tenant_id", context.tenant.id)
+        .eq("register_id", previous.id)
+        .eq("called_up", true);
+      previousCallUps.push(...(picked ?? []).map((row) => row.athlete_id));
+    }
+  }
+
   const athleteIds = (records ?? []).map((row) => row.athlete_id);
   const [{ data: athletes }, { data: links }] = await Promise.all([
     athleteIds.length
@@ -424,6 +462,7 @@ export async function getRegisterSheet(
       register.state !== "RECORDED"
         ? hasPermission(context, "attendance.record")
         : hasPermission(context, "attendance.manage"),
+    previousCallUps,
   };
 }
 

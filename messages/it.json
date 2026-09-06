@@ -255,7 +255,11 @@
     "sessions": "{count, plural, one {# sessione} other {# sessioni}}",
     "inTeams": "In {teams}",
     "coaches": "Allena {teams}",
-    "jersey": "#{number}"
+    "jersey": "#{number}",
+    "competitions": "Competizioni",
+    "noCompetitions": "Non ancora iscritta a nessuna competizione.",
+    "noCompetitionsForTrainer": "Nessuna squadra di questo allenatore è iscritta a una competizione.",
+    "clubsIn": "{count} società"
   },
   "gender": {
     "MALE": "Maschile",
@@ -474,7 +478,10 @@
     "exceptionAdded": "Eccezione aggiunta.",
     "exceptionRemoved": "Eccezione rimossa.",
     "removeWindow": "Rimuovi questo orario",
-    "overlapWarning": "Gli orari sovrapposti nello stesso giorno vengono rifiutati: la pianificazione non può basarsi su disponibilità contraddittorie."
+    "overlapWarning": "Gli orari sovrapposti nello stesso giorno vengono rifiutati: la pianificazione non può basarsi su disponibilità contraddittorie.",
+    "editHours": "Modifica orari",
+    "noWeeklyPattern": "Nessun orario impostato.",
+    "noWeeklyPatternTeam": "Nessun orario impostato — la squadra segue la finestra dei suoi requisiti."
   },
   "requirements": {
     "title": "Requisiti di allenamento",
@@ -1138,6 +1145,9 @@
       "saved": "Referto salvato."
     },
     "toPick": "Convocazioni da fare",
-    "pickSquad": "Convoca"
+    "pickSquad": "Convoca",
+    "selectAll": "Seleziona tutti",
+    "deselectAll": "Deseleziona tutti",
+    "sameAsLastGame": "Come l'ultima partita"
   }
 }

@@ -7,6 +7,8 @@ import {
   CheckCheck,
   CircleSlash,
   Clock,
+  Eraser,
+  History,
   Loader2,
   Lock,
   Save,
@@ -84,6 +86,13 @@ export function RegisterSheetEditor({ sheet }: { sheet: RegisterSheet }) {
     [sheet.lines],
   );
 
+  // Only players still in the squad — somebody who has left the club since is
+  // not somebody to call up again.
+  const lastSquad = useMemo(() => {
+    const squad = new Set(sheet.lines.map((line) => line.athleteId));
+    return new Set(sheet.previousCallUps.filter((id) => squad.has(id)));
+  }, [sheet.previousCallUps, sheet.lines]);
+
   const called = lines.filter((line) => line.calledUp).length;
   const starters = lines.filter((line) => line.started).length;
   const limit = sheet.team.callUpLimit;
@@ -94,6 +103,31 @@ export function RegisterSheetEditor({ sheet }: { sheet: RegisterSheet }) {
     setDirty(true);
     setLines((current) =>
       current.map((line) => (line.athleteId === athleteId ? { ...line, ...patch } : line)),
+    );
+  }
+
+  /**
+   * Picking a squad, in one tap rather than sixteen.
+   *
+   * `select all` deliberately calls everybody up even when that breaks the
+   * limit: which twelve of sixteen travel is the coach's decision, and quietly
+   * choosing for them would be worse than showing the count in red until they
+   * take four out.
+   */
+  function setCallUps(pick: (athleteId: string) => boolean) {
+    setDirty(true);
+    setLines((current) =>
+      current.map((line) => {
+        const calledUp = pick(line.athleteId);
+        return {
+          ...line,
+          calledUp,
+          // Nobody left out is a starter, and nobody left out sat on the bench
+          // for a reason worth recording.
+          started: calledUp ? line.started : false,
+          benchReason: calledUp ? line.benchReason : null,
+        };
+      }),
     );
   }
 
@@ -153,6 +187,31 @@ export function RegisterSheetEditor({ sheet }: { sheet: RegisterSheet }) {
                 <TriangleAlert className="size-4" aria-hidden />
                 {t("overLimit", { limit: limit ?? 0 })}
               </span>
+            ) : null}
+
+            {sheet.editable ? (
+              <div className="ms-auto flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={() => setCallUps(() => true)}>
+                  <CheckCheck aria-hidden />
+                  {t("selectAll")}
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => setCallUps(() => false)}>
+                  <Eraser aria-hidden />
+                  {t("deselectAll")}
+                </Button>
+                {/* A squad moves by a player or two a week, so last week's is
+                    the sensible starting point — when there was a last week. */}
+                {lastSquad.size > 0 ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setCallUps((athleteId) => lastSquad.has(athleteId))}
+                  >
+                    <History aria-hidden />
+                    {t("sameAsLastGame")}
+                  </Button>
+                ) : null}
+              </div>
             ) : null}
           </CardContent>
         </Card>
