@@ -19,6 +19,7 @@
  *
  *   pnpm db:seed:robur --dry-run        # validate the fixture, write nothing
  *   pnpm db:seed:robur --wipe --yes     # delete the club's data, then seed
+ *   pnpm db:seed:robur --athletes-only  # fill the squads of teams already there
  *
  * The dry run is not a formality. It builds the same ScheduleInput the server
  * would, runs the real optimizer in memory, and refuses to go on if any team
@@ -27,6 +28,8 @@
  */
 import { adminClient, arg } from "./lib/admin";
 import { planFixtures, type FixturePool } from "./lib/fixture-generator";
+import { planRosters, type RosterTeam } from "./lib/roster";
+import { matchSettingsFor } from "./lib/team-settings";
 import { fromMinutes, toMinutes, type IsoWeekday, type MinuteWindow } from "../src/domain/availability";
 import { analyseWeekdays, weeklyCeiling } from "../src/domain/scheduling/capacity";
 import { generateSchedule } from "../src/domain/scheduling/optimizer";
@@ -43,6 +46,7 @@ const WIPE = process.argv.includes("--wipe");
 const CONFIRMED = process.argv.includes("--yes");
 const SKIP_CHECK = process.argv.includes("--no-check");
 const NO_FIXTURES = process.argv.includes("--no-fixtures");
+const ATHLETES_ONLY = process.argv.includes("--athletes-only");
 
 if (process.env.APP_ENV === "production") {
   console.error("Refusing to seed a production environment.");
@@ -53,8 +57,19 @@ if (process.env.APP_ENV === "production") {
 // Halls
 // ---------------------------------------------------------------------------
 
-/** Opening hours per ISO weekday (1 = Monday). Absent means shut. */
-type Hours = Partial<Record<IsoWeekday, [string, string]>>;
+/** A single continuous block of time, `["17:30", "19:00"]`. */
+type Span = [string, string];
+
+/**
+ * Opening hours per ISO weekday (1 = Monday). Absent means shut.
+ *
+ * A list per day, not a single span, because that is what a shared municipal
+ * hall actually looks like: basketball gets an hour and a half before the
+ * volleyball club arrives and another block after it leaves. The gap in the
+ * middle is the whole problem the organizer exists to solve, and a fixture that
+ * modelled every hall as one long block would never exercise it.
+ */
+type Hours = Partial<Record<IsoWeekday, Span[]>>;
 
 interface GymSpec {
   key: string;
@@ -68,9 +83,9 @@ interface GymSpec {
 
 const WEEK: IsoWeekday[] = [1, 2, 3, 4, 5, 6, 7];
 
-/** Every day, same hours — the club's own hall is the only one like this. */
-function everyDay(from: string, until: string): Hours {
-  return Object.fromEntries(WEEK.map((day) => [day, [from, until]])) as Hours;
+/** The same blocks every day of the week. */
+function everyDay(...spans: Span[]): Hours {
+  return Object.fromEntries(WEEK.map((day) => [day, spans])) as Hours;
 }
 
 /**
@@ -85,7 +100,17 @@ const GYMS: GymSpec[] = [
     city: "Codogno",
     capacity: 250,
     color: "#1d4ed8",
-    hours: everyDay("13:00", "23:00"),
+    hours: {
+      // The club's own hall, but it still rents the middle of the evening to a
+      // volleyball club — the one block a senior side would most like to have.
+      1: [["16:00", "18:30"], ["20:00", "23:00"]],
+      2: [["16:00", "18:00"], ["19:30", "23:00"]],
+      3: [["16:00", "18:30"], ["20:00", "23:00"]],
+      4: [["16:00", "18:00"], ["19:30", "23:00"]],
+      5: [["16:00", "18:30"], ["20:00", "22:30"]],
+      6: [["09:00", "13:00"], ["15:00", "18:30"]],
+      7: [["10:00", "13:00"]],
+    },
     note: "The club's own hall. The only one available every day, and the only one it does not have to share.",
   },
   {
@@ -95,12 +120,13 @@ const GYMS: GymSpec[] = [
     capacity: 300,
     color: "#0891b2",
     hours: {
-      1: ["15:30", "22:30"],
-      2: ["15:30", "22:30"],
-      3: ["15:30", "22:30"],
-      4: ["15:30", "22:30"],
-      5: ["15:30", "22:30"],
-      6: ["09:00", "19:00"],
+      // Municipal: the town's volleyball and five-a-side sit in the gap.
+      1: [["15:30", "18:00"], ["19:00", "22:30"]],
+      2: [["15:30", "18:00"], ["20:00", "22:30"]],
+      3: [["15:30", "18:00"], ["19:00", "22:30"]],
+      4: [["15:30", "18:00"], ["20:00", "22:30"]],
+      5: [["15:30", "18:00"], ["19:00", "22:00"]],
+      6: [["09:00", "12:30"], ["14:30", "18:00"]],
     },
     note: "Town hall. The club has it every weekday evening and Saturday afternoon.",
   },
@@ -111,12 +137,12 @@ const GYMS: GymSpec[] = [
     capacity: 200,
     color: "#16a34a",
     hours: {
-      1: ["16:30", "19:00"],
-      2: ["16:30", "22:00"],
-      3: ["16:30", "19:00"],
-      4: ["16:30", "22:00"],
-      5: ["16:30", "22:00"],
-      6: ["09:00", "12:00"],
+      1: [["16:30", "18:30"], ["20:00", "22:00"]],
+      2: [["17:00", "19:00"], ["20:30", "22:30"]],
+      3: [["16:30", "18:30"], ["20:00", "22:00"]],
+      4: [["17:00", "19:00"], ["20:30", "22:30"]],
+      5: [["16:30", "19:00"], ["20:30", "22:30"]],
+      6: [["09:00", "12:00"]],
     },
     note: "Town hall, shared with the local volleyball club on Monday and Wednesday evenings.",
   },
@@ -126,7 +152,11 @@ const GYMS: GymSpec[] = [
     city: "San Colombano al Lambro",
     capacity: 120,
     color: "#f59e0b",
-    hours: { 1: ["16:30", "19:30"], 3: ["16:30", "19:30"], 6: ["10:00", "13:00"] },
+    hours: {
+      1: [["16:30", "18:00"], ["19:00", "20:30"]],
+      3: [["16:30", "18:00"], ["19:00", "20:30"]],
+      6: [["10:00", "13:00"]],
+    },
     note: "School gym, three afternoons a week. The tightest hall the club uses.",
   },
   {
@@ -136,10 +166,10 @@ const GYMS: GymSpec[] = [
     capacity: 120,
     color: "#7c3aed",
     hours: {
-      1: ["16:30", "21:00"],
-      3: ["16:30", "21:00"],
-      4: ["16:30", "19:00"],
-      5: ["16:30", "21:00"],
+      1: [["16:30", "19:00"], ["19:45", "21:00"]],
+      3: [["16:30", "19:00"], ["19:45", "21:00"]],
+      4: [["16:30", "19:00"], ["19:45", "21:00"]],
+      5: [["16:30", "19:00"], ["19:45", "21:00"]],
     },
     note: "Town hall. No Tuesday — the hall is booked for five-a-side.",
   },
@@ -150,11 +180,13 @@ const GYMS: GymSpec[] = [
     capacity: 400,
     color: "#db2777",
     hours: {
-      1: ["17:30", "22:30"],
-      2: ["17:30", "22:30"],
-      3: ["17:30", "22:30"],
-      4: ["17:30", "22:30"],
-      6: ["15:00", "20:00"],
+      // A big sports centre with a queue of clubs behind us. Wednesday's second
+      // block is ninety minutes, which no two-hour side can use at all.
+      1: [["17:30", "19:30"], ["20:30", "22:30"]],
+      2: [["17:30", "19:30"], ["20:30", "22:30"]],
+      3: [["18:00", "20:00"], ["21:00", "22:30"]],
+      4: [["17:30", "19:30"], ["20:30", "22:30"]],
+      6: [["15:00", "18:00"]],
     },
     note: "The big hall in Lodi, evenings only, no Friday.",
   },
@@ -164,7 +196,12 @@ const GYMS: GymSpec[] = [
     city: "Lodi Vecchio",
     capacity: 150,
     color: "#64748b",
-    hours: { 2: ["16:30", "20:30"], 3: ["16:30", "20:30"], 5: ["16:30", "20:30"], 6: ["10:00", "12:00"] },
+    hours: {
+      2: [["16:30", "18:00"], ["19:00", "20:30"]],
+      3: [["16:30", "18:00"], ["19:00", "20:30"]],
+      5: [["16:30", "18:00"], ["19:00", "20:30"]],
+      6: [["10:00", "12:00"]],
+    },
     note: "School gym, three afternoons plus Saturday morning.",
   },
   {
@@ -173,7 +210,7 @@ const GYMS: GymSpec[] = [
     city: "Somaglia",
     capacity: 80,
     color: "#0d9488",
-    hours: { 2: ["17:00", "19:30"], 4: ["17:00", "19:30"] },
+    hours: { 2: [["17:00", "18:30"]], 4: [["17:00", "18:30"]] },
     note: "Village hall, two afternoons. Minibasket only — it is too small for anything else.",
   },
   {
@@ -182,7 +219,7 @@ const GYMS: GymSpec[] = [
     city: "Miradolo Terme",
     capacity: 80,
     color: "#0d9488",
-    hours: { 1: ["17:00", "19:30"], 4: ["17:00", "19:30"] },
+    hours: { 1: [["17:00", "18:30"]], 4: [["17:00", "18:30"]] },
     note: "Village hall, two afternoons.",
   },
   {
@@ -191,7 +228,7 @@ const GYMS: GymSpec[] = [
     city: "Sant'Angelo Lodigiano",
     capacity: 100,
     color: "#0d9488",
-    hours: { 2: ["17:00", "19:30"], 5: ["17:00", "19:30"] },
+    hours: { 2: [["17:00", "18:30"]], 5: [["17:00", "18:30"]] },
     note: "School gym, two afternoons.",
   },
 ];
@@ -238,11 +275,17 @@ type ProfileKey = keyof typeof PROFILES;
 /**
  * How much shortfall is a finding rather than a fault.
  *
- * The club is genuinely short of hall time in the Codogno evenings, and a
- * seed that papered over that by inventing opening hours would make the
- * optimizer look better than the club's week actually is.
+ * Deliberately generous. Every hall but one is shared with other sports, so an
+ * evening is two short blocks with somebody else's training in between, and the
+ * club genuinely cannot fit everything it wants into what is left. A seed that
+ * papered over that with invented opening hours would make the optimizer look
+ * better than the club's week actually is, and would never show an organizer
+ * the decisions they really have to make.
+ *
+ * The red lines are elsewhere and stricter: no team may be impossible to place
+ * in principle, and no team may end the week with nothing.
  */
-const MAX_UNMET_SESSIONS = 3;
+const MAX_UNMET_SESSIONS = 15;
 
 const START_SENIOR = "2026-08-24";
 const START_YOUTH = "2026-09-14";
@@ -709,84 +752,86 @@ const COACHES: CoachSpec[] = [
     first: "Marco",
     last: "Bellini",
     quals: ["Allenatore Senior", "Preparatore atletico"],
-    hours: { 1: ["18:00", "23:00"], 2: ["18:00", "23:00"], 3: ["18:00", "23:00"], 4: ["18:00", "23:00"], 5: ["18:00", "23:00"], 6: ["14:00", "20:00"] },
-    teams: ["Serie C / Serie C Silver", "Divisione Regionale 1"],
+    // The first team's coach, and only the first team's: the club decided he
+    // cannot be split across two senior sides. Free from one o'clock daily.
+    hours: everyDay(["13:00", "23:00"]),
+    teams: ["Serie C / Serie C Silver"],
   },
   {
     first: "Andrea",
     last: "Ferrari",
     quals: ["Allenatore Senior"],
-    hours: { 1: ["17:30", "23:00"], 2: ["17:30", "23:00"], 3: ["17:30", "23:00"], 4: ["17:30", "23:00"], 5: ["17:30", "23:00"], 6: ["14:00", "20:00"] },
+    hours: { 1: [["17:30", "23:00"]], 2: [["17:30", "23:00"]], 3: [["17:30", "23:00"]], 4: [["17:30", "23:00"]], 5: [["17:30", "23:00"]], 6: [["14:00", "20:00"]] },
     teams: ["Divisione Regionale 2", "Under 19 Eccellenza"],
   },
   {
     first: "Luca",
     last: "Riva",
     quals: ["Allenatore Giovanile", "Eccellenza"],
-    hours: { 1: ["17:00", "22:30"], 2: ["17:00", "22:30"], 3: ["17:00", "22:30"], 4: ["17:00", "22:30"], 5: ["17:00", "22:30"], 6: ["14:00", "19:00"] },
+    hours: { 1: [["17:00", "22:30"]], 2: [["17:00", "22:30"]], 3: [["17:00", "22:30"]], 4: [["17:00", "22:30"]], 5: [["17:00", "22:30"]], 6: [["14:00", "19:00"]] },
     teams: ["Under 17 Eccellenza", "Under 15 Robur", "Under 14 Robur"],
   },
   {
     first: "Paolo",
     last: "Grandi",
     quals: ["Allenatore Giovanile", "Eccellenza"],
-    hours: { 1: ["17:00", "22:30"], 2: ["17:00", "22:30"], 3: ["17:00", "22:30"], 4: ["17:00", "22:30"], 5: ["17:00", "22:30"], 6: ["14:00", "20:00"] },
+    hours: { 1: [["17:00", "22:30"]], 2: [["17:00", "22:30"]], 3: [["17:00", "22:30"]], 4: [["17:00", "22:30"]], 5: [["17:00", "22:30"]], 6: [["14:00", "20:00"]] },
     teams: ["Under 15 Eccellenza FBL", "Under 14 Gold FBL"],
   },
   {
     first: "Stefano",
     last: "Curioni",
     quals: ["Allenatore Giovanile"],
-    hours: { 1: ["16:30", "21:30"], 2: ["16:30", "21:30"], 3: ["16:30", "21:30"], 4: ["16:30", "21:30"], 5: ["16:30", "21:30"] },
+    hours: { 1: [["16:30", "21:30"]], 2: [["16:30", "21:30"]], 3: [["16:30", "21:30"]], 4: [["16:30", "21:30"]], 5: [["16:30", "21:30"]] },
     teams: ["Under 14 Robur", "Under 13 Regionale Blu", "Under 13 Robur"],
   },
   {
     first: "Davide",
     last: "Moretti",
     quals: ["Allenatore Giovanile"],
-    hours: { 1: ["16:30", "21:30"], 2: ["16:30", "21:30"], 3: ["16:30", "21:30"], 4: ["16:30", "21:30"], 5: ["16:30", "21:30"] },
+    hours: { 1: [["16:30", "21:30"]], 2: [["16:30", "21:30"]], 3: [["16:30", "21:30"]], 4: [["16:30", "21:30"]], 5: [["16:30", "21:30"]] },
     teams: ["Under 13 Robur", "Under 13 Regionale Bianco", "Under 14 Robur"],
   },
   {
     first: "Elena",
     last: "Sartori",
     quals: ["Istruttore Minibasket"],
-    hours: { 1: ["15:30", "20:00"], 2: ["15:30", "20:00"], 3: ["15:30", "20:00"], 4: ["15:30", "20:00"], 5: ["15:30", "20:00"], 6: ["09:00", "18:00"] },
+    hours: { 1: [["15:30", "20:00"]], 2: [["15:30", "20:00"]], 3: [["15:30", "20:00"]], 4: [["15:30", "20:00"]], 5: [["15:30", "20:00"]], 6: [["09:00", "18:00"]] },
     teams: ["Esordienti Robur", "Esordienti Bianco", "Scoiattoli 2016/17 Codogno"],
   },
   {
     first: "Giulia",
     last: "Ravelli",
     quals: ["Istruttore Minibasket"],
-    hours: { 1: ["15:30", "20:00"], 2: ["15:30", "20:00"], 3: ["15:30", "20:00"], 4: ["15:30", "20:00"], 5: ["15:30", "20:00"], 6: ["09:00", "18:00"] },
+    hours: { 1: [["15:30", "20:00"]], 2: [["15:30", "20:00"]], 3: [["15:30", "20:00"]], 4: [["15:30", "20:00"]], 5: [["15:30", "20:00"]], 6: [["09:00", "18:00"]] },
     teams: ["Esordienti Blu", "Aquilotti 2014 Codogno", "Pulcini 2018/19 Codogno"],
   },
   {
     first: "Chiara",
     last: "Boselli",
     quals: ["Istruttore Minibasket"],
-    hours: { 1: ["15:30", "20:00"], 2: ["15:30", "20:00"], 3: ["15:30", "20:00"], 5: ["15:30", "20:00"], 6: ["09:00", "18:00"] },
+    hours: { 1: [["15:30", "20:00"]], 2: [["15:30", "20:00"]], 3: [["15:30", "20:00"]], 5: [["15:30", "20:00"]], 6: [["09:00", "18:00"]] },
     teams: ["Aquilotti 2015 Codogno", "Corso Avviamento allo Sport Codogno"],
   },
   {
     first: "Fabio",
     last: "Zanetti",
     quals: ["Istruttore Minibasket", "Allenatore Giovanile"],
-    hours: { 1: ["16:30", "22:00"], 2: ["16:30", "22:00"], 3: ["16:30", "22:00"], 4: ["16:30", "22:00"], 5: ["16:30", "22:00"], 6: ["09:00", "13:00"] },
+    hours: { 1: [["16:30", "22:00"]], 2: [["16:30", "22:00"]], 3: [["16:30", "22:00"]], 4: [["16:30", "22:00"]], 5: [["16:30", "22:00"]], 6: [["09:00", "13:00"]] },
     teams: ["Pulcini/Scoiattoli Casalpusterlengo", "Pulcini/Scoiattoli Somaglia"],
   },
   {
     first: "Simone",
     last: "Locatelli",
     quals: ["Allenatore Giovanile"],
-    hours: { 1: ["16:30", "22:00"], 2: ["16:30", "22:00"], 3: ["16:30", "22:00"], 4: ["16:30", "22:00"], 5: ["16:30", "22:00"], 6: ["14:00", "19:00"] },
+    hours: { 1: [["16:30", "22:00"]], 2: [["16:30", "22:00"]], 3: [["16:30", "22:00"]], 4: [["16:30", "22:00"]], 5: [["16:30", "22:00"]], 6: [["14:00", "19:00"]] },
     teams: ["Under 13 Gold FBL", "Esordienti FBL"],
   },
   {
     first: "Martina",
     last: "Gozzi",
     quals: ["Istruttore Minibasket"],
-    hours: { 1: ["16:30", "20:00"], 3: ["16:30", "20:00"], 4: ["16:30", "20:00"], 5: ["16:30", "20:00"] },
+    hours: { 1: [["16:30", "20:00"]], 3: [["16:30", "20:00"]], 4: [["16:30", "20:00"]], 5: [["16:30", "20:00"]] },
     teams: [
       "Aquilotti San Martino–Sant'Alberto Lodi",
       "Pulcini/Scoiattoli San Martino–Sant'Alberto Lodi",
@@ -796,21 +841,26 @@ const COACHES: CoachSpec[] = [
     first: "Roberto",
     last: "Uggeri",
     quals: ["Istruttore Minibasket"],
-    hours: { 2: ["16:30", "20:30"], 3: ["16:30", "20:30"], 5: ["16:30", "20:30"], 6: ["10:00", "12:00"] },
+    hours: { 2: [["16:30", "20:30"]], 3: [["16:30", "20:30"]], 5: [["16:30", "20:30"]], 6: [["10:00", "12:00"]] },
     teams: ["Centro Minibasket Sant'Angelo Lodigiano"],
   },
   {
     first: "Nicola",
     last: "Pedrazzini",
     quals: ["Allenatore Senior", "Eccellenza"],
-    hours: { 1: ["17:30", "23:00"], 2: ["17:30", "23:00"], 3: ["17:30", "23:00"], 4: ["17:30", "23:00"], 5: ["17:30", "23:00"], 6: ["14:00", "20:00"] },
-    teams: ["Divisione Regionale 2", "Under 19 Eccellenza", "Under 15 Eccellenza FBL"],
+    hours: { 1: [["17:30", "23:00"]], 2: [["17:30", "23:00"]], 3: [["17:30", "23:00"]], 4: [["17:30", "23:00"]], 5: [["17:30", "23:00"]], 6: [["14:00", "20:00"]] },
+    teams: [
+      "Divisione Regionale 1",
+      "Divisione Regionale 2",
+      "Under 19 Eccellenza",
+      "Under 15 Eccellenza FBL",
+    ],
   },
   {
     first: "Ilaria",
     last: "Vismara",
     quals: ["Istruttore Minibasket"],
-    hours: { 1: ["15:30", "20:00"], 2: ["15:30", "20:00"], 3: ["15:30", "20:00"], 4: ["15:30", "20:00"], 5: ["15:30", "20:00"], 6: ["09:00", "18:00"] },
+    hours: { 1: [["15:30", "20:00"]], 2: [["15:30", "20:00"]], 3: [["15:30", "20:00"]], 4: [["15:30", "20:00"]], 5: [["15:30", "20:00"]], 6: [["09:00", "18:00"]] },
     teams: ["Aquilotti 2014 Codogno", "Scoiattoli 2016/17 Codogno", "Aquilotti 2015 Codogno"],
   },
   {
@@ -820,7 +870,7 @@ const COACHES: CoachSpec[] = [
     first: "Alberto",
     last: "Codecasa",
     quals: ["Istruttore Minibasket"],
-    hours: { 1: ["16:00", "19:30"], 3: ["16:00", "19:30"], 4: ["17:00", "19:30"], 6: ["10:00", "13:00"] },
+    hours: { 1: [["16:00", "19:30"]], 3: [["16:00", "19:30"]], 4: [["17:00", "19:30"]], 6: [["10:00", "13:00"]] },
     teams: [
       "Aquilotti San Colombano",
       "Pulcini/Scoiattoli San Colombano",
@@ -969,14 +1019,104 @@ function homeGymFor(team: TeamSpec, pool: string, gymIds: Record<string, string>
   return gymIds[team.preferredGyms[0]] ?? null;
 }
 
+/**
+ * The town a side's players come from — the hall it trains in most, since a
+ * ten-year-old does not commute to minibasket.
+ */
+function rosterTeams(): RosterTeam[] {
+  const cityOf = Object.fromEntries(GYMS.map((gym) => [gym.key, gym.city]));
+  return TEAMS.map((team) => ({
+    name: team.name,
+    category: team.category,
+    ageGroup: team.ageGroup,
+    gender: team.gender,
+    city: cityOf[team.preferredGyms[0]] ?? cityOf[team.gyms[0]],
+    startsOn: team.startsOn,
+  }));
+}
+
+/**
+ * Writes every squad and its team links.
+ *
+ * Athletes are club members rather than team members — `athlete_teams` carries
+ * the link — so the two inserts are chunked separately and the second one is
+ * keyed by position in the first.
+ */
+async function seedAthletes(
+  supabase: ReturnType<typeof adminClient>,
+  tenantId: string,
+  teamIds: Record<string, string>,
+  seasonYear: number,
+) {
+  const { athletes, members } = planRosters(rosterTeams(), seasonYear);
+
+  const CHUNK = 500;
+  const athleteIds: string[] = [];
+  for (let index = 0; index < athletes.length; index += CHUNK) {
+    const { data, error } = await supabase
+      .from("athletes")
+      .insert(
+        athletes.slice(index, index + CHUNK).map((athlete) => ({
+          tenant_id: tenantId,
+          first_name: athlete.firstName,
+          last_name: athlete.lastName,
+          date_of_birth: athlete.dateOfBirth,
+          gender: athlete.gender,
+          email: athlete.email,
+          phone: athlete.phone,
+          address_line1: athlete.addressLine1,
+          postal_code: athlete.postalCode,
+          city: athlete.city,
+          country: athlete.country,
+          emergency_contact_name: athlete.emergencyContactName,
+          emergency_contact_phone: athlete.emergencyContactPhone,
+          emergency_contact_relation: athlete.emergencyContactRelation,
+          membership_status: athlete.membershipStatus,
+          notes: athlete.notes,
+        })),
+      )
+      // Insert order is preserved per statement, which is what `members`
+      // indexes into.
+      .select("id");
+    if (error) throw new Error(`inserting athletes: ${error.message}`);
+    athleteIds.push(...data.map((row) => row.id));
+  }
+
+  const links = members.map((member) => ({
+    tenant_id: tenantId,
+    athlete_id: athleteIds[member.athlete],
+    team_id: teamIds[member.team],
+    jersey_number: member.jerseyNumber,
+    position: member.position,
+    joined_at: member.joinedAt,
+  }));
+  for (let index = 0; index < links.length; index += CHUNK) {
+    const { error } = await supabase
+      .from("athlete_teams")
+      .insert(links.slice(index, index + CHUNK));
+    if (error) throw new Error(`linking athletes to teams: ${error.message}`);
+  }
+
+  const squads = new Map<string, number>();
+  for (const member of members) squads.set(member.team, (squads.get(member.team) ?? 0) + 1);
+  const sizes = [...squads.values()];
+  console.log(
+    `• ${athletes.length} athletes across ${squads.size} squads` +
+      ` (${Math.min(...sizes)}\u2013${Math.max(...sizes)} per team)`,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Feasibility — run the real engine over the fixture before touching the DB
 // ---------------------------------------------------------------------------
 
 function windows(hours: Hours): Record<number, MinuteWindow[]> {
   const result: Record<number, MinuteWindow[]> = {};
-  for (const [day, span] of Object.entries(hours)) {
-    result[Number(day)] = [{ start: toMinutes(span[0]), end: toMinutes(span[1]) }];
+  for (const [day, spans] of Object.entries(hours)) {
+    result[Number(day)] = spans.map(([from, until]) => ({
+      start: toMinutes(from),
+      end: toMinutes(until),
+    }));
   }
   return result;
 }
@@ -1037,7 +1177,9 @@ function buildInput(gymIds: Record<string, string>, teamIds: Record<string, stri
 
 function hoursOf(hours: Hours): number {
   return Object.values(hours).reduce(
-    (total, [from, until]) => total + (toMinutes(until) - toMinutes(from)) / 60,
+    (total, spans) =>
+      total +
+      spans.reduce((day, [from, until]) => day + (toMinutes(until) - toMinutes(from)) / 60, 0),
     0,
   );
 }
@@ -1111,8 +1253,14 @@ function report(input: ScheduleInput, gymIds: Record<string, string>): boolean {
       const used = result.assignments
         .filter((a) => a.gymId === gymIds[gym.key] && a.isoWeekday === day)
         .reduce((total, a) => total + (a.window.end - a.window.start) / 60, 0);
-      const span = (toMinutes(open[1]) - toMinutes(open[0])) / 60;
-      return `${used.toFixed(1)}/${span.toFixed(0)}`.padStart(9);
+      // Sum of the day's blocks, not first-open to last-shut: a hall open
+      // 16:30–18:30 and 20:00–22:00 offers four hours, not five and a half,
+      // and the gap is exactly what makes the evening hard to fill.
+      const span = open.reduce(
+        (total, [from, until]) => total + (toMinutes(until) - toMinutes(from)) / 60,
+        0,
+      );
+      return `${used.toFixed(1)}/${span.toFixed(1)}`.padStart(9);
     });
     console.log(`  ${gym.name.padEnd(24)}${cells.join("")}`);
   }
@@ -1223,6 +1371,47 @@ async function main() {
   console.log(`Club:   ${tenant.name} (${tenant.slug})`);
   console.log(`Season: ${season.name} (${season.start_date} to ${season.end_date})\n`);
 
+  const seasonYear = Number(season.start_date.slice(0, 4));
+
+  // --- Athletes only ------------------------------------------------------
+  // The squads are the one part of the fixture that can be added to a club
+  // that is already seeded: nothing else references an athlete, so there is
+  // no reason to wipe a season of fixtures to get rosters.
+  if (ATHLETES_ONLY) {
+    const { data: existingTeams, error: teamLookupError } = await supabase
+      .from("teams")
+      .select("id, name")
+      .eq("tenant_id", tenant.id)
+      .eq("season_id", season.id)
+      .is("deleted_at", null);
+    if (teamLookupError) throw teamLookupError;
+
+    const teamIds = Object.fromEntries((existingTeams ?? []).map((row) => [row.name, row.id]));
+    const unknown = TEAMS.filter((team) => !teamIds[team.name]).map((team) => team.name);
+    if (unknown.length > 0) {
+      console.error(
+        `These teams are not in the season, so their squads have nowhere to go:\n  ${unknown.join("\n  ")}`,
+      );
+      process.exit(1);
+    }
+
+    const { count: alreadyThere, error: countError } = await supabase
+      .from("athletes")
+      .select("*", { count: "exact", head: true })
+      .eq("tenant_id", tenant.id);
+    if (countError) throw countError;
+    if (alreadyThere) {
+      console.error(
+        `The club already holds ${alreadyThere} athletes. Re-running would duplicate them —` +
+          ` clear them first, or seed the whole club with --wipe --yes.`,
+      );
+      process.exit(1);
+    }
+
+    await seedAthletes(supabase, tenant.id, teamIds, seasonYear);
+    return;
+  }
+
   // Counts first, so the operator sees what is about to go.
   const TABLES = [
     "schedule_entries",
@@ -1306,14 +1495,16 @@ async function main() {
   console.log(`\n• ${gymRows.length} halls`);
 
   const gymAvailability = GYMS.flatMap((gym) =>
-    Object.entries(gym.hours).map(([day, [from, until]]) => ({
-      tenant_id: tenantId,
-      gym_id: gymIds[gym.key],
-      iso_weekday: Number(day) as IsoWeekday,
-      start_time: from,
-      end_time: until,
-      valid_from: validFrom,
-    })),
+    Object.entries(gym.hours).flatMap(([day, spans]) =>
+      spans.map(([from, until]) => ({
+        tenant_id: tenantId,
+        gym_id: gymIds[gym.key],
+        iso_weekday: Number(day) as IsoWeekday,
+        start_time: from,
+        end_time: until,
+        valid_from: validFrom,
+      })),
+    ),
   );
   const { error: gymAvailError } = await supabase.from("gym_availability").insert(gymAvailability);
   if (gymAvailError) throw gymAvailError;
@@ -1339,14 +1530,16 @@ async function main() {
   console.log(`• ${coachRows.length} coaches`);
 
   const coachAvailability = COACHES.flatMap((coach) =>
-    Object.entries(coach.hours).map(([day, [from, until]]) => ({
-      tenant_id: tenantId,
-      trainer_id: coachIds[`${coach.first} ${coach.last}`],
-      iso_weekday: Number(day) as IsoWeekday,
-      start_time: from,
-      end_time: until,
-      valid_from: validFrom,
-    })),
+    Object.entries(coach.hours).flatMap(([day, spans]) =>
+      spans.map(([from, until]) => ({
+        tenant_id: tenantId,
+        trainer_id: coachIds[`${coach.first} ${coach.last}`],
+        iso_weekday: Number(day) as IsoWeekday,
+        start_time: from,
+        end_time: until,
+        valid_from: validFrom,
+      })),
+    ),
   );
   const { error: coachAvailError } = await supabase
     .from("trainer_availability")
@@ -1358,16 +1551,21 @@ async function main() {
   const { data: teamRows, error: teamError } = await supabase
     .from("teams")
     .insert(
-      TEAMS.map((team) => ({
-        tenant_id: tenantId,
-        season_id: seasonId,
-        name: team.name,
-        sport: "Basket",
-        category: team.category,
-        age_group: team.ageGroup,
-        gender: team.gender,
-        color: team.color,
-      })),
+      TEAMS.map((team) => {
+        const settings = matchSettingsFor(team);
+        return {
+          tenant_id: tenantId,
+          season_id: seasonId,
+          name: team.name,
+          sport: "Basket",
+          category: team.category,
+          age_group: team.ageGroup,
+          gender: team.gender,
+          color: team.color,
+          match_call_up_limit: settings.matchCallUpLimit,
+          tracks_box_score: settings.tracksBoxScore,
+        };
+      }),
     )
     .select("id, name");
   if (teamError) throw teamError;
@@ -1422,6 +1620,9 @@ async function main() {
   );
   if (requirementError) throw requirementError;
   console.log(`• Training requirements for ${TEAMS.length} teams`);
+
+  // --- Athletes -----------------------------------------------------------
+  await seedAthletes(supabase, tenantId, teamIds, seasonYear);
 
   // --- Fixtures -----------------------------------------------------------
   if (!NO_FIXTURES) {
