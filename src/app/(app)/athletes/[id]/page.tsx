@@ -13,9 +13,14 @@ import { RelatedCard } from "@/components/data/related-card";
 import { StatusBadge } from "@/components/data/status-badge";
 import { isAppError } from "@/lib/errors";
 import { hasPermission } from "@/server/auth/authorization";
+import { getAthletePerformance, listAbsences } from "@/server/services/performance-service";
 import { requireAuthContext } from "@/server/auth/context";
 import { getAthlete } from "@/server/services/athlete-service";
 import { getAthleteRelations } from "@/server/services/relations-service";
+
+import { AbsencesCard } from "./absences-card";
+import { EvaluationDialog } from "./evaluation-dialog";
+import { PerformanceCard } from "./performance-card";
 
 export async function generateMetadata({
   params,
@@ -30,6 +35,14 @@ export async function generateMetadata({
   } catch {
     return {};
   }
+}
+
+/** The three months up to today — the cadence the rubric is built around. */
+function assessmentPeriod() {
+  const end = new Date();
+  const start = new Date(end);
+  start.setMonth(start.getMonth() - 3);
+  return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
 }
 
 export default async function AthleteDetailPage({
@@ -58,6 +71,12 @@ export default async function AthleteDetailPage({
 
   const relations = await getAthleteRelations(context, id);
   const canReadTeams = hasPermission(context, "teams.read");
+  // Attendance is its own permission, and a page that can show an athlete does
+  // not automatically get to show their season.
+  const canReadAttendance = hasPermission(context, "attendance.read");
+  const [performance, absences] = canReadAttendance
+    ? await Promise.all([getAthletePerformance(context, id), listAbsences(context, id)])
+    : [null, []];
   const canReadTrainers = hasPermission(context, "trainers.read");
 
   const address =
@@ -139,6 +158,29 @@ export default async function AthleteDetailPage({
           ) : null}
         </CardContent>
       </Card>
+
+      {performance ? (
+        <PerformanceCard
+          performance={performance}
+          action={
+            hasPermission(context, "evaluations.write") ? (
+              <EvaluationDialog
+                athleteId={id}
+                teams={relations.teams.map((team) => ({ id: team.id, name: team.name }))}
+                defaultPeriod={assessmentPeriod()}
+              />
+            ) : null
+          }
+        />
+      ) : null}
+
+      {canReadAttendance ? (
+        <AbsencesCard
+          athleteId={id}
+          absences={absences}
+          canRecord={hasPermission(context, "attendance.record")}
+        />
+      ) : null}
 
       {canReadTeams ? (
         <RelatedCard
