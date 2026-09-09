@@ -17,6 +17,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { NAVIGATION, type NavSection } from "@/domain/navigation";
 
@@ -36,6 +37,20 @@ export function AppSidebar({ tenants, activeTenantId, user, permissions }: AppSi
   const t = useTranslations("nav");
   const granted = new Set(permissions);
 
+  /*
+    On a phone the sidebar is a sheet drawn over the page. Tapping a link
+    navigates underneath it and leaves the drawer sitting open on top of the
+    page it just asked for, so it has to be dismissed by hand before anything
+    can be read. Closing on navigation is what a drawer is expected to do.
+
+    Only on mobile: on a desktop the sidebar is permanent furniture, and
+    collapsing it every time someone changes page would be maddening.
+  */
+  const { isMobile, setOpenMobile } = useSidebar();
+  const dismissOnMobile = () => {
+    if (isMobile) setOpenMobile(false);
+  };
+
   const sections: NavSection[] = NAVIGATION.map((section) => ({
     ...section,
     items: section.items.filter((item) => !item.permission || granted.has(item.permission)),
@@ -50,7 +65,7 @@ export function AppSidebar({ tenants, activeTenantId, user, permissions }: AppSi
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size="lg" asChild>
-                <Link href="/dashboard">
+                <Link href="/dashboard" onClick={dismissOnMobile}>
                   <span className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
                     <CalendarClock className="size-4" aria-hidden />
                   </span>
@@ -85,7 +100,11 @@ export function AppSidebar({ tenants, activeTenantId, user, permissions }: AppSi
                         isActive={isActive}
                         tooltip={t(item.titleKey)}
                       >
-                        <Link href={item.href} aria-current={isActive ? "page" : undefined}>
+                        <Link
+                          href={item.href}
+                          aria-current={isActive ? "page" : undefined}
+                          onClick={dismissOnMobile}
+                        >
                           <item.icon aria-hidden />
                           <span>{t(item.titleKey)}</span>
                         </Link>
