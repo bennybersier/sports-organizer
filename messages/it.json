@@ -975,7 +975,11 @@
     "date": "Data",
     "startTime": "Inizio",
     "duration": "Durata",
-    "minutes": "minuti"
+    "minutes": "minuti",
+    "homeAway": "Casa / trasferta",
+    "scopeAll": "Tutte",
+    "exportCsv": "Esporta",
+    "print": "Stampa"
   },
   "attendance": {
     "title": "Presenze",

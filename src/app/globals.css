@@ -166,3 +166,47 @@
   background-color: var(--border);
   border-radius: 0.25rem;
 }
+
+/*
+  Printing a page, rather than printing the app.
+ 
+  A fixture list gets pinned to a noticeboard and handed to a federation, so
+  what should come out is the table and the name of the competition it belongs
+  to — not the sidebar, the search box, or the buttons that would do nothing on
+  paper. Anything the reader cannot act on is chrome, and chrome does not print.
+ 
+  Per-element `print:hidden` handles the rest inside a page; this covers the
+  shell every page shares.
+*/
+@media print {
+  [data-slot="sidebar-wrapper"] > [data-slot="sidebar"],
+  [data-slot="sidebar-inset"] > header {
+    display: none !important;
+  }
+
+  /* The inset is offset to sit beside a sidebar that is no longer there. */
+  [data-slot="sidebar-inset"] {
+    margin: 0 !important;
+    box-shadow: none !important;
+  }
+
+  /* Ink, and a table that does not lose its lines on a monochrome printer. */
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  table {
+    border-collapse: collapse !important;
+  }
+
+  th,
+  td {
+    border-bottom: 1px solid #ddd !important;
+  }
+
+  /* A long fixture list should break between rows, never through one. */
+  tr {
+    break-inside: avoid;
+  }
+}
