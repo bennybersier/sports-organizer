@@ -15,6 +15,8 @@ import type { GenerationResult } from "@/domain/scheduling/types";
 import type { SkippedOccurrence } from "@/server/services/schedule-generation-service";
 import { useFindingText } from "@/components/calendar/use-finding-text";
 
+import { FixTeamButton } from "./fix-team-button";
+
 /**
  * What the run produced.
  *
@@ -27,11 +29,17 @@ export function GenerationSummary({
   result,
   skipped = [],
   teamNames = {},
+  seasonId,
+  canEditRequirements = false,
 }: {
   result: GenerationResult;
   /** Dates the weekly pattern called for that the season could not take. */
   skipped?: SkippedOccurrence[];
   teamNames?: Record<string, string>;
+  /** The season the run was for; without it a shortfall cannot be opened. */
+  seasonId?: string;
+  /** Whether the viewer may change what the dialog shows. */
+  canEditRequirements?: boolean;
 }) {
   const t = useTranslations("organizer");
   const format = useFormatter();
@@ -190,6 +198,15 @@ export function GenerationSummary({
                     <Badge variant="secondary">
                       {shortfall.requested - shortfall.scheduled}
                     </Badge>
+                    {/* The remedy is a field on this team, so open it here. */}
+                    {seasonId ? (
+                      <FixTeamButton
+                        teamId={shortfall.teamId}
+                        seasonId={seasonId}
+                        teamName={shortfall.teamName}
+                        canEdit={canEditRequirements}
+                      />
+                    ) : null}
                   </div>
                   <div className="mt-2 space-y-1 pl-6">
                     <p className="text-xs font-medium text-muted-foreground">{t("whyUnmet")}</p>

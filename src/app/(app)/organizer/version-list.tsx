@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { CalendarDays, Eye, Loader2, Trash2, Undo2, Upload } from "lucide-react";
+import { CalendarDays, Eye, Loader2, Trash2, TriangleAlert, Undo2, Upload } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
 } from "@/server/actions/organizer";
 import type { TrainingWeek } from "@/server/services/calendar-service";
 
+import { VersionIssues, type StoredSummary } from "./version-issues";
 import { VersionPreview } from "./version-preview";
 
 export interface VersionSummary {
@@ -26,11 +27,14 @@ export interface VersionSummary {
   number: number;
   name: string | null;
   status: string;
-  summary: {
-    score?: number;
-    stats?: { sessionsScheduled?: number; sessionsRequested?: number };
-    unmet?: { teamName: string; scheduled: number; requested: number }[];
-  };
+  /**
+   * The engine's own verdict, as stored at generation time.
+   *
+   * Widened from the three fields the row prints to the whole blob, because
+   * the issues dialog reads the rest of it — the reasons, the skipped dates —
+   * and it was already being fetched.
+   */
+  summary: StoredSummary;
   createdAt: string;
 }
 
@@ -47,16 +51,24 @@ export function VersionList({
   canPublish,
   canReview,
   timezone,
+  seasonId,
+  teamNames,
+  canEditRequirements,
 }: {
   versions: VersionSummary[];
   canPublish: boolean;
   canReview: boolean;
+  /** The season these versions belong to, so a shortfall can be acted on. */
+  seasonId: string;
+  teamNames: Record<string, string>;
+  canEditRequirements: boolean;
   /** The club's zone: session times must read as the club's clock, not the browser's. */
   timezone: string;
 }) {
   const t = useTranslations("organizer");
   const format = useFormatter();
   const { run, isPending } = useAction();
+  const [issuesFor, setIssuesFor] = useState<VersionSummary | null>(null);
   const [publishing, setPublishing] = useState<string | null>(null);
   const [discarding, setDiscarding] = useState<string | null>(null);
   const [withdrawing, setWithdrawing] = useState<string | null>(null);
@@ -144,6 +156,21 @@ export function VersionList({
                       </Button>
                     )}
 
+                    {/*
+                      Available on every version, published ones included: the
+                      shortfall a schedule was published *despite* is exactly
+                      what a club goes looking for in February.
+                    */}
+                    <Button variant="ghost" size="sm" onClick={() => setIssuesFor(version)}>
+                      <TriangleAlert aria-hidden />
+                      {t("issues")}
+                      {(version.summary?.unmet?.length ?? 0) > 0 ? (
+                        <Badge variant="secondary" className="ml-1 tabular-nums">
+                          {version.summary.unmet!.length}
+                        </Badge>
+                      ) : null}
+                    </Button>
+
                     {canPublish && !isPublished ? (
                       <Button size="sm" disabled={isPending} onClick={() => setPublishing(version.id)}>
                         <Upload aria-hidden />
@@ -200,6 +227,19 @@ export function VersionList({
           })
         }
       />
+
+      {issuesFor ? (
+        <VersionIssues
+          versionLabel={issuesFor.name ?? t("versionNumber", { number: issuesFor.number })}
+          summary={issuesFor.summary ?? {}}
+          seasonId={seasonId}
+          teamNames={teamNames}
+          canEditRequirements={canEditRequirements}
+          onOpenChange={(open) => {
+            if (!open) setIssuesFor(null);
+          }}
+        />
+      ) : null}
 
       {preview ? (
         <VersionPreview

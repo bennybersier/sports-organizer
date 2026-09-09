@@ -15,7 +15,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,14 +57,29 @@ const WEEKDAY_SHORT_KEYS = {
  * distinction is the whole design of the optimizer, and an organizer reading a
  * conflict explanation later needs to already understand which is which.
  */
-export function RequirementsCard({
+/**
+ * The requirements editor, on its own.
+ *
+ * Separated from the card because it is now opened from two places: the team's
+ * own page, and the organizer's shortfall list — where the thing an organizer
+ * wants after reading "add hall hours, allow more weekdays, or lower its
+ * weekly sessions" is these controls, not a trip to another page and back.
+ *
+ * Controlled, so the caller decides when it opens. It carries no trigger of its
+ * own for the same reason.
+ */
+export function RequirementsDialog({
   requirement,
   gyms,
   canEdit,
+  open,
+  onOpenChange,
 }: {
   requirement: TrainingRequirement;
   gyms: MultiSelectOption[];
   canEdit: boolean;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }) {
   const t = useTranslations("requirements");
   const tCommon = useTranslations("common");
@@ -73,9 +87,20 @@ export function RequirementsCard({
   const { run, isPending } = useAction();
 
   const [values, setValues] = useState(requirement);
-  // Reopening starts from what the server last told us, so an abandoned edit
-  // does not linger in the next one.
-  const [open, setOpen] = useFormDialog({ onOpen: () => setValues(requirement) });
+  /*
+    Reopening starts from what the server last told us, so an abandoned edit
+    does not linger in the next one.
+
+    Adjusted during render rather than in an effect: React re-runs this
+    component immediately without committing the discarded output, so the form
+    never paints the stale values for a frame — and there is no second render
+    pass for a linter to object to.
+  */
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
+    if (open) setValues(requirement);
+  }
 
   const set = <K extends keyof TrainingRequirement>(key: K, value: TrainingRequirement[K]) =>
     setValues((current) => ({ ...current, [key]: value }));
@@ -87,17 +112,6 @@ export function RequirementsCard({
         ? values[field].filter((d) => d !== day)
         : [...values[field], day].sort(),
     );
-
-  const gymNames = (ids: string[]) =>
-    gyms
-      .filter((gym) => ids.includes(gym.value))
-      .map((gym) => gym.label)
-      .join(", ");
-
-  const dayNames = (days: number[]) =>
-    days
-      .map((day) => tWeekdays(WEEKDAY_SHORT_KEYS[day as IsoWeekday]))
-      .join(", ");
 
   function save() {
     run(
@@ -122,7 +136,7 @@ export function RequirementsCard({
           preferredGymIds: values.preferredGymIds,
           notes: values.notes ?? "",
         }),
-      { success: () => t("saved"), onSuccess: () => setOpen(false) },
+      { success: () => t("saved"), onSuccess: () => onOpenChange(false) },
     );
   }
 
@@ -169,33 +183,8 @@ export function RequirementsCard({
     </div>
   );
 
-  /** One read-only fact on the summary card. */
-  const fact = (label: string, value: string) => (
-    <div>
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-sm font-medium">{value || tCommon("none")}</dd>
-    </div>
-  );
-
   return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
-        <div className="space-y-1.5">
-          <CardTitle className="flex items-center gap-2">
-            <Target className="size-4" aria-hidden />
-            {t("title")}
-          </CardTitle>
-          <CardDescription>{t("subtitle")}</CardDescription>
-        </div>
-
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogTrigger asChild>
-            <Button variant="outline" size="sm">
-              <Pencil aria-hidden />
-              {canEdit ? tCommon("edit") : tCommon("view")}
-            </Button>
-          </DialogTrigger>
-
+    <Dialog open={open} onOpenChange={onOpenChange}>
           {/*
             Deliberately near-full-screen: the form is two dozen controls in two
             groups, and at dialog width they wrap into a column so long that the
@@ -393,7 +382,67 @@ export function RequirementsCard({
               ) : null}
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+    </Dialog>
+  );
+}
+
+export function RequirementsCard({
+  requirement,
+  gyms,
+  canEdit,
+}: {
+  requirement: TrainingRequirement;
+  gyms: MultiSelectOption[];
+  canEdit: boolean;
+}) {
+  const t = useTranslations("requirements");
+  const tCommon = useTranslations("common");
+  const tWeekdays = useTranslations("weekdays");
+
+  const [open, setOpen] = useFormDialog({});
+
+  const gymNames = (ids: string[]) =>
+    ids
+      .map((id) => gyms.find((gym) => gym.value === id)?.label)
+      .filter(Boolean)
+      .join(", ");
+
+  const dayNames = (days: number[]) =>
+    days
+      .map((day) => tWeekdays(WEEKDAY_SHORT_KEYS[day as IsoWeekday]))
+      .join(", ");
+
+  /** One read-only fact on the summary card. */
+  const fact = (label: string, value: string) => (
+    <div>
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd className="text-sm font-medium">{value || tCommon("none")}</dd>
+    </div>
+  );
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
+        <div className="space-y-1.5">
+          <CardTitle className="flex items-center gap-2">
+            <Target className="size-4" aria-hidden />
+            {t("title")}
+          </CardTitle>
+          <CardDescription>{t("subtitle")}</CardDescription>
+        </div>
+
+        <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+          <Pencil aria-hidden />
+          {canEdit ? tCommon("edit") : tCommon("view")}
+        </Button>
+
+        <RequirementsDialog
+          requirement={requirement}
+          gyms={gyms}
+          canEdit={canEdit}
+          open={open}
+          onOpenChange={setOpen}
+        />
       </CardHeader>
 
       <CardContent className="space-y-4">
