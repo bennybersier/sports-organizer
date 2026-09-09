@@ -30,6 +30,7 @@ import type { ActionResult } from "@/lib/action";
  * from different pages end up with a sensible result rather than a race.
  */
 export function ManageRelationDialog({
+  id,
   title,
   description,
   options,
@@ -37,12 +38,22 @@ export function ManageRelationDialog({
   save,
   label,
 }: {
+  /** The record being edited — the one side of the relation that is fixed. */
+  id: string;
   title: string;
   description?: string;
   options: MultiSelectOption[];
   /** Ids currently linked. The dialog opens showing exactly these. */
   selected: string[];
-  save: (relatedIds: string[]) => Promise<ActionResult<{ count: number }>>;
+  /**
+   * The Server Action itself, not a closure around it.
+   *
+   * A server component may hand a client one a reference to something marked
+   * "use server"; it may not hand it an arrow function that happens to call
+   * one, because there is nothing on the other side to serialise. So the id
+   * travels as its own prop and the payload is assembled here.
+   */
+  save: (input: { id: string; relatedIds: string[] }) => Promise<ActionResult<{ count: number }>>;
   /** Overrides the pencil, where a card would rather say "Add athletes". */
   label?: string;
 }) {
@@ -92,7 +103,7 @@ export function ManageRelationDialog({
               </Button>
               <Button
                 onClick={() =>
-                  run(() => save(value), {
+                  run(() => save({ id, relatedIds: value }), {
                     success: () => tCommon("saved"),
                     onSuccess: () => setOpen(false),
                   })

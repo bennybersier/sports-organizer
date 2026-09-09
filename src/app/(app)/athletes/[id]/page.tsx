@@ -260,7 +260,8 @@ export default async function AthleteDetailPage({
                 title={tRelated("teams")}
                 options={teamPool.map((team) => ({ value: team.id, label: team.name }))}
                 selected={relations.teams.map((team) => team.id)}
-                save={(relatedIds) => setAthleteTeamsAction({ id, relatedIds })}
+                id={id}
+                save={setAthleteTeamsAction}
               />
             ) : null
           }

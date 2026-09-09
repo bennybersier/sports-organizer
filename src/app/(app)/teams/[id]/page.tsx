@@ -299,7 +299,8 @@ export default async function TeamDetailPage({
                   label: `${trainer.first_name} ${trainer.last_name}`,
                 }))}
                 selected={relations.trainers.map((trainer) => trainer.id)}
-                save={(relatedIds) => setTeamTrainersAction({ id, relatedIds })}
+                id={id}
+                save={setTeamTrainersAction}
               />
             ) : null
           }
@@ -339,7 +340,8 @@ export default async function TeamDetailPage({
                   label: `${athlete.last_name} ${athlete.first_name}`,
                 }))}
                 selected={relations.athletes.map((athlete) => athlete.id)}
-                save={(relatedIds) => setTeamAthletesAction({ id, relatedIds })}
+                id={id}
+                save={setTeamAthletesAction}
               />
             ) : null
           }
