@@ -402,13 +402,22 @@ export function generateSchedule(input: ScheduleInput): GenerationResult {
       ];
     }
 
-    // Slots were free, so spacing is what stopped them being used.
+    /*
+      Slots were free, so spacing is what stopped them being used — every one
+      left falls on a day this team already trains, or too soon after it.
+
+      This used to be reported as NOT_PREFERRED_WEEKDAY, which was a different
+      thing entirely and read as though preferred days had blocked it. They
+      never can: `allowedWeekdays` filters candidates, `preferredWeekdays` only
+      scores them, so a team is always free to take a day it did not ask for.
+    */
     return [
       {
-        code: "NOT_PREFERRED_WEEKDAY" as Finding["code"],
+        code: "SESSION_SPACING",
         severity: "CONFLICT",
         values: { minDays: team.minDaysBetween, considered: candidates.length },
       },
+      { code: "SUGGEST_SPACING", severity: "WARNING", values: { team: team.name } },
     ];
   }
 

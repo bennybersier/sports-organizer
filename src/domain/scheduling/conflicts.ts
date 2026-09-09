@@ -51,6 +51,8 @@ export type FindingCode =
   | "GYM_NOT_ALLOWED"
   | "NO_TRAINER_ASSIGNED"
   | "NOT_PREFERRED_WEEKDAY"
+  /* Free slots existed, but all of them sat too close to a session already placed. */
+  | "SESSION_SPACING"
   | "NOT_PREFERRED_TIME"
   | "NOT_PREFERRED_GYM"
   /* Why a team can never reach its weekly total, whatever the optimizer does. */
@@ -71,7 +73,8 @@ export type FindingCode =
   | "SUGGEST_TRAINER_HOURS"
   | "SUGGEST_ASSIGN_TRAINER"
   | "SUGGEST_EXTEND_WINDOW"
-  | "SUGGEST_MORE_CAPACITY";
+  | "SUGGEST_MORE_CAPACITY"
+  | "SUGGEST_SPACING";
 
 export interface Finding {
   code: FindingCode;

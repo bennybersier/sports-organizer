@@ -727,3 +727,46 @@ describe("team-scoped blocked slots", () => {
     expect(result.assignments[0].gymId).toBe("annexe");
   });
 });
+
+describe("why a team came up short", () => {
+  it("blames spacing, not preferred days, when spacing is the cause", () => {
+    /*
+      A team that may train any weekday but asks for a day between sessions,
+      given a hall open on only two of them. The third session has nowhere to
+      go that is not a day it already trains — which is a spacing limit, and
+      used to be reported as "not one of the team's preferred days".
+    */
+    const result = generateSchedule({
+      teams: [team("t1", { sessionsPerWeek: 3, minDaysBetween: 1 })],
+      gyms: [gym("hall", [1, 3])],
+      trainers: [trainer("coach", ["t1"], [1, 3])],
+      blockedSlots: [],
+    });
+
+    expect(result.assignments).toHaveLength(2);
+    const codes = result.unmet[0].reasons.map((reason) => reason.code);
+    expect(codes).toContain("WEEKLY_CAPACITY");
+    expect(codes).not.toContain("NOT_PREFERRED_WEEKDAY");
+  });
+
+  it("never lets a preferred day stop a session being placed", () => {
+    /*
+      The point the message obscured: preferred weekdays only score, they do
+      not filter. A team preferring Monday, with only Wednesday available,
+      trains on Wednesday.
+    */
+    const result = generateSchedule({
+      teams: [team("t1", { sessionsPerWeek: 1, preferredWeekdays: [1] })],
+      gyms: [gym("hall", [3])],
+      trainers: [trainer("coach", ["t1"], [3])],
+      blockedSlots: [],
+    });
+
+    expect(result.assignments).toHaveLength(1);
+    expect(result.assignments[0].isoWeekday).toBe(3);
+    // It says the day was not preferred — as a trade-off, not a refusal.
+    expect(result.assignments[0].explanation.tradeOffs.map((f) => f.code)).toContain(
+      "NOT_PREFERRED_WEEKDAY",
+    );
+  });
+});
