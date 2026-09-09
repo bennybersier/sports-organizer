@@ -11,6 +11,7 @@ import { AccessDenied } from "@/components/data/access-denied";
 import { PageHeader } from "@/components/data/page-header";
 import { RelatedCard } from "@/components/data/related-card";
 import { StatusBadge } from "@/components/data/status-badge";
+import { GymFormDialog } from "../gym-form-dialog";
 import { ExceptionsEditor } from "@/components/availability/exceptions-editor";
 import { WeeklyAvailabilityEditor } from "@/components/availability/weekly-availability-editor";
 import { isAppError } from "@/lib/errors";
@@ -85,7 +86,32 @@ export default async function GymDetailPage({ params }: { params: Promise<{ id: 
       <PageHeader
         title={gym.name}
         description={[gym.address_line1, gym.city].filter(Boolean).join(", ") || undefined}
-        action={<StatusBadge status={gym.status} />}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={gym.status} />
+            {hasPermission(context, "gyms.update") ? (
+              <GymFormDialog
+                mode="edit"
+                gym={{
+                  id: gym.id,
+                  name: gym.name,
+                  description: gym.description,
+                  addressLine1: gym.address_line1,
+                  postalCode: gym.postal_code,
+                  city: gym.city,
+                  country: gym.country,
+                  capacity: gym.capacity,
+                  sharesHall: gym.max_concurrent_teams > 1,
+                  sharedOverlapMinutes: gym.max_shared_overlap_minutes,
+                  sportTypes: gym.sport_types,
+                  equipment: gym.equipment,
+                  color: gym.color,
+                  notes: gym.notes,
+                }}
+              />
+            ) : null}
+          </div>
+        }
       />
 
       <Card>

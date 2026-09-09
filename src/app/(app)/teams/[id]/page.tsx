@@ -28,6 +28,7 @@ import { getTeam, listTeamOptions } from "@/server/services/team-service";
 import { listTrainerOptions } from "@/server/services/trainer-service";
 import { listAthleteOptions } from "@/server/services/athlete-service";
 import { ManageRelationDialog } from "@/components/data/manage-relation-dialog";
+import { TeamFormDialog } from "../team-form-dialog";
 import { setTeamAthletesAction, setTeamTrainersAction } from "@/server/actions/relations";
 import { getTrainingRequirement } from "@/server/services/training-requirement-service";
 
@@ -128,7 +129,7 @@ export default async function TeamDetailPage({
         : Promise.resolve(null),
       // Only for the training week's "+" — the event editor needs the same
       // pickers the calendar page gives it.
-      canCreateEvents && hasPermission(context, "seasons.read")
+      (canCreateEvents || canEditTeam) && hasPermission(context, "seasons.read")
         ? listSeasonOptions(context)
         : Promise.resolve([]),
       (canCreateEvents || canEditTeam) && hasPermission(context, "trainers.read")
@@ -210,7 +211,35 @@ export default async function TeamDetailPage({
       <PageHeader
         title={team.name}
         description={`${team.sport} · ${season.name}`}
-        action={<StatusBadge status={team.status} />}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={team.status} />
+            {canEditTeam ? (
+              <TeamFormDialog
+                mode="edit"
+                seasons={seasons.map((entry) => ({ value: entry.id, label: entry.name }))}
+                trainers={trainers.map((trainer) => ({
+                  value: trainer.id,
+                  label: `${trainer.first_name} ${trainer.last_name}`,
+                }))}
+                gyms={gyms.map((gym) => ({ value: gym.id, label: gym.name }))}
+                initialTrainerIds={relations.trainers.map((trainer) => trainer.id)}
+                team={{
+                  id: team.id,
+                  seasonId: team.season_id,
+                  name: team.name,
+                  sport: team.sport,
+                  category: team.category,
+                  ageGroup: team.age_group,
+                  gender: team.gender,
+                  homeGymId: team.home_gym_id,
+                  color: team.color,
+                  notes: team.notes,
+                }}
+              />
+            ) : null}
+          </div>
+        }
       />
 
       <Card>

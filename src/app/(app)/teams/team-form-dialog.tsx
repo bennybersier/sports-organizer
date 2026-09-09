@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
-import { AlertCircle, Loader2, Plus } from "lucide-react";
+import { AlertCircle, Loader2, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -161,11 +161,17 @@ export function TeamFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {mode === "create" && controlledOpen === undefined ? (
+      {/*
+        The same dialog opens from a list row and from the record's own page,
+        so it carries its own button rather than each caller inventing one.
+        A controlled caller — a dropdown that has already been clicked — passes
+        `open` and gets no trigger at all.
+      */}
+      {controlledOpen === undefined ? (
         <DialogTrigger asChild>
-          <Button>
-            <Plus aria-hidden />
-            {t("new")}
+          <Button size="sm" variant={mode === "create" ? "default" : "outline"}>
+            {mode === "create" ? <Plus aria-hidden /> : <Pencil aria-hidden />}
+            {mode === "create" ? t("new") : tCommon("edit")}
           </Button>
         </DialogTrigger>
       ) : null}

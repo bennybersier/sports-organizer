@@ -20,6 +20,7 @@ import { listAvailability, listExceptions } from "@/server/services/availability
 import { listCompetitionsForTeams } from "@/server/services/competition-service";
 import { getTrainerRelations } from "@/server/services/relations-service";
 import { ManageRelationDialog } from "@/components/data/manage-relation-dialog";
+import { TrainerFormDialog } from "../trainer-form-dialog";
 import { setTrainerTeamsAction } from "@/server/actions/relations";
 import { listTeamOptions } from "@/server/services/team-service";
 import { getAvailabilityAnchorDate } from "@/server/services/season-service";
@@ -105,7 +106,28 @@ export default async function TrainerDetailPage({
       <PageHeader
         title={`${trainer.first_name} ${trainer.last_name}`}
         description={trainer.email ?? undefined}
-        action={<StatusBadge status={trainer.status} />}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={trainer.status} />
+            {canEditTrainer ? (
+              <TrainerFormDialog
+                mode="edit"
+                teams={teamPool.map((entry) => ({ value: entry.id, label: entry.name }))}
+                initialTeamIds={relations.teams.map((entry) => entry.id)}
+                trainer={{
+                  id: trainer.id,
+                  firstName: trainer.first_name,
+                  lastName: trainer.last_name,
+                  email: trainer.email,
+                  phone: trainer.phone,
+                  qualifications: trainer.qualifications,
+                  color: trainer.color,
+                  notes: trainer.notes,
+                }}
+              />
+            ) : null}
+          </div>
+        }
       />
 
       <Card>

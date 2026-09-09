@@ -17,7 +17,9 @@ import {
   listEntries,
   listFixtures,
 } from "@/server/services/competition-service";
-import { getTeam } from "@/server/services/team-service";
+import { getTeam, listTeamOptions } from "@/server/services/team-service";
+import { listSeasonOptions } from "@/server/services/season-service";
+import { CompetitionFormDialog } from "../competition-form-dialog";
 import { toWallClock } from "@/domain/scheduling/timezone";
 import { fromMinutes } from "@/domain/availability";
 
@@ -66,6 +68,13 @@ export default async function CompetitionDetailPage({
   ]);
 
   const canEdit = hasPermission(context, "competitions.update");
+  // Only for the edit dialog's own pickers.
+  const [seasons, teamOptions] = await Promise.all([
+    canEdit && hasPermission(context, "seasons.read")
+      ? listSeasonOptions(context)
+      : Promise.resolve([]),
+    canEdit && hasPermission(context, "teams.read") ? listTeamOptions(context) : Promise.resolve([]),
+  ]);
   const canGenerate = hasPermission(context, "competitions.create");
   const zone = context.tenant.timezone;
 
@@ -89,6 +98,26 @@ export default async function CompetitionDetailPage({
               <Badge variant="outline">{t(competition.phase)}</Badge>
             ) : null}
             <StatusBadge status={competition.status} />
+            {canEdit ? (
+              <CompetitionFormDialog
+                mode="edit"
+                seasons={seasons.map((season) => ({ value: season.id, label: season.name }))}
+                teams={teamOptions.map((entry) => ({ value: entry.id, label: entry.name }))}
+                competition={{
+                  id: competition.id,
+                  seasonId: competition.season_id,
+                  teamId: competition.team_id,
+                  name: competition.name,
+                  format: competition.format,
+                  phase: competition.phase,
+                  parentId: competition.parent_id,
+                  expectedClubs: competition.expected_clubs,
+                  homeBufferBeforeMinutes: competition.home_buffer_before_minutes,
+                  homeBufferAfterMinutes: competition.home_buffer_after_minutes,
+                  notes: competition.notes,
+                }}
+              />
+            ) : null}
           </div>
         }
       />

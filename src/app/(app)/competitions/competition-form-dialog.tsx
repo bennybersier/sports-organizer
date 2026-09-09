@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Loader2, Plus } from "lucide-react";
+import { Loader2, Pencil, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -140,11 +140,17 @@ export function CompetitionFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
+      {/*
+        The same dialog opens from a list row and from the record's own page,
+        so it carries its own button rather than each caller inventing one.
+        A controlled caller — a dropdown that has already been clicked — passes
+        `open` and gets no trigger at all.
+      */}
       {controlledOpen === undefined ? (
         <DialogTrigger asChild>
-          <Button size="sm">
-            <Plus aria-hidden />
-            {t("new")}
+          <Button size="sm" variant={mode === "create" ? "default" : "outline"}>
+            {mode === "create" ? <Plus aria-hidden /> : <Pencil aria-hidden />}
+            {mode === "create" ? t("new") : tCommon("edit")}
           </Button>
         </DialogTrigger>
       ) : null}

@@ -11,6 +11,7 @@ import { AccessDenied } from "@/components/data/access-denied";
 import { PageHeader } from "@/components/data/page-header";
 import { RelatedCard } from "@/components/data/related-card";
 import { ManageRelationDialog } from "@/components/data/manage-relation-dialog";
+import { AthleteFormDialog } from "../athlete-form-dialog";
 import { setAthleteTeamsAction } from "@/server/actions/relations";
 import { listTeamOptions } from "@/server/services/team-service";
 import {
@@ -147,6 +148,30 @@ export default async function AthleteDetailPage({
               {tMembership(athlete.membership_status)}
             </Badge>
             <StatusBadge status={athlete.status} />
+            {canEditAthlete ? (
+              <AthleteFormDialog
+                mode="edit"
+                teams={teamPool.map((team) => ({ value: team.id, label: team.name }))}
+                currentTeamIds={relations.teams.map((team) => team.id)}
+                athlete={{
+                  id: athlete.id,
+                  firstName: athlete.first_name,
+                  lastName: athlete.last_name,
+                  dateOfBirth: athlete.date_of_birth,
+                  gender: athlete.gender,
+                  email: athlete.email,
+                  phone: athlete.phone,
+                  addressLine1: athlete.address_line1,
+                  postalCode: athlete.postal_code,
+                  city: athlete.city,
+                  emergencyContactName: athlete.emergency_contact_name,
+                  emergencyContactPhone: athlete.emergency_contact_phone,
+                  emergencyContactRelation: athlete.emergency_contact_relation,
+                  membershipStatus: athlete.membership_status,
+                  notes: athlete.notes,
+                }}
+              />
+            ) : null}
           </>
         }
       />
