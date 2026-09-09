@@ -24,11 +24,22 @@ const relationSchema = z.object({
   relatedIds: z.array(uuidSchema).max(200),
 });
 
+/**
+ * Coaching staff carries one extra fact: which of them leads the side.
+ *
+ * Sent with the list rather than as its own action, because "these are the
+ * coaches and this one is head" is a single decision — splitting it would let
+ * a team briefly have a head coach who is no longer on its staff.
+ */
+const coachingStaffSchema = relationSchema.extend({
+  headCoachId: z.union([z.literal(""), uuidSchema]).optional().transform((v) => v || null),
+});
+
 export async function setTeamTrainersAction(input: unknown): Promise<ActionResult<{ count: number }>> {
   return runAction(async () => {
     const context = await requirePermission("teams.update");
-    const { id, relatedIds } = parseInput(relationSchema, input);
-    await setTeamTrainers(context, id, relatedIds);
+    const { id, relatedIds, headCoachId } = parseInput(coachingStaffSchema, input);
+    await setTeamTrainers(context, id, relatedIds, headCoachId);
     revalidatePath(`/teams/${id}`);
     revalidatePath("/trainers");
     return { count: relatedIds.length };

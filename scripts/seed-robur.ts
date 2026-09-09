@@ -4,8 +4,8 @@
  * The generic dev seed (`scripts/seed.ts`) builds five invented teams in two
  * sports. That is enough to exercise the UI and nothing like enough to tell you
  * whether the optimizer copes with a real club: thirty teams from Serie C down
- * to Pulcini, fourteen coaches covering two or three groups each, and ten halls
- * of which the club owns exactly one.
+ * to Pulcini, twenty-eight coaches — sixteen who lead a side and twelve who
+ * assist — and ten halls of which the club owns exactly one.
  *
  * The numbers here are the club's own, not decoration. Session length follows
  * age (U15 and up train two hours) and session count follows level (the top
@@ -20,6 +20,7 @@
  *   pnpm db:seed:robur --dry-run        # validate the fixture, write nothing
  *   pnpm db:seed:robur --wipe --yes     # delete the club's data, then seed
  *   pnpm db:seed:robur --athletes-only  # fill the squads of teams already there
+ *   pnpm db:seed:robur --coaches-only   # reconcile the coaching staff in place
  *
  * The dry run is not a formality. It builds the same ScheduleInput the server
  * would, runs the real optimizer in memory, and refuses to go on if any team
@@ -47,6 +48,7 @@ const CONFIRMED = process.argv.includes("--yes");
 const SKIP_CHECK = process.argv.includes("--no-check");
 const NO_FIXTURES = process.argv.includes("--no-fixtures");
 const ATHLETES_ONLY = process.argv.includes("--athletes-only");
+const COACHES_ONLY = process.argv.includes("--coaches-only");
 
 if (process.env.APP_ENV === "production") {
   console.error("Refusing to seed a production environment.");
@@ -737,13 +739,30 @@ interface CoachSpec {
   last: string;
   quals: string[];
   hours: Hours;
-  /** Teams by name. The first is the head coach. */
-  teams: string[];
+  /**
+   * Teams this coach leads. Exactly one person heads each side, and the club's
+   * database enforces it — `trainer_teams_one_head_coach` allows a single head
+   * per team, so a duplicate here fails the seed rather than quietly winning.
+   */
+  heads?: string[];
+  /**
+   * Teams they assist on.
+   *
+   * Stated rather than inferred from listing order, which is what this used to
+   * do. "The first team named is the head coach" is invisible in a diff: moving
+   * a line to keep a list alphabetical silently reassigned a squad.
+   */
+  assists?: string[];
+}
+
+/** Every team a coach is involved with, whichever role they take. */
+function teamsOf(coach: CoachSpec): string[] {
+  return [...(coach.heads ?? []), ...(coach.assists ?? [])];
 }
 
 /**
- * Fourteen people for thirty groups, which is what a club this size actually
- * has. The bands matter as much as the names: a senior coach who finishes work
+ * Twenty-eight people for thirty groups, which is what a club this size
+ * actually has. The bands matter as much as the names: a senior coach who finishes work
  * at six cannot take a minibasket group at half past four, and the village
  * instructors only travel on the days their own hall is open.
  */
@@ -755,113 +774,108 @@ const COACHES: CoachSpec[] = [
     // The first team's coach, and only the first team's: the club decided he
     // cannot be split across two senior sides. Free from one o'clock daily.
     hours: everyDay(["13:00", "23:00"]),
-    teams: ["Serie C / Serie C Silver"],
+    heads: ["Serie C / Serie C Silver"],
   },
   {
     first: "Andrea",
     last: "Ferrari",
     quals: ["Allenatore Senior"],
     hours: { 1: [["17:30", "23:00"]], 2: [["17:30", "23:00"]], 3: [["17:30", "23:00"]], 4: [["17:30", "23:00"]], 5: [["17:30", "23:00"]], 6: [["14:00", "20:00"]] },
-    teams: ["Divisione Regionale 2", "Under 19 Eccellenza"],
+    heads: ["Divisione Regionale 2", "Under 19 Eccellenza"],
   },
   {
     first: "Luca",
     last: "Riva",
     quals: ["Allenatore Giovanile", "Eccellenza"],
     hours: { 1: [["17:00", "22:30"]], 2: [["17:00", "22:30"]], 3: [["17:00", "22:30"]], 4: [["17:00", "22:30"]], 5: [["17:00", "22:30"]], 6: [["14:00", "19:00"]] },
-    teams: ["Under 17 Eccellenza", "Under 15 Robur", "Under 14 Robur"],
+    heads: ["Under 17 Eccellenza", "Under 15 Robur", "Under 14 Robur"],
   },
   {
     first: "Paolo",
     last: "Grandi",
     quals: ["Allenatore Giovanile", "Eccellenza"],
     hours: { 1: [["17:00", "22:30"]], 2: [["17:00", "22:30"]], 3: [["17:00", "22:30"]], 4: [["17:00", "22:30"]], 5: [["17:00", "22:30"]], 6: [["14:00", "20:00"]] },
-    teams: ["Under 15 Eccellenza FBL", "Under 14 Gold FBL"],
+    heads: ["Under 15 Eccellenza FBL", "Under 14 Gold FBL"],
   },
   {
     first: "Stefano",
     last: "Curioni",
     quals: ["Allenatore Giovanile"],
     hours: { 1: [["16:30", "21:30"]], 2: [["16:30", "21:30"]], 3: [["16:30", "21:30"]], 4: [["16:30", "21:30"]], 5: [["16:30", "21:30"]] },
-    teams: ["Under 14 Robur", "Under 13 Regionale Blu", "Under 13 Robur"],
+    heads: ["Under 13 Regionale Blu", "Under 13 Robur"],
+    assists: ["Under 14 Robur"],
   },
   {
     first: "Davide",
     last: "Moretti",
     quals: ["Allenatore Giovanile"],
     hours: { 1: [["16:30", "21:30"]], 2: [["16:30", "21:30"]], 3: [["16:30", "21:30"]], 4: [["16:30", "21:30"]], 5: [["16:30", "21:30"]] },
-    teams: ["Under 13 Robur", "Under 13 Regionale Bianco", "Under 14 Robur"],
+    heads: ["Under 13 Regionale Bianco"],
+    assists: ["Under 13 Robur", "Under 14 Robur"],
   },
   {
     first: "Elena",
     last: "Sartori",
     quals: ["Istruttore Minibasket"],
     hours: { 1: [["15:30", "20:00"]], 2: [["15:30", "20:00"]], 3: [["15:30", "20:00"]], 4: [["15:30", "20:00"]], 5: [["15:30", "20:00"]], 6: [["09:00", "18:00"]] },
-    teams: ["Esordienti Robur", "Esordienti Bianco", "Scoiattoli 2016/17 Codogno"],
+    heads: ["Esordienti Robur", "Esordienti Bianco", "Scoiattoli 2016/17 Codogno"],
   },
   {
     first: "Giulia",
     last: "Ravelli",
     quals: ["Istruttore Minibasket"],
     hours: { 1: [["15:30", "20:00"]], 2: [["15:30", "20:00"]], 3: [["15:30", "20:00"]], 4: [["15:30", "20:00"]], 5: [["15:30", "20:00"]], 6: [["09:00", "18:00"]] },
-    teams: ["Esordienti Blu", "Aquilotti 2014 Codogno", "Pulcini 2018/19 Codogno"],
+    heads: ["Esordienti Blu", "Aquilotti 2014 Codogno", "Pulcini 2018/19 Codogno"],
   },
   {
     first: "Chiara",
     last: "Boselli",
     quals: ["Istruttore Minibasket"],
     hours: { 1: [["15:30", "20:00"]], 2: [["15:30", "20:00"]], 3: [["15:30", "20:00"]], 5: [["15:30", "20:00"]], 6: [["09:00", "18:00"]] },
-    teams: ["Aquilotti 2015 Codogno", "Corso Avviamento allo Sport Codogno"],
+    heads: ["Aquilotti 2015 Codogno", "Corso Avviamento allo Sport Codogno"],
   },
   {
     first: "Fabio",
     last: "Zanetti",
     quals: ["Istruttore Minibasket", "Allenatore Giovanile"],
     hours: { 1: [["16:30", "22:00"]], 2: [["16:30", "22:00"]], 3: [["16:30", "22:00"]], 4: [["16:30", "22:00"]], 5: [["16:30", "22:00"]], 6: [["09:00", "13:00"]] },
-    teams: ["Pulcini/Scoiattoli Casalpusterlengo", "Pulcini/Scoiattoli Somaglia"],
+    heads: ["Pulcini/Scoiattoli Casalpusterlengo", "Pulcini/Scoiattoli Somaglia"],
   },
   {
     first: "Simone",
     last: "Locatelli",
     quals: ["Allenatore Giovanile"],
     hours: { 1: [["16:30", "22:00"]], 2: [["16:30", "22:00"]], 3: [["16:30", "22:00"]], 4: [["16:30", "22:00"]], 5: [["16:30", "22:00"]], 6: [["14:00", "19:00"]] },
-    teams: ["Under 13 Gold FBL", "Esordienti FBL"],
+    heads: ["Under 13 Gold FBL", "Esordienti FBL"],
   },
   {
     first: "Martina",
     last: "Gozzi",
     quals: ["Istruttore Minibasket"],
     hours: { 1: [["16:30", "20:00"]], 3: [["16:30", "20:00"]], 4: [["16:30", "20:00"]], 5: [["16:30", "20:00"]] },
-    teams: [
-      "Aquilotti San Martino–Sant'Alberto Lodi",
-      "Pulcini/Scoiattoli San Martino–Sant'Alberto Lodi",
-    ],
+    heads: ["Aquilotti San Martino–Sant'Alberto Lodi", "Pulcini/Scoiattoli San Martino–Sant'Alberto Lodi"],
   },
   {
     first: "Roberto",
     last: "Uggeri",
     quals: ["Istruttore Minibasket"],
     hours: { 2: [["16:30", "20:30"]], 3: [["16:30", "20:30"]], 5: [["16:30", "20:30"]], 6: [["10:00", "12:00"]] },
-    teams: ["Centro Minibasket Sant'Angelo Lodigiano"],
+    heads: ["Centro Minibasket Sant'Angelo Lodigiano"],
   },
   {
     first: "Nicola",
     last: "Pedrazzini",
     quals: ["Allenatore Senior", "Eccellenza"],
     hours: { 1: [["17:30", "23:00"]], 2: [["17:30", "23:00"]], 3: [["17:30", "23:00"]], 4: [["17:30", "23:00"]], 5: [["17:30", "23:00"]], 6: [["14:00", "20:00"]] },
-    teams: [
-      "Divisione Regionale 1",
-      "Divisione Regionale 2",
-      "Under 19 Eccellenza",
-      "Under 15 Eccellenza FBL",
-    ],
+    heads: ["Divisione Regionale 1"],
+    assists: ["Divisione Regionale 2", "Under 19 Eccellenza", "Under 15 Eccellenza FBL"],
   },
   {
     first: "Ilaria",
     last: "Vismara",
     quals: ["Istruttore Minibasket"],
     hours: { 1: [["15:30", "20:00"]], 2: [["15:30", "20:00"]], 3: [["15:30", "20:00"]], 4: [["15:30", "20:00"]], 5: [["15:30", "20:00"]], 6: [["09:00", "18:00"]] },
-    teams: ["Aquilotti 2014 Codogno", "Scoiattoli 2016/17 Codogno", "Aquilotti 2015 Codogno"],
+    assists: ["Aquilotti 2014 Codogno", "Scoiattoli 2016/17 Codogno", "Aquilotti 2015 Codogno"],
   },
   {
     // One coach, one hall, two groups plus the Miradolo centre. The tightest
@@ -871,10 +885,117 @@ const COACHES: CoachSpec[] = [
     last: "Codecasa",
     quals: ["Istruttore Minibasket"],
     hours: { 1: [["16:00", "19:30"]], 3: [["16:00", "19:30"]], 4: [["17:00", "19:30"]], 6: [["10:00", "13:00"]] },
-    teams: [
+    heads: ["Aquilotti San Colombano", "Pulcini/Scoiattoli San Colombano", "Centro Minibasket Miradolo Terme"],
+  },
+  /*
+    The assistants.
+
+    A club with thirty groups and sixteen people had every side led and almost
+    none of them staffed — twenty-one teams had exactly one adult in the hall,
+    which is not a rota so much as a single point of failure. These twelve are
+    the second coach: they lead nothing, and they are on the bench of the groups
+    the club actually runs two-deep.
+
+    They are also why `is_head_coach` earns its place. An assistant is not a
+    lesser coach — Bonizzoni takes the first team's warm-ups and heads nothing —
+    they are simply not the one who answers for the side.
+  */
+  {
+    first: "Matteo",
+    last: "Bonizzoni",
+    quals: ["Allenatore Senior", "Preparatore atletico"],
+    hours: { 1: [["17:30", "22:30"]], 2: [["17:30", "22:30"]], 3: [["17:30", "22:30"]], 4: [["17:30", "22:30"]], 5: [["17:30", "22:30"]], 6: [["14:00", "19:00"]] },
+    assists: ["Serie C / Serie C Silver", "Divisione Regionale 1"],
+  },
+  {
+    first: "Riccardo",
+    last: "Mombelli",
+    quals: ["Allenatore Senior"],
+    hours: { 1: [["17:30", "22:30"]], 2: [["17:30", "22:30"]], 3: [["17:30", "22:30"]], 4: [["17:30", "22:30"]], 5: [["17:30", "22:30"]], 6: [["14:00", "19:00"]] },
+    assists: ["Divisione Regionale 2", "Under 15 Eccellenza FBL"],
+  },
+  {
+    first: "Federico",
+    last: "Anelli",
+    quals: ["Allenatore Giovanile", "Eccellenza"],
+    hours: { 1: [["17:30", "22:30"]], 2: [["17:30", "22:30"]], 3: [["17:30", "22:30"]], 4: [["17:30", "22:30"]], 5: [["17:30", "22:30"]], 6: [["14:00", "19:00"]] },
+    assists: ["Under 19 Eccellenza", "Under 17 Eccellenza"],
+  },
+  {
+    first: "Lorenzo",
+    last: "Maggi",
+    quals: ["Allenatore Giovanile"],
+    hours: { 1: [["16:30", "21:30"]], 2: [["16:30", "21:30"]], 3: [["16:30", "21:30"]], 4: [["16:30", "21:30"]], 5: [["16:30", "21:30"]] },
+    assists: ["Under 15 Robur", "Under 14 Robur"],
+  },
+  {
+    first: "Michele",
+    last: "Passerini",
+    quals: ["Allenatore Giovanile"],
+    hours: { 1: [["16:30", "21:30"]], 2: [["16:30", "21:30"]], 3: [["16:30", "21:30"]], 4: [["16:30", "21:30"]], 5: [["16:30", "21:30"]] },
+    assists: ["Under 13 Robur", "Under 13 Regionale Bianco", "Under 13 Regionale Blu"],
+  },
+  {
+    first: "Emanuele",
+    last: "Sfondrini",
+    quals: ["Allenatore Giovanile"],
+    hours: { 1: [["16:30", "21:30"]], 2: [["16:30", "21:30"]], 3: [["16:30", "21:30"]], 4: [["16:30", "21:30"]], 5: [["16:30", "21:30"]] },
+    assists: ["Under 14 Gold FBL", "Under 13 Gold FBL", "Esordienti FBL"],
+  },
+  {
+    first: "Cristina",
+    last: "Dossena",
+    quals: ["Istruttore Minibasket"],
+    hours: { 1: [["15:30", "20:00"]], 2: [["15:30", "20:00"]], 3: [["15:30", "20:00"]], 4: [["15:30", "20:00"]], 5: [["15:30", "20:00"]], 6: [["09:00", "18:00"]] },
+    assists: ["Esordienti Robur", "Esordienti Bianco", "Esordienti Blu"],
+  },
+  {
+    first: "Sara",
+    last: "Cremonesi",
+    quals: ["Istruttore Minibasket"],
+    hours: { 1: [["15:30", "20:00"]], 2: [["15:30", "20:00"]], 3: [["15:30", "20:00"]], 4: [["15:30", "20:00"]], 5: [["15:30", "20:00"]], 6: [["09:00", "18:00"]] },
+    assists: ["Aquilotti 2014 Codogno", "Aquilotti 2015 Codogno"],
+  },
+  {
+    first: "Giorgia",
+    last: "Tinelli",
+    quals: ["Istruttore Minibasket"],
+    hours: { 1: [["15:30", "20:00"]], 2: [["15:30", "20:00"]], 3: [["15:30", "20:00"]], 4: [["15:30", "20:00"]], 5: [["15:30", "20:00"]], 6: [["09:00", "18:00"]] },
+    assists: [
+      "Scoiattoli 2016/17 Codogno",
+      "Pulcini 2018/19 Codogno",
+      "Corso Avviamento allo Sport Codogno",
+    ],
+  },
+  {
+    first: "Valentina",
+    last: "Curti",
+    quals: ["Istruttore Minibasket"],
+    // Casale and Somaglia only: the two halls she can reach after school.
+    hours: { 1: [["16:30", "19:00"]], 2: [["16:30", "20:00"]], 3: [["16:30", "19:00"]], 4: [["16:30", "20:00"]], 5: [["16:30", "20:00"]], 6: [["09:00", "12:00"]] },
+    assists: ["Pulcini/Scoiattoli Casalpusterlengo", "Pulcini/Scoiattoli Somaglia"],
+  },
+  {
+    first: "Omar",
+    last: "Fugazza",
+    quals: ["Istruttore Minibasket"],
+    // San Colombano opens three days a week, and Sant'Angelo on the other two.
+    hours: { 1: [["16:30", "19:30"]], 2: [["16:30", "19:30"]], 3: [["16:30", "19:30"]], 5: [["16:30", "19:30"]], 6: [["09:00", "13:00"]] },
+    assists: [
       "Aquilotti San Colombano",
       "Pulcini/Scoiattoli San Colombano",
+      "Centro Minibasket Sant'Angelo Lodigiano",
       "Centro Minibasket Miradolo Terme",
+    ],
+  },
+  {
+    first: "Damiano",
+    last: "Villa",
+    quals: ["Istruttore Minibasket"],
+    hours: { 1: [["16:30", "19:30"]], 3: [["16:30", "19:30"]], 4: [["16:30", "19:30"]], 5: [["16:30", "19:30"]] },
+    assists: [
+      "Aquilotti San Martino–Sant'Alberto Lodi",
+      "Pulcini/Scoiattoli San Martino–Sant'Alberto Lodi",
     ],
   },
 ];
@@ -1106,6 +1227,143 @@ async function seedAthletes(
   );
 }
 
+function validFromOf(season: { start_date: string }): string {
+  return season.start_date;
+}
+
+/**
+ * Brings the coaching staff of an already-seeded club up to date.
+ *
+ * Matches people by the address the seed gives them, so re-running adds what is
+ * missing rather than duplicating what is there. Assignments are reconciled
+ * rather than replaced: a coach who is already on a team keeps the row, and
+ * with it the date they took it.
+ *
+ * The head coach is set in two passes for the same reason the application does
+ * it in two passes — `trainer_teams_one_head_coach` permits exactly one head
+ * per team, so every incumbent is demoted before any successor is promoted.
+ */
+async function reconcileCoaches(
+  supabase: ReturnType<typeof adminClient>,
+  tenantId: string,
+  seasonId: string,
+  validFrom: string,
+) {
+  const emailOf = (coach: CoachSpec) =>
+    `${coach.first}.${coach.last}@roburfbl.example`.toLowerCase();
+
+  const { data: existing, error: readError } = await supabase
+    .from("trainers")
+    .select("id, email")
+    .eq("tenant_id", tenantId);
+  if (readError) throw readError;
+
+  const idByEmail = new Map((existing ?? []).map((row) => [row.email, row.id]));
+  const missing = COACHES.filter((coach) => !idByEmail.has(emailOf(coach)));
+
+  if (missing.length > 0) {
+    const { data: added, error } = await supabase
+      .from("trainers")
+      .insert(
+        missing.map((coach) => ({
+          tenant_id: tenantId,
+          first_name: coach.first,
+          last_name: coach.last,
+          email: emailOf(coach),
+          qualifications: coach.quals,
+        })),
+      )
+      .select("id, email");
+    if (error) throw new Error(`inserting coaches: ${error.message}`);
+    for (const row of added) idByEmail.set(row.email, row.id);
+
+    const availability = missing.flatMap((coach) =>
+      Object.entries(coach.hours).flatMap(([day, spans]) =>
+        (spans as [string, string][]).map(([from, until]) => ({
+          tenant_id: tenantId,
+          trainer_id: idByEmail.get(emailOf(coach))!,
+          iso_weekday: Number(day) as IsoWeekday,
+          start_time: from,
+          end_time: until,
+          valid_from: validFrom,
+        })),
+      ),
+    );
+    const { error: availError } = await supabase
+      .from("trainer_availability")
+      .insert(availability);
+    if (availError) throw new Error(`inserting coach availability: ${availError.message}`);
+  }
+
+  const { data: teamRows } = await supabase
+    .from("teams")
+    .select("id, name")
+    .eq("tenant_id", tenantId)
+    .eq("season_id", seasonId)
+    .is("deleted_at", null);
+  const teamIdByName = new Map((teamRows ?? []).map((row) => [row.name, row.id]));
+
+  const { data: links } = await supabase
+    .from("trainer_teams")
+    .select("id, trainer_id, team_id, is_head_coach")
+    .eq("tenant_id", tenantId)
+    .is("unassigned_at", null);
+  const linkKey = (trainerId: string, teamId: string) => `${trainerId}:${teamId}`;
+  const existingLinks = new Map(
+    (links ?? []).map((row) => [linkKey(row.trainer_id, row.team_id), row]),
+  );
+
+  const wanted: { trainerId: string; teamId: string; head: boolean }[] = [];
+  for (const coach of COACHES) {
+    const trainerId = idByEmail.get(emailOf(coach));
+    if (!trainerId) continue;
+    for (const teamName of teamsOf(coach)) {
+      const teamId = teamIdByName.get(teamName);
+      if (!teamId) continue;
+      wanted.push({ trainerId, teamId, head: (coach.heads ?? []).includes(teamName) });
+    }
+  }
+
+  const newLinks = wanted.filter((link) => !existingLinks.has(linkKey(link.trainerId, link.teamId)));
+  if (newLinks.length > 0) {
+    const { error } = await supabase.from("trainer_teams").insert(
+      newLinks.map((link) => ({
+        tenant_id: tenantId,
+        trainer_id: link.trainerId,
+        team_id: link.teamId,
+        // Roles are set below, once every incumbent has been stood down.
+        is_head_coach: false,
+      })),
+    );
+    if (error) throw new Error(`assigning coaches: ${error.message}`);
+  }
+
+  const teamIds = [...new Set(wanted.map((link) => link.teamId))];
+  const { error: demoteError } = await supabase
+    .from("trainer_teams")
+    .update({ is_head_coach: false })
+    .eq("tenant_id", tenantId)
+    .in("team_id", teamIds)
+    .is("unassigned_at", null)
+    .eq("is_head_coach", true);
+  if (demoteError) throw new Error(`standing down head coaches: ${demoteError.message}`);
+
+  for (const link of wanted.filter((entry) => entry.head)) {
+    const { error } = await supabase
+      .from("trainer_teams")
+      .update({ is_head_coach: true })
+      .eq("tenant_id", tenantId)
+      .eq("trainer_id", link.trainerId)
+      .eq("team_id", link.teamId)
+      .is("unassigned_at", null);
+    if (error) throw new Error(`naming a head coach: ${error.message}`);
+  }
+
+  const heads = wanted.filter((link) => link.head).length;
+  console.log(`• ${COACHES.length} coaches (${missing.length} added)`);
+  console.log(`• ${wanted.length} assignments (${newLinks.length} new), ${heads} of them as head coach`);
+}
+
 // ---------------------------------------------------------------------------
 // Feasibility — run the real engine over the fixture before touching the DB
 // ---------------------------------------------------------------------------
@@ -1147,7 +1405,7 @@ function buildInput(gymIds: Record<string, string>, teamIds: Record<string, stri
     name: `${coach.first} ${coach.last}`,
     availability: windows(coach.hours),
     hasConfiguredAvailability: true,
-    teamIds: coach.teams.map((name) => teamIds[name]),
+    teamIds: teamsOf(coach).map((name) => teamIds[name]),
   }));
 
   const teams: EngineTeam[] = TEAMS.map((team) => {
@@ -1373,6 +1631,15 @@ async function main() {
 
   const seasonYear = Number(season.start_date.slice(0, 4));
 
+  // --- Coaching staff only ------------------------------------------------
+  // Reconciles the people and their roles against a club that is already
+  // seeded. Adding a dozen assistants should not cost a season of attendance
+  // and a squad list, which is what --wipe would charge for it.
+  if (COACHES_ONLY) {
+    await reconcileCoaches(supabase, tenant.id, season.id, validFromOf(season));
+    return;
+  }
+
   // --- Athletes only ------------------------------------------------------
   // The squads are the one part of the fixture that can be added to a club
   // that is already seeded: nothing else references an athlete, so there is
@@ -1572,23 +1839,13 @@ async function main() {
   const teamIds = Object.fromEntries(teamRows.map((row) => [row.name, row.id]));
   console.log(`• ${teamRows.length} teams`);
 
-  // One head coach per team, enforced by a partial unique index. Decided per
-  // team — the first coach listed against it — rather than per coach, so that
-  // two people sharing a group cannot both claim to head it.
-  const headCoach = new Map<string, string>();
-  for (const coach of COACHES) {
-    for (const teamName of coach.teams) {
-      if (!headCoach.has(teamName)) headCoach.set(teamName, `${coach.first} ${coach.last}`);
-    }
-  }
-
   const { error: trainerTeamError } = await supabase.from("trainer_teams").insert(
     COACHES.flatMap((coach) =>
-      coach.teams.map((teamName) => ({
+      teamsOf(coach).map((teamName) => ({
         tenant_id: tenantId,
         team_id: teamIds[teamName],
         trainer_id: coachIds[`${coach.first} ${coach.last}`],
-        is_head_coach: headCoach.get(teamName) === `${coach.first} ${coach.last}`,
+        is_head_coach: (coach.heads ?? []).includes(teamName),
       })),
     ),
   );

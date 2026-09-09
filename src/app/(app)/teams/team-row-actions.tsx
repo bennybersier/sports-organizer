@@ -16,7 +16,7 @@ import { ConfirmDialog } from "@/components/data/confirm-dialog";
 import type { MultiSelectOption } from "@/components/data/multi-select";
 import { useAction } from "@/hooks/use-action";
 import { archiveTeamAction, restoreTeamAction } from "@/server/actions/teams";
-import { getTeamTrainerIdsAction } from "@/server/actions/teams-read";
+import { getTeamCoachingStaffAction } from "@/server/actions/teams-read";
 
 import { TeamFormDialog, type TeamFormValues } from "./team-form-dialog";
 
@@ -41,6 +41,7 @@ export function TeamRowActions({
   const [editOpen, setEditOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [trainerIds, setTrainerIds] = useState<string[] | undefined>(undefined);
+  const [headCoachId, setHeadCoachId] = useState<string | null>(null);
 
   const isArchived = team.status === "ARCHIVED";
   if (!canUpdate && !canDelete) return null;
@@ -48,8 +49,9 @@ export function TeamRowActions({
   // Current assignments are loaded on demand rather than for every row on the
   // page — most rows are never edited.
   async function openEdit() {
-    const result = await getTeamTrainerIdsAction(team.id);
-    setTrainerIds(result.ok ? result.data : []);
+    const result = await getTeamCoachingStaffAction(team.id);
+    setTrainerIds(result.ok ? result.data.trainerIds : []);
+    setHeadCoachId(result.ok ? result.data.headCoachId : null);
     setEditOpen(true);
   }
 
@@ -102,6 +104,7 @@ export function TeamRowActions({
           trainers={trainers}
           gyms={gyms}
           initialTrainerIds={trainerIds}
+          initialHeadCoachId={headCoachId}
           open={editOpen}
           onOpenChange={setEditOpen}
         />

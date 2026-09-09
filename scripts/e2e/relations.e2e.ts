@@ -101,12 +101,12 @@ const liveSquad = async (teamId: string) => {
 
 describe("editing relations from a detail page", () => {
   it("adds coaches to a team", async () => {
-    await setTeamTrainers(context, team.U15, [coach.Ada, coach.Bo]);
+    await setTeamTrainers(context, team.U15, [coach.Ada, coach.Bo], null);
     expect(await liveTrainers(team.U15)).toEqual([coach.Ada, coach.Bo].sort());
   }, 30_000);
 
   it("ends an assignment rather than deleting it", async () => {
-    await setTeamTrainers(context, team.U15, [coach.Ada]);
+    await setTeamTrainers(context, team.U15, [coach.Ada], null);
     expect(await liveTrainers(team.U15)).toEqual([coach.Ada]);
 
     // Bo is gone from the team's current list, but the record of having taken
@@ -149,5 +149,58 @@ describe("editing relations from a detail page", () => {
     await setTrainerTeams(context, coach.Bo, [team.U17]);
     expect(await liveTrainers(team.U17)).toEqual([coach.Bo]);
     expect((await liveTrainers(team.U15)).includes(coach.Bo)).toBe(false);
+  }, 30_000);
+});
+
+describe("a team's head coach", () => {
+  const headOf = async (teamId: string) => {
+    const { data } = await db
+      .from("trainer_teams")
+      .select("trainer_id")
+      .eq("team_id", teamId)
+      .is("unassigned_at", null)
+      .eq("is_head_coach", true)
+      .maybeSingle();
+    return data?.trainer_id ?? null;
+  };
+
+  it("names one of the staff as head, and the rest are assistants", async () => {
+    await setTeamTrainers(context, team.U15, [coach.Ada, coach.Bo], coach.Ada);
+
+    expect(await headOf(team.U15)).toBe(coach.Ada);
+    expect(await liveTrainers(team.U15)).toEqual([coach.Ada, coach.Bo].sort());
+  }, 30_000);
+
+  it("hands the role over without ever having two heads at once", async () => {
+    await setTeamTrainers(context, team.U15, [coach.Ada, coach.Bo], coach.Ada);
+
+    // `trainer_teams_one_head_coach` permits exactly one, so this only works if
+    // the incumbent is demoted before the successor is promoted.
+    await setTeamTrainers(context, team.U15, [coach.Ada, coach.Bo], coach.Bo);
+
+    expect(await headOf(team.U15)).toBe(coach.Bo);
+    const { count } = await db
+      .from("trainer_teams")
+      .select("*", { count: "exact", head: true })
+      .eq("team_id", team.U15)
+      .is("unassigned_at", null)
+      .eq("is_head_coach", true);
+    expect(count).toBe(1);
+  }, 30_000);
+
+  it("leaves a side headless when nobody is named", async () => {
+    await setTeamTrainers(context, team.U15, [coach.Ada, coach.Bo], coach.Ada);
+    await setTeamTrainers(context, team.U15, [coach.Ada, coach.Bo], null);
+
+    // A group between coaches is a real state, not a validation failure.
+    expect(await headOf(team.U15)).toBeNull();
+  }, 30_000);
+
+  it("drops the role when the head coach leaves the staff", async () => {
+    await setTeamTrainers(context, team.U15, [coach.Ada, coach.Bo], coach.Bo);
+    await setTeamTrainers(context, team.U15, [coach.Ada], null);
+
+    expect(await liveTrainers(team.U15)).toEqual([coach.Ada]);
+    expect(await headOf(team.U15)).toBeNull();
   }, 30_000);
 });

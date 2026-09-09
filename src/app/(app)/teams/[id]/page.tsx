@@ -29,7 +29,7 @@ import { listTrainerOptions } from "@/server/services/trainer-service";
 import { listAthleteOptions } from "@/server/services/athlete-service";
 import { ManageRelationDialog } from "@/components/data/manage-relation-dialog";
 import { TeamFormDialog } from "../team-form-dialog";
-import { setTeamAthletesAction, setTeamTrainersAction } from "@/server/actions/relations";
+import { setTeamAthletesAction } from "@/server/actions/relations";
 import { getTrainingRequirement } from "@/server/services/training-requirement-service";
 
 import {
@@ -37,6 +37,7 @@ import {
   getTeamTrainingWeek,
 } from "@/server/services/calendar-service";
 
+import { CoachingStaffDialog } from "./coaching-staff-dialog";
 import { RequirementsCard } from "./requirements-form";
 
 
@@ -311,9 +312,12 @@ export default async function TeamDetailPage({
             meta: trainer.email,
             color: trainer.color,
             tags: [
-              ...(trainer.isHeadCoach
-                ? [{ label: tRelated("headCoach"), variant: "secondary" as const }]
-                : []),
+              // Everyone on the staff who is not the head is an assistant —
+              // saying so is the difference between a list of names and a
+              // structure a club recognises.
+              trainer.isHeadCoach
+                ? { label: tRelated("headCoach"), variant: "secondary" as const }
+                : { label: tRelated("assistantCoach"), variant: "outline" as const },
               ...(trainer.status !== "ACTIVE"
                 ? [{ label: tCommon(trainer.status), variant: "outline" as const }]
                 : []),
@@ -321,15 +325,16 @@ export default async function TeamDetailPage({
           }))}
           action={
             canEditTeam && trainers.length > 0 ? (
-              <ManageRelationDialog
-                title={tRelated("trainers")}
-                options={trainers.map((trainer) => ({
-                  value: trainer.id,
-                  label: `${trainer.first_name} ${trainer.last_name}`,
+              <CoachingStaffDialog
+                teamId={id}
+                trainers={trainers.map((trainer) => ({
+                  id: trainer.id,
+                  name: `${trainer.first_name} ${trainer.last_name}`,
                 }))}
                 selected={relations.trainers.map((trainer) => trainer.id)}
-                id={id}
-                save={setTeamTrainersAction}
+                headCoachId={
+                  relations.trainers.find((trainer) => trainer.isHeadCoach)?.id ?? null
+                }
               />
             ) : null
           }
