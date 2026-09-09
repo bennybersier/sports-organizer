@@ -11,9 +11,9 @@ import { AddEventButton } from "@/components/calendar/add-event-button";
 import type { CalendarItem } from "@/server/services/calendar-service";
 import type { EventDialogOptions } from "@/app/(app)/calendar/new-event-button";
 
-export type TeamScheduleView = "week" | "month";
+export type TrainingScheduleView = "week" | "month";
 
-export interface TeamScheduleDay {
+export interface TrainingScheduleDay {
   date: string;
   /** False for the padding days a month borrows from its neighbours. */
   inMonth: boolean;
@@ -21,7 +21,7 @@ export interface TeamScheduleDay {
 }
 
 /**
- * When this team trains — a week at a time, or a month at a time.
+ * When a team, or one athlete, is in the hall — a week or a month at a time.
  *
  * Deliberately a plain grid of days rather than the hour-scaled calendar: one
  * team trains a handful of times a week, and an hour grid spends most of its
@@ -33,9 +33,15 @@ export interface TeamScheduleDay {
  * the cell is the same cell: the week is "when are we in the hall on
  * Thursday", the month is "how much are we training in November, and where are
  * the gaps" — which is what gets asked when a fixture needs moving.
+ *
+ * Shared by the team and athlete pages rather than copied. An athlete who
+ * trains up an age group is in two squads, so the only real difference is how
+ * many teams the days were gathered from — which is a question for the service,
+ * not for the grid.
  */
-export async function TeamSchedule({
-  teamId,
+export async function TrainingSchedule({
+  basePath,
+  eventTeamIds,
   view,
   weeks,
   anchor,
@@ -49,10 +55,13 @@ export async function TeamSchedule({
   timezone,
   eventOptions,
 }: {
-  teamId: string;
-  view: TeamScheduleView;
+  /** Where the previous/next links point — this record's own page. */
+  basePath: string;
+  /** Teams a new event created from here should be attached to. */
+  eventTeamIds: string[];
+  view: TrainingScheduleView;
   /** One row for a week; five or six for a month. */
-  weeks: TeamScheduleDay[][];
+  weeks: TrainingScheduleDay[][];
   /**
    * The date the view is *about* — the Monday, or the first of the month.
    * Distinct from `rangeStart`, which for a month is the padding day the grid
@@ -87,8 +96,8 @@ export async function TeamSchedule({
   const short = !isMonth && requiredPerWeek !== null && scheduledCount < requiredPerWeek;
 
   /** Switches view while staying on the range currently being read. */
-  const viewHref = (target: TeamScheduleView) => ({
-    pathname: `/teams/${teamId}`,
+  const viewHref = (target: TrainingScheduleView) => ({
+    pathname: basePath,
     query: { view: target, date: anchor },
   });
 
@@ -121,7 +130,7 @@ export async function TeamSchedule({
           <div className="flex items-center gap-1">
             <Button asChild variant="outline" size="icon-sm">
               <Link
-                href={{ pathname: `/teams/${teamId}`, query: { view, date: previous } }}
+                href={{ pathname: basePath, query: { view, date: previous } }}
                 aria-label={tCalendar("previous")}
               >
                 <ChevronLeft aria-hidden />
@@ -129,7 +138,7 @@ export async function TeamSchedule({
             </Button>
             <Button asChild variant="outline" size="icon-sm">
               <Link
-                href={{ pathname: `/teams/${teamId}`, query: { view, date: next } }}
+                href={{ pathname: basePath, query: { view, date: next } }}
                 aria-label={tCalendar("next")}
               >
                 <ChevronRight aria-hidden />
@@ -173,7 +182,7 @@ export async function TeamSchedule({
                     options={eventOptions}
                     // The team whose page this is starts selected: a match added
                     // from here is almost always theirs.
-                    teamIds={[teamId]}
+                    teamIds={eventTeamIds}
                   />
                 ) : null}
               </div>

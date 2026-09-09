@@ -84,6 +84,11 @@ export interface CalendarItem {
 export interface CalendarFilters {
   seasonId?: string;
   teamId?: string;
+  /**
+   * Several teams at once — an athlete's squads, say. Union with `teamId`
+   * rather than an alternative to it, so a caller can pass either.
+   */
+  teamIds?: string[];
   trainerId?: string;
   gymId?: string;
   type?: string;
@@ -95,6 +100,12 @@ export interface CalendarFilters {
  * The range is given as club-local dates and converted to instants once, here,
  * so every query downstream compares like with like.
  */
+/** The teams a filter names, or null when it names none. */
+function filteredTeams(filters: CalendarFilters): string[] | null {
+  const ids = [...(filters.teamIds ?? []), ...(filters.teamId ? [filters.teamId] : [])];
+  return ids.length > 0 ? [...new Set(ids)] : null;
+}
+
 export async function listCalendarItems(
   context: AuthContext,
   from: string,
@@ -139,7 +150,8 @@ export async function listCalendarItems(
       business. Done here rather than in the query: the range is a week or a
       month, and the rule is not an equality.
     */
-    if (filters.teamId && linked.length > 0 && !linked.includes(filters.teamId)) continue;
+    const wanted = filteredTeams(filters);
+    if (wanted && linked.length > 0 && !linked.some((id) => wanted.includes(id))) continue;
 
     const held = occupiedWindow(toOccupyingEvent(event));
 
@@ -257,7 +269,12 @@ async function fetchScheduleEntries(
     .lt("start_at", rangeEnd)
     .gt("end_at", rangeStart);
 
-  if (filters.teamId) query = query.eq("team_id", filters.teamId);
+  const wantedTeams = filteredTeams(filters);
+  if (wantedTeams) {
+    query = wantedTeams.length === 1
+      ? query.eq("team_id", wantedTeams[0])
+      : query.in("team_id", wantedTeams);
+  }
   if (filters.trainerId) query = query.eq("trainer_id", filters.trainerId);
   if (filters.gymId) query = query.eq("gym_id", filters.gymId);
   if (filters.type && filters.type !== "TRAINING") return [];
@@ -609,13 +626,48 @@ export async function getTeamTrainingWeek(
   teamId: string,
   weekOf?: string,
 ): Promise<TrainingWeek> {
+  return trainingWeekFor(context, [teamId], weekOf);
+}
+
+/**
+ * One athlete's week.
+ *
+ * The same grid as a team's, gathered from every squad they are currently in —
+ * which is the point: a boy who trains up an age group has two teams' sessions
+ * in his week, and seeing them apart is exactly how he ends up double-booked on
+ * a Thursday.
+ */
+export async function getAthleteTrainingWeek(
+  context: AuthContext,
+  athleteId: string,
+  weekOf?: string,
+): Promise<TrainingWeek> {
+  return trainingWeekFor(context, await squadsOf(context, athleteId), weekOf);
+}
+
+/** The teams an athlete is currently in. */
+async function squadsOf(context: AuthContext, athleteId: string): Promise<string[]> {
+  const { data } = await context.db
+    .from("athlete_teams")
+    .select("team_id")
+    .eq("tenant_id", context.tenant.id)
+    .eq("athlete_id", athleteId)
+    .is("left_at", null);
+  return (data ?? []).map((row) => row.team_id);
+}
+
+async function trainingWeekFor(
+  context: AuthContext,
+  teamIds: string[],
+  weekOf?: string,
+): Promise<TrainingWeek> {
   assertPermission(context, "calendar.read");
 
   const zone = context.tenant.timezone;
 
   // Which week, before which schedule: a coach stepping into next season's
   // first week should see next season's schedule, and the week decides that.
-  const anchor = weekOf ?? (await nextTrainingDate(context, teamId)) ?? todayInZone(zone);
+  const anchor = weekOf ?? (await nextTrainingDate(context, teamIds)) ?? todayInZone(zone);
   const weekStart = startOfWeek(anchor, context.tenant.weekStart);
   const weekEnd = addDays(weekStart, 6);
 
@@ -626,7 +678,7 @@ export async function getTeamTrainingWeek(
 
   // Training *and* whatever else lands on this team's week — its fixtures
   // above all, which is half of what a coach comes to this page to see.
-  const items = await listCalendarItems(context, weekStart, weekEnd, { teamId });
+  const items = await listCalendarItems(context, weekStart, weekEnd, { teamIds });
 
   const days = Array.from({ length: 7 }, (_, offset) => {
     const date = addDays(weekStart, offset);
@@ -691,6 +743,23 @@ export async function getTeamTrainingMonth(
   teamId: string,
   monthOf?: string,
 ): Promise<TrainingMonth> {
+  return trainingMonthFor(context, [teamId], monthOf);
+}
+
+/** One athlete's month, across every squad they are currently in. */
+export async function getAthleteTrainingMonth(
+  context: AuthContext,
+  athleteId: string,
+  monthOf?: string,
+): Promise<TrainingMonth> {
+  return trainingMonthFor(context, await squadsOf(context, athleteId), monthOf);
+}
+
+async function trainingMonthFor(
+  context: AuthContext,
+  teamIds: string[],
+  monthOf?: string,
+): Promise<TrainingMonth> {
   assertPermission(context, "calendar.read");
 
   const zone = context.tenant.timezone;
@@ -699,7 +768,7 @@ export async function getTeamTrainingMonth(
   // Same rule as the week view: land where the team actually trains rather
   // than on a month that happens to be empty, and then read the schedule that
   // covers that month rather than whichever one comes back first.
-  const anchor = monthOf ?? (await nextTrainingDate(context, teamId)) ?? todayInZone(zone);
+  const anchor = monthOf ?? (await nextTrainingDate(context, teamIds)) ?? todayInZone(zone);
   const monthStart = startOfMonth(anchor);
   const monthEnd = endOfMonth(anchor);
   const from = startOfWeek(monthStart, weekStart);
@@ -708,7 +777,7 @@ export async function getTeamTrainingMonth(
   const publishedId = await publishedVersionFor(context, from, to);
   const span = publishedId ? await scheduleSpan(context, publishedId) : { first: null, last: null };
 
-  const items = await listCalendarItems(context, from, to, { teamId });
+  const items = await listCalendarItems(context, from, to, { teamIds });
 
   const month = monthStart.slice(0, 7);
   const dates = eachDay(from, to);
@@ -782,8 +851,9 @@ function defaultAnchor(
 /** The date of the team's next session, so the week shown is never empty. */
 async function nextTrainingDate(
   context: AuthContext,
-  teamId: string,
+  teamIds: string[],
 ): Promise<string | null> {
+  if (teamIds.length === 0) return null;
   /*
     Every schedule that has not finished yet, not just one. In June a club may
     have this season published and next season's already public, and the team's
@@ -804,7 +874,7 @@ async function nextTrainingDate(
     .select("start_at")
     .eq("tenant_id", context.tenant.id)
     .in("schedule_version_id", versionIds)
-    .eq("team_id", teamId)
+    .in("team_id", teamIds)
     .gte("start_at", new Date().toISOString())
     .order("start_at")
     .limit(1)
