@@ -10,6 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccessDenied } from "@/components/data/access-denied";
 import { PageHeader } from "@/components/data/page-header";
 import { RelatedCard } from "@/components/data/related-card";
+import { ManageRelationDialog } from "@/components/data/manage-relation-dialog";
+import { AthleteFormDialog } from "../athlete-form-dialog";
+import { setAthleteTeamsAction } from "@/server/actions/relations";
+import { listTeamOptions } from "@/server/services/team-service";
 import {
   TrainingSchedule,
   type TrainingScheduleView,
@@ -88,6 +92,9 @@ export default async function AthleteDetailPage({
 
   const relations = await getAthleteRelations(context, id);
   const canReadTeams = hasPermission(context, "teams.read");
+  const canEditAthlete = hasPermission(context, "athletes.update");
+  // Every squad they could be put in, not only the ones they are in.
+  const teamPool = canEditAthlete && canReadTeams ? await listTeamOptions(context) : [];
   // Attendance is its own permission, and a page that can show an athlete does
   // not automatically get to show their season.
   const { view: viewParam, date: dateParam } = await searchParams;
@@ -141,6 +148,30 @@ export default async function AthleteDetailPage({
               {tMembership(athlete.membership_status)}
             </Badge>
             <StatusBadge status={athlete.status} />
+            {canEditAthlete ? (
+              <AthleteFormDialog
+                mode="edit"
+                teams={teamPool.map((team) => ({ value: team.id, label: team.name }))}
+                currentTeamIds={relations.teams.map((team) => team.id)}
+                athlete={{
+                  id: athlete.id,
+                  firstName: athlete.first_name,
+                  lastName: athlete.last_name,
+                  dateOfBirth: athlete.date_of_birth,
+                  gender: athlete.gender,
+                  email: athlete.email,
+                  phone: athlete.phone,
+                  addressLine1: athlete.address_line1,
+                  postalCode: athlete.postal_code,
+                  city: athlete.city,
+                  emergencyContactName: athlete.emergency_contact_name,
+                  emergencyContactPhone: athlete.emergency_contact_phone,
+                  emergencyContactRelation: athlete.emergency_contact_relation,
+                  membershipStatus: athlete.membership_status,
+                  notes: athlete.notes,
+                }}
+              />
+            ) : null}
           </>
         }
       />
@@ -248,6 +279,17 @@ export default async function AthleteDetailPage({
             color: team.color,
             meta: [team.sport, team.ageGroup].filter(Boolean).join(" · "),
           }))}
+          action={
+            teamPool.length > 0 ? (
+              <ManageRelationDialog
+                title={tRelated("teams")}
+                options={teamPool.map((team) => ({ value: team.id, label: team.name }))}
+                selected={relations.teams.map((team) => team.id)}
+                id={id}
+                save={setAthleteTeamsAction}
+              />
+            ) : null
+          }
         />
       ) : null}
 

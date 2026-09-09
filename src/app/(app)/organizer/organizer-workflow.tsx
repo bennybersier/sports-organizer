@@ -37,6 +37,7 @@ export function OrganizerWorkflow({
   teams,
   gyms,
   readiness,
+  canEditRequirements,
 }: {
   seasons: (MultiSelectOption & { isActive: boolean })[];
   selectedSeasonId: string;
@@ -48,6 +49,8 @@ export function OrganizerWorkflow({
     gyms: number;
     trainers: number;
   };
+  /** Whether a shortfall can be acted on, or only read. */
+  canEditRequirements: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -212,7 +215,13 @@ export function OrganizerWorkflow({
       </Card>
 
       {result ? (
-        <GenerationSummary result={result} skipped={skipped} teamNames={skippedTeams} />
+        <GenerationSummary
+          result={result}
+          skipped={skipped}
+          teamNames={skippedTeams}
+          seasonId={selectedSeasonId}
+          canEditRequirements={canEditRequirements}
+        />
       ) : null}
     </div>
   );

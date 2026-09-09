@@ -15,6 +15,7 @@ import { listTrainerOptions } from "@/server/services/trainer-service";
 import { listTrainingRequirements } from "@/server/services/training-requirement-service";
 
 import { OrganizerWorkflow } from "./organizer-workflow";
+import type { StoredSummary } from "./version-issues";
 import { VersionList } from "./version-list";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -89,6 +90,7 @@ export default async function OrganizerPage({
           isActive: season.status === "ACTIVE",
         }))}
         selectedSeasonId={seasonId}
+        canEditRequirements={hasPermission(context, "teams.update")}
         teams={teams.map((team) => ({ value: team.id, label: team.name }))}
         gyms={gyms.map((gym) => ({ value: gym.id, label: gym.name }))}
         readiness={{
@@ -105,16 +107,18 @@ export default async function OrganizerPage({
           number: version.version_number,
           name: version.name,
           status: version.status,
-          summary: version.result_summary as {
-            score?: number;
-            stats?: { sessionsScheduled?: number; sessionsRequested?: number };
-            unmet?: { teamName: string; scheduled: number; requested: number }[];
-          },
+          // The whole blob the engine wrote, not the three fields the row
+          // prints: the issues dialog reads the reasons and the skipped dates
+          // out of the same object.
+          summary: (version.result_summary ?? {}) as StoredSummary,
           createdAt: version.created_at,
         }))}
         canPublish={hasPermission(context, "schedule.publish")}
         canReview={hasPermission(context, "schedule.review")}
         timezone={context.tenant.timezone}
+        seasonId={seasonId}
+        teamNames={Object.fromEntries(teams.map((team) => [team.id, team.name]))}
+        canEditRequirements={hasPermission(context, "teams.update")}
       />
     </div>
   );

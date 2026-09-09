@@ -62,7 +62,10 @@
     "season": "Stagione",
     "team": "Squadra",
     "unsavedChanges": "Ci sono modifiche non salvate.",
-    "skipToContent": "Vai al contenuto"
+    "skipToContent": "Vai al contenuto",
+    "saved": "Salvato",
+    "selectAll": "Seleziona tutti ({count})",
+    "clear": "Azzera"
   },
   "nav": {
     "overview": "Panoramica",
@@ -259,7 +262,13 @@
     "competitions": "Competizioni",
     "noCompetitions": "Non ancora iscritta a nessuna competizione.",
     "noCompetitionsForTrainer": "Nessuna squadra di questo allenatore è iscritta a una competizione.",
-    "clubsIn": "{count} società"
+    "clubsIn": "{count} società",
+    "manageStaff": "Gestisci lo staff tecnico",
+    "makeHeadCoach": "Rendi capo",
+    "headCoachHint": "Spunta chi allena questa squadra, poi indica con la stella chi la guida. Gli altri sono assistenti.",
+    "noHeadCoach": "Nessun capo allenatore indicato — la squadra risulta senza guida.",
+    "assistantCoach": "Assistente",
+    "noHeadCoachYet": "Non ancora deciso"
   },
   "gender": {
     "MALE": "Maschile",
@@ -630,11 +639,11 @@
     "OUTSIDE_GYM_HOURS": "La palestra non è aperta per tutta la durata.",
     "OUTSIDE_TRAINER_HOURS": "L'allenatore non è disponibile per tutta la durata.",
     "OUTSIDE_TEAM_HOURS": "La squadra non è disponibile per tutta la durata.",
-    "GYM_DOUBLE_BOOKED": "La palestra è già occupata in quel momento{team, select, other { da {team}}}.",
+    "GYM_DOUBLE_BOOKED": "La palestra è già occupata in quel momento{team, select, __none__ {} other { da {team}}}.",
     "GYM_SHARED": "Palestra condivisa con {teams, plural, one {# squadra} other {# squadre}} per {minutes, plural, one {# minuto} other {# minuti}} durante il cambio.",
-    "GYM_OVERLAP_TOO_LONG": "Due squadre possono condividere questa palestra al massimo per {allowed, plural, one {# minuto} other {# minuti}}, ma qui sarebbero {minutes}{team, select, other { — c'è già {team}}}.",
+    "GYM_OVERLAP_TOO_LONG": "Due squadre possono condividere questa palestra al massimo per {allowed, plural, one {# minuto} other {# minuti}}, ma qui sarebbero {minutes}{team, select, __none__ {} other { — c'è già {team}}}.",
     "GYM_AT_CAPACITY": "Questa palestra ospita {allowed, plural, one {# squadra} other {# squadre}} alla volta, e così diventerebbero {teams}.",
-    "TRAINER_DOUBLE_BOOKED": "L'allenatore è già impegnato in quel momento{team, select, other { con {team}}}.",
+    "TRAINER_DOUBLE_BOOKED": "L'allenatore è già impegnato in quel momento{team, select, __none__ {} other { con {team}}}.",
     "TEAM_DOUBLE_BOOKED": "La squadra si sta già allenando in quel momento.",
     "OUTSIDE_ALLOWED_HOURS": "È fuori dagli orari in cui la squadra può allenarsi.",
     "WEEKDAY_NOT_ALLOWED": "La squadra non può allenarsi in questo giorno.",
@@ -653,7 +662,13 @@
     "SUGGEST_TRAINER_HOURS": "Rendi {trainer} disponibile {from}–{until} il {weekday}, mentre {gym} è aperta.",
     "SUGGEST_ASSIGN_TRAINER": "Assegna a questa squadra un allenatore libero {from}–{until} il {weekday}, mentre {gym} è aperta.",
     "SUGGEST_EXTEND_WINDOW": "Amplia {gym} il {weekday}: si sovrappone all'allenatore solo per {minutes} dei {needed} minuti necessari.",
-    "SUGGEST_MORE_CAPACITY": "Tutti gli spazi utilizzabili da questa squadra sono già occupati. Aggiungi orari di palestra, consenti più giorni oppure riduci gli allenamenti settimanali."
+    "SUGGEST_MORE_CAPACITY": "Tutti gli spazi utilizzabili da questa squadra sono già occupati. Aggiungi orari di palestra, consenti più giorni oppure riduci gli allenamenti settimanali.",
+    "SESSION_SPACING": "Tutti gli spazi ancora liberi sono in giorni in cui questa squadra si allena già. Richiede almeno {minDays, plural, one {# giorno} other {# giorni}} tra un allenamento e l'altro.",
+    "SUGGEST_SPACING": "Consenti più giorni alla squadra, oppure riduci i giorni richiesti tra un allenamento e l'altro.",
+    "SUGGEST_SLOT_LATER": "{weekday} alle {from} in {gym} è libero, se la squadra potesse allenarsi fino alle {until}.",
+    "SUGGEST_SLOT_EARLIER": "{weekday} alle {from} in {gym} è libero, se la squadra potesse iniziare da quell'ora.",
+    "SUGGEST_SLOT_GYM": "{weekday} alle {from} in {gym} è libero — aggiungi quella palestra alla squadra.",
+    "SUGGEST_SLOT_WEEKDAY": "{weekday} alle {from} in {gym} è libero — consenti {weekday} a questa squadra."
   },
   "organizer": {
     "title": "Organizzatore intelligente",
@@ -736,7 +751,16 @@
     "SKIP_GYM_CLOSED": "La palestra era chiusa quella settimana",
     "SKIP_TRAINER_AWAY": "L'allenatore era assente quella settimana",
     "SKIP_TEAM_AWAY": "La squadra era assente quella settimana",
-    "SKIP_REST_DAY": "Riposo attorno a {title}"
+    "SKIP_REST_DAY": "Riposo attorno a {title}",
+    "FIX_TRY_GYM": "{gym} era libera in {count, plural, one {# di queste sere} other {# di queste sere}}. Sposta lì l'allenamento dal calendario, o rendila la palestra preferita della squadra.",
+    "FIX_REST_DAYS": "Sono giorni di riposo attorno alle partite. Riduci i giorni di riposo nei requisiti di allenamento della squadra per recuperarli.",
+    "FIX_GYM_HOURS": "Nessun'altra palestra utilizzabile era libera. Estendi gli orari della palestra, oppure consenti la sovrapposizione del cambio.",
+    "FIX_TRAINER_HOURS": "L'allenatore non era disponibile in quelle settimane. Aggiungi i suoi orari, o assegna un secondo allenatore alla squadra.",
+    "adjust": "Modifica",
+    "fixTeam": "Modifica i requisiti di {team}",
+    "issues": "Problemi",
+    "issuesDescription": "Cosa questa generazione non è riuscita a collocare, e perché. Modificare una squadra qui vale per la generazione successiva.",
+    "noIssuesRecorded": "Questa generazione non ha registrato carenze."
   },
   "members": {
     "title": "Membri",

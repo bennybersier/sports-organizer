@@ -115,6 +115,27 @@ export async function listTeams(
   );
 }
 
+/** Who coaches a team, and which of them leads it. */
+export async function getTeamCoachingStaff(
+  context: AuthContext,
+  teamId: string,
+): Promise<{ trainerIds: string[]; headCoachId: string | null }> {
+  assertPermission(context, "teams.read");
+
+  const { data } = await context.db
+    .from("trainer_teams")
+    .select("trainer_id, is_head_coach")
+    .eq("tenant_id", context.tenant.id)
+    .eq("team_id", teamId)
+    .is("unassigned_at", null);
+
+  const staff = data ?? [];
+  return {
+    trainerIds: staff.map((row) => row.trainer_id),
+    headCoachId: staff.find((row) => row.is_head_coach)?.trainer_id ?? null,
+  };
+}
+
 export async function getTeam(context: AuthContext, id: string): Promise<TeamRow> {
   assertPermission(context, "teams.read");
 
@@ -179,7 +200,12 @@ export async function getTeamTrainerIds(context: AuthContext, teamId: string): P
  * so the history of who coached a team through a season stays intact — the
  * schedule depends on it.
  */
-async function syncTrainers(context: AuthContext, teamId: string, trainerIds: string[]) {
+async function syncTrainers(
+  context: AuthContext,
+  teamId: string,
+  trainerIds: string[],
+  headCoachId: string | null,
+) {
   const current = await getTeamTrainerIds(context, teamId);
   const desired = new Set(trainerIds);
 
@@ -205,7 +231,51 @@ async function syncTrainers(context: AuthContext, teamId: string, trainerIds: st
     });
   }
 
+  await setHeadCoach(context, teamId, headCoachId);
+
   return { added: added.length, removed: removed.length };
+}
+
+/**
+ * Names one of a team's coaches as its head, and demotes whoever held it.
+ *
+ * Demote first, always. `trainer_teams_one_head_coach` allows exactly one head
+ * per team, so promoting before clearing the incumbent is rejected by the
+ * database — and the two writes are in this order for that reason rather than
+ * for tidiness.
+ *
+ * A head coach is a property of the assignment, not of the person: the same
+ * coach heads the U13 and assists on the U15, which is how a club this size
+ * actually staffs itself.
+ */
+async function setHeadCoach(
+  context: AuthContext,
+  teamId: string,
+  headCoachId: string | null,
+): Promise<void> {
+  const demote = context.db
+    .from("trainer_teams")
+    .update({ is_head_coach: false })
+    .eq("tenant_id", context.tenant.id)
+    .eq("team_id", teamId)
+    .is("unassigned_at", null)
+    .eq("is_head_coach", true);
+
+  const { error: demoteError } = headCoachId
+    ? await demote.neq("trainer_id", headCoachId)
+    : await demote;
+  if (demoteError) throw fromDatabaseError(demoteError, { resource: "team" });
+
+  if (!headCoachId) return;
+
+  const { error } = await context.db
+    .from("trainer_teams")
+    .update({ is_head_coach: true })
+    .eq("tenant_id", context.tenant.id)
+    .eq("team_id", teamId)
+    .eq("trainer_id", headCoachId)
+    .is("unassigned_at", null);
+  if (error) throw fromDatabaseError(error, { resource: "team" });
 }
 
 function toRow(input: CreateTeamInput) {
@@ -234,7 +304,7 @@ export async function createTeam(context: AuthContext, input: CreateTeamInput): 
   if (error) throw fromDatabaseError(error, { resource: "team", conflictMessages: CONFLICTS });
 
   if (input.trainerIds.length > 0) {
-    await syncTrainers(context, data.id, input.trainerIds);
+    await syncTrainers(context, data.id, input.trainerIds, input.headCoachId);
   }
 
   await recordAudit(context, {
@@ -262,7 +332,7 @@ export async function updateTeam(context: AuthContext, input: UpdateTeamInput): 
 
   if (error) throw fromDatabaseError(error, { resource: "team", conflictMessages: CONFLICTS });
 
-  const assignments = await syncTrainers(context, input.id, input.trainerIds);
+  const assignments = await syncTrainers(context, input.id, input.trainerIds, input.headCoachId);
   const diff = diffFields(before as unknown as Record<string, unknown>, changes);
 
   if (diff || assignments.added || assignments.removed) {
@@ -317,4 +387,103 @@ export async function restoreTeam(context: AuthContext, id: string): Promise<Tea
 
   if (error) throw fromDatabaseError(error, { resource: "team" });
   return data;
+}
+
+/**
+ * Who coaches this team, set from the team's own page.
+ *
+ * The same bookkeeping the team form does, reachable without opening it: a
+ * detail page that shows two coaches and cannot change them sends somebody to a
+ * dialog three fields away from what they are looking at.
+ *
+ * Removal ends the assignment rather than deleting it. A coach who took the
+ * side until March took it until March, and a schedule published in that time
+ * still refers to them.
+ */
+export async function setTeamTrainers(
+  context: AuthContext,
+  teamId: string,
+  trainerIds: string[],
+  headCoachId: string | null,
+): Promise<{ added: number; removed: number }> {
+  assertPermission(context, "teams.update");
+
+  const team = await getTeam(context, teamId);
+  const result = await syncTrainers(context, teamId, trainerIds, headCoachId);
+
+  if (result.added || result.removed) {
+    await recordAudit(context, {
+      action: AUDIT_ACTIONS.TEAM_UPDATED,
+      resourceType: "team",
+      resourceId: teamId,
+      newValue: { team: team.name, trainers: trainerIds.length },
+    });
+  }
+
+  return result;
+}
+
+/**
+ * The squad, set from the team's own page.
+ *
+ * Mirrors `syncTeams` in the athlete service, from the other side. Both write
+ * the same join, and both end a membership rather than deleting it: an athlete
+ * who left in January was in the squad in December, and the register for that
+ * week has to keep making sense.
+ */
+export async function setTeamAthletes(
+  context: AuthContext,
+  teamId: string,
+  athleteIds: string[],
+): Promise<{ added: number; removed: number }> {
+  assertPermission(context, "teams.update");
+
+  const team = await getTeam(context, teamId);
+
+  const { data: currentRows, error } = await context.db
+    .from("athlete_teams")
+    .select("athlete_id")
+    .eq("tenant_id", context.tenant.id)
+    .eq("team_id", teamId)
+    .is("left_at", null);
+  if (error) throw fromDatabaseError(error, { resource: "team" });
+
+  const current = (currentRows ?? []).map((row) => row.athlete_id);
+  const desired = new Set(athleteIds);
+  const removed = current.filter((id) => !desired.has(id));
+  const added = athleteIds.filter((id) => !current.includes(id));
+
+  if (removed.length > 0) {
+    const { error: leaveError } = await context.db
+      .from("athlete_teams")
+      .update({ left_at: new Date().toISOString().slice(0, 10) })
+      .eq("tenant_id", context.tenant.id)
+      .eq("team_id", teamId)
+      .in("athlete_id", removed)
+      .is("left_at", null);
+    if (leaveError) throw fromDatabaseError(leaveError, { resource: "team" });
+  }
+
+  if (added.length > 0) {
+    const { error: joinError } = await context.db.from("athlete_teams").insert(
+      added.map((athleteId) => ({
+        tenant_id: context.tenant.id,
+        team_id: teamId,
+        athlete_id: athleteId,
+        created_by: context.user.id,
+      })),
+    );
+    if (joinError) throw fromDatabaseError(joinError, { resource: "team" });
+  }
+
+  if (added.length || removed.length) {
+    await recordAudit(context, {
+      action: AUDIT_ACTIONS.TEAM_UPDATED,
+      resourceType: "team",
+      resourceId: teamId,
+      newValue: { team: team.name, squad: athleteIds.length },
+    });
+  }
+
+  return { added: added.length, removed: removed.length };
 }

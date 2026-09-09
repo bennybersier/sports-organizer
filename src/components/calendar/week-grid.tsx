@@ -10,6 +10,8 @@ import { moveCalendarItemAction } from "@/server/actions/calendar";
 import type { CalendarItem } from "@/server/services/calendar-service";
 import type { EventDialogOptions } from "@/app/(app)/calendar/new-event-button";
 
+import { bucketByHour, rowDepths } from "@/domain/calendar-layout";
+
 import { AddEventButton } from "./add-event-button";
 
 export interface WeekGridProps {
@@ -25,15 +27,29 @@ export interface WeekGridProps {
   eventOptions?: EventDialogOptions;
 }
 
-const SLOT_MINUTES = 30;
-const SLOT_HEIGHT = 24; // px per 30 minutes
+/** A card carrying a team, its times and its hall on two lines. */
+const CARD_HEIGHT = 44;
+const CARD_GAP = 4;
+/** Breathing room so an empty hour is still a visible row. */
+const ROW_PADDING = 8;
 
 /**
  * The week view.
  *
  * A time grid rather than a list, because the question an organizer is asking
- * is "what is free on Tuesday evening" — which is a spatial question. Sessions
- * are positioned by their real start and duration, so gaps are visible as gaps.
+ * is "what is free on Tuesday evening" — which is a spatial question.
+ *
+ * Sessions are stacked inside the hour they start in, at the full width of the
+ * day, and the hour row grows to fit them. The usual approach — position by
+ * start and duration, share the width between whatever overlaps — assumes a
+ * handful at a time; this club runs seven concurrent sessions on an ordinary
+ * evening, where a shared column is twenty-five pixels of truncated team name.
+ * Height is cheap and scrolls; width is not.
+ *
+ * What that costs is duration-as-height: a two-hour session is the same size as
+ * a one-hour one, so every card states its own times. What it buys is that
+ * every session is legible, which is the only property that matters when the
+ * question is which evening is already full.
  *
  * Dragging moves a session to another day or time. The drop is validated server
  * side before it is saved, and a refusal explains itself rather than silently
@@ -61,11 +77,33 @@ export function WeekGrid({
   const [dragging, setDragging] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
 
-  const startMinutes = dayStartHour * 60;
-  const totalSlots = ((dayEndHour - dayStartHour) * 60) / SLOT_MINUTES;
   const hours = Array.from({ length: dayEndHour - dayStartHour }, (_, i) => dayStartHour + i);
 
-  function handleDrop(date: string, slotIndex: number) {
+  // One bucket map per day, and one depth per hour shared across the week, so
+  // the same hour lines up on every day.
+  const byDay = new Map(
+    days.map((day) => [
+      day.date,
+      bucketByHour(
+        items.filter((item) => item.date === day.date),
+        dayStartHour,
+        dayEndHour,
+      ),
+    ]),
+  );
+  const depths = rowDepths(
+    days.map((day) => ({
+      date: day.date,
+      items: items.filter((item) => item.date === day.date),
+    })),
+    dayStartHour,
+    dayEndHour,
+  );
+  const rowHeight = (hour: number) =>
+    (depths.get(hour) ?? 1) * (CARD_HEIGHT + CARD_GAP) + ROW_PADDING;
+
+  /** Dropping onto an hour row moves the session to the top of that hour. */
+  function handleDrop(date: string, hour: number) {
     const id = dragging;
     setDragging(null);
     setDropTarget(null);
@@ -75,7 +113,7 @@ export function WeekGrid({
     if (!item) return;
 
     const duration = item.endMinutes - item.startMinutes;
-    const newStart = startMinutes + slotIndex * SLOT_MINUTES;
+    const newStart = hour * 60;
 
     // Local dates and times, converted to instants by the server, which is the
     // only place that knows the club's timezone authoritatively.
@@ -97,7 +135,7 @@ export function WeekGrid({
   return (
     <div className="overflow-x-auto rounded-lg border">
       <div
-        className="grid min-w-3xl"
+        className="grid min-w-5xl"
         style={{ gridTemplateColumns: `4rem repeat(${days.length}, minmax(0, 1fr))` }}
       >
         {/* Header */}
@@ -122,24 +160,29 @@ export function WeekGrid({
           </div>
         ))}
 
-        {/* Hour rows */}
-        {hours.map((hour, hourIndex) => (
+        {/* Hour rows. Each is as deep as the week's busiest day for that hour. */}
+        {hours.map((hour) => (
           <div key={hour} className="contents">
-            <div className="sticky left-0 z-10 border-r bg-background p-1 text-right text-xs tabular-nums text-muted-foreground">
+            <div
+              className="sticky left-0 z-10 border-r border-b bg-background p-1 text-right text-xs tabular-nums text-muted-foreground"
+              style={{ height: rowHeight(hour) }}
+            >
               {String(hour).padStart(2, "0")}:00
             </div>
+
             {days.map((day) => {
-              const slotIndex = hourIndex * 2;
-              const key = `${day.date}-${slotIndex}`;
+              const key = `${day.date}-${hour}`;
+              const sessions = byDay.get(day.date)?.get(hour) ?? [];
+
               return (
                 <div
                   key={day.date}
                   className={cn(
-                    "relative border-r border-b last:border-r-0",
+                    "flex flex-col gap-1 border-r border-b p-1 last:border-r-0",
                     day.isToday && "bg-primary/[0.02]",
                     dropTarget === key && "bg-primary/10",
                   )}
-                  style={{ height: SLOT_HEIGHT * 2 }}
+                  style={{ height: rowHeight(hour) }}
                   onDragOver={(event) => {
                     if (!canEdit || !dragging) return;
                     event.preventDefault();
@@ -148,88 +191,65 @@ export function WeekGrid({
                   onDragLeave={() => setDropTarget((current) => (current === key ? null : current))}
                   onDrop={(event) => {
                     event.preventDefault();
-                    handleDrop(day.date, slotIndex);
+                    handleDrop(day.date, hour);
                   }}
                 >
-                  {/* Half-hour guide */}
-                  <div className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-border/50" />
-                </div>
-              );
-            })}
-          </div>
-        ))}
-      </div>
-
-      {/* Positioned events, overlaid on the grid */}
-      <div className="relative">
-        <div
-          className="pointer-events-none absolute inset-0 grid min-w-3xl"
-          style={{
-            gridTemplateColumns: `4rem repeat(${days.length}, minmax(0, 1fr))`,
-            // Sits above the grid it was measured against.
-            top: `-${totalSlots * SLOT_HEIGHT}px`,
-            height: `${totalSlots * SLOT_HEIGHT}px`,
-          }}
-        >
-          <div />
-          {days.map((day) => (
-            <div key={day.date} className="relative">
-              {items
-                .filter((item) => item.date === day.date)
-                .map((item) => {
-                  const top = ((item.startMinutes - startMinutes) / SLOT_MINUTES) * SLOT_HEIGHT;
-                  const height = Math.max(
-                    18,
-                    ((item.endMinutes - item.startMinutes) / SLOT_MINUTES) * SLOT_HEIGHT,
-                  );
-                  const cancelled = item.status === "CANCELLED";
-
-                  return (
-                    <button
-                      key={item.id}
-                      type="button"
-                      draggable={canEdit && item.editable && !cancelled}
-                      onDragStart={() => setDragging(item.id)}
-                      onDragEnd={() => {
-                        setDragging(null);
-                        setDropTarget(null);
-                      }}
-                      onClick={() => onSelect(item)}
-                      disabled={isPending}
-                      className={cn(
-                        "pointer-events-auto absolute inset-x-0.5 overflow-hidden rounded-md border-l-4 px-1.5 py-0.5 text-left text-xs shadow-sm transition-opacity",
-                        "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none",
-                        cancelled && "line-through opacity-50",
-                        dragging === item.id && "opacity-40",
-                        item.validationState === "CONFLICT"
-                          ? "bg-destructive/10 border-l-destructive"
-                          : item.validationState === "WARNING"
-                            ? "bg-amber-500/10 border-l-amber-500"
-                            : "bg-card",
-                      )}
-                      style={{
-                        top,
-                        height,
-                        borderLeftColor:
-                          item.validationState === "VALID" ? (item.color ?? undefined) : undefined,
-                      }}
-                    >
-                      <span className="block truncate font-medium">{item.title}</span>
-                      {height > 34 ? (
+                  {sessions.map((item) => {
+                    const cancelled = item.status === "CANCELLED";
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        draggable={canEdit && item.editable && !cancelled}
+                        onDragStart={() => setDragging(item.id)}
+                        onDragEnd={() => {
+                          setDragging(null);
+                          setDropTarget(null);
+                        }}
+                        onClick={() => onSelect(item)}
+                        disabled={isPending}
+                        className={cn(
+                          "w-full shrink-0 overflow-hidden rounded-md border-l-4 px-1.5 py-1 text-left text-xs shadow-sm transition-opacity",
+                          cancelled && "line-through opacity-50",
+                          dragging === item.id && "opacity-40",
+                          canEdit && item.editable && !cancelled && "cursor-grab",
+                          item.validationState === "CONFLICT"
+                            ? "bg-destructive/10 border-l-destructive"
+                            : item.validationState === "WARNING"
+                              ? "bg-amber-500/10 border-l-amber-500"
+                              : "bg-card",
+                        )}
+                        style={{
+                          height: CARD_HEIGHT,
+                          borderLeftColor:
+                            item.validationState === "VALID" ? (item.color ?? undefined) : undefined,
+                        }}
+                      >
+                        <span className="block truncate font-medium">{item.title}</span>
+                        {/*
+                          Height no longer says how long a session runs, so the
+                          card has to. Both ends, not just the start.
+                        */}
                         <span className="block truncate text-muted-foreground">
                           {format.dateTime(new Date(item.startAt), {
                             ...SHORT_TIME_FORMAT,
                             timeZone,
                           })}
+                          –
+                          {format.dateTime(new Date(item.endAt), {
+                            ...SHORT_TIME_FORMAT,
+                            timeZone,
+                          })}
                           {item.gymName ? ` · ${item.gymName}` : null}
                         </span>
-                      ) : null}
-                    </button>
-                  );
-                })}
-            </div>
-          ))}
-        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        ))}
       </div>
 
       {canEdit ? (

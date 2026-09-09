@@ -1,6 +1,6 @@
 import "server-only";
 
-import { NotFoundError, fromDatabaseError } from "@/lib/errors";
+import { NotFoundError, ValidationError, fromDatabaseError } from "@/lib/errors";
 import type { AuthContext } from "@/server/auth/context";
 import { assertPermission } from "@/server/auth/authorization";
 import { AUDIT_ACTIONS, diffFields, recordAudit } from "@/server/services/audit-service";
@@ -320,4 +320,38 @@ export async function restoreTrainer(context: AuthContext, id: string): Promise<
 
   if (error) throw fromDatabaseError(error, { resource: "trainer" });
   return data;
+}
+
+/**
+ * Which teams a coach takes, set from their own page.
+ *
+ * At least one, which is not bureaucracy: the scheduler can only offer a coach
+ * to a team they are assigned to, so a coach with no teams is invisible to it
+ * and quietly stops being schedulable. The trainer form says the same thing;
+ * this is the other door into the same rule.
+ */
+export async function setTrainerTeams(
+  context: AuthContext,
+  trainerId: string,
+  teamIds: string[],
+): Promise<{ added: number; removed: number }> {
+  assertPermission(context, "trainers.update");
+
+  if (teamIds.length === 0) {
+    throw new ValidationError("Assign this trainer to at least one team.");
+  }
+
+  const trainer = await getTrainer(context, trainerId);
+  const result = await syncTeams(context, trainerId, teamIds);
+
+  if (result.added || result.removed) {
+    await recordAudit(context, {
+      action: AUDIT_ACTIONS.TRAINER_UPDATED,
+      resourceType: "trainer",
+      resourceId: trainerId,
+      newValue: { trainer: `${trainer.first_name} ${trainer.last_name}`, teams: teamIds.length },
+    });
+  }
+
+  return result;
 }

@@ -62,7 +62,10 @@
     "season": "Season",
     "team": "Team",
     "unsavedChanges": "You have unsaved changes.",
-    "skipToContent": "Skip to content"
+    "skipToContent": "Skip to content",
+    "saved": "Saved",
+    "selectAll": "Select all {count}",
+    "clear": "Clear"
   },
   "nav": {
     "overview": "Overview",
@@ -259,7 +262,13 @@
     "competitions": "Competitions",
     "noCompetitions": "Not entered in any competition yet.",
     "noCompetitionsForTrainer": "None of this coach's squads are entered in a competition.",
-    "clubsIn": "{count} clubs"
+    "clubsIn": "{count} clubs",
+    "manageStaff": "Manage coaching staff",
+    "makeHeadCoach": "Make head",
+    "headCoachHint": "Tick who coaches this side, then star the one who leads it. Everyone else assists.",
+    "noHeadCoach": "No head coach named — this side is listed as between coaches.",
+    "assistantCoach": "Assistant",
+    "noHeadCoachYet": "Not decided yet"
   },
   "gender": {
     "MALE": "Male",
@@ -630,11 +639,11 @@
     "OUTSIDE_GYM_HOURS": "The gym isn't open for the whole session.",
     "OUTSIDE_TRAINER_HOURS": "The trainer isn't available for the whole session.",
     "OUTSIDE_TEAM_HOURS": "The team isn't available for the whole session.",
-    "GYM_DOUBLE_BOOKED": "The gym is already booked then{team, select, other { by {team}}}.",
+    "GYM_DOUBLE_BOOKED": "The gym is already booked then{team, select, __none__ {} other { by {team}}}.",
     "GYM_SHARED": "Sharing the hall with {teams, plural, one {# team} other {# teams}} for {minutes, plural, one {# minute} other {# minutes}} at the changeover.",
-    "GYM_OVERLAP_TOO_LONG": "Two teams may share this hall for {allowed, plural, one {# minute} other {# minutes}} at most, and this would be {minutes}{team, select, other { — {team} is already in}}.",
+    "GYM_OVERLAP_TOO_LONG": "Two teams may share this hall for {allowed, plural, one {# minute} other {# minutes}} at most, and this would be {minutes}{team, select, __none__ {} other { — {team} is already in}}.",
     "GYM_AT_CAPACITY": "This hall takes {allowed, plural, one {# team} other {# teams}} at once, and that would make {teams}.",
-    "TRAINER_DOUBLE_BOOKED": "The trainer is already booked then{team, select, other { with {team}}}.",
+    "TRAINER_DOUBLE_BOOKED": "The trainer is already booked then{team, select, __none__ {} other { with {team}}}.",
     "TEAM_DOUBLE_BOOKED": "The team is already training then.",
     "OUTSIDE_ALLOWED_HOURS": "This falls outside the hours the team is allowed to train.",
     "WEEKDAY_NOT_ALLOWED": "The team can't train on this day.",
@@ -653,7 +662,13 @@
     "SUGGEST_TRAINER_HOURS": "Make {trainer} available {from}–{until} on {weekday}, while {gym} is open.",
     "SUGGEST_ASSIGN_TRAINER": "Assign this team a coach who is free {from}–{until} on {weekday}, while {gym} is open.",
     "SUGGEST_EXTEND_WINDOW": "Widen {gym} on {weekday}: it overlaps the coach for only {minutes} of the {needed} minutes needed.",
-    "SUGGEST_MORE_CAPACITY": "Every slot this team could use is already taken. Add hall hours, allow more weekdays for it, or lower its weekly sessions."
+    "SUGGEST_MORE_CAPACITY": "Every slot this team could use is already taken. Add hall hours, allow more weekdays for it, or lower its weekly sessions.",
+    "SESSION_SPACING": "Every slot still free is on a day this team already trains. It asks for at least {minDays, plural, one {# day} other {# days}} between sessions.",
+    "SUGGEST_SPACING": "Allow this team more weekdays, or lower the days it needs between sessions.",
+    "SUGGEST_SLOT_LATER": "{weekday} at {from} in {gym} is free, if this team could train until {until}.",
+    "SUGGEST_SLOT_EARLIER": "{weekday} at {from} in {gym} is free, if this team could start from then.",
+    "SUGGEST_SLOT_GYM": "{weekday} at {from} in {gym} is free — add that hall to this team.",
+    "SUGGEST_SLOT_WEEKDAY": "{weekday} at {from} in {gym} is free — allow {weekday} for this team."
   },
   "organizer": {
     "title": "Smart Organizer",
@@ -736,7 +751,16 @@
     "SKIP_GYM_CLOSED": "The hall was closed that week",
     "SKIP_TRAINER_AWAY": "The coach was away that week",
     "SKIP_TEAM_AWAY": "The team was away that week",
-    "SKIP_REST_DAY": "Resting around {title}"
+    "SKIP_REST_DAY": "Resting around {title}",
+    "FIX_TRY_GYM": "{gym} was free on {count, plural, one {# of these evenings} other {# of these evenings}}. Move the session there from the calendar, or make it this team's preferred hall.",
+    "FIX_REST_DAYS": "These are rest days around fixtures. Lower this team's rest days on its training requirements to keep them.",
+    "FIX_GYM_HOURS": "No other hall this team may use was free. Extend the hall's opening hours, or let it take a changeover overlap.",
+    "FIX_TRAINER_HOURS": "The coach was unavailable those weeks. Add their hours, or assign a second coach to this team.",
+    "adjust": "Adjust",
+    "fixTeam": "Adjust requirements for {team}",
+    "issues": "Issues",
+    "issuesDescription": "What this run could not place, and why. Adjusting a team here changes it for the next run.",
+    "noIssuesRecorded": "This run recorded no shortfall."
   },
   "members": {
     "title": "Members",

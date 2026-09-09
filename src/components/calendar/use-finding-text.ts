@@ -33,6 +33,9 @@ const TIME_FIELDS = new Set([
   "until",
 ]);
 
+/** Matches the empty branch of the `select` in every message that names a team. */
+const NO_TEAM = "__none__";
+
 export function useFindingText() {
   const t = useTranslations("conflicts");
   const tWeekdays = useTranslations("weekdays");
@@ -40,7 +43,21 @@ export function useFindingText() {
   return (code: string, values?: Record<string, string | number>) => {
     const formatted: Record<string, string | number> = {};
 
+    /*
+      An ICU `select` with only an `other` branch always matches it, so a
+      message reading "{team, select, other { with {team}}}" printed "with ."
+      whenever the clashing team had no name — which is every shortfall the
+      optimizer reports, because it counts candidates rather than naming a
+      side. The catalogues now carry a `__none__` branch, and the absence of a
+      value is turned into that token here rather than at each call site.
+    */
+    if (!values?.team) formatted.team = NO_TEAM;
+
     for (const [key, value] of Object.entries(values ?? {})) {
+      if (key === "team" && (value === "" || value === undefined)) {
+        formatted.team = NO_TEAM;
+        continue;
+      }
       if (key === "weekday" && typeof value === "number") {
         formatted[key] = tWeekdays(
           WEEKDAY_KEYS[value] as Exclude<(typeof WEEKDAY_KEYS)[number], "">,

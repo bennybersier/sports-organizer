@@ -26,6 +26,10 @@ import { getTeamRelations } from "@/server/services/relations-service";
 import { getSeason, listSeasonOptions } from "@/server/services/season-service";
 import { getTeam, listTeamOptions } from "@/server/services/team-service";
 import { listTrainerOptions } from "@/server/services/trainer-service";
+import { listAthleteOptions } from "@/server/services/athlete-service";
+import { ManageRelationDialog } from "@/components/data/manage-relation-dialog";
+import { TeamFormDialog } from "../team-form-dialog";
+import { setTeamAthletesAction } from "@/server/actions/relations";
 import { getTrainingRequirement } from "@/server/services/training-requirement-service";
 
 import {
@@ -33,6 +37,7 @@ import {
   getTeamTrainingWeek,
 } from "@/server/services/calendar-service";
 
+import { CoachingStaffDialog } from "./coaching-staff-dialog";
 import { RequirementsCard } from "./requirements-form";
 
 
@@ -108,6 +113,7 @@ export default async function TeamDetailPage({
     seasons,
     trainers,
     teams,
+    athletePool,
   ] = await Promise.all([
       getSeason(context, team.season_id),
       getTrainingRequirement(context, id, team.season_id),
@@ -124,13 +130,16 @@ export default async function TeamDetailPage({
         : Promise.resolve(null),
       // Only for the training week's "+" — the event editor needs the same
       // pickers the calendar page gives it.
-      canCreateEvents && hasPermission(context, "seasons.read")
+      (canCreateEvents || canEditTeam) && hasPermission(context, "seasons.read")
         ? listSeasonOptions(context)
         : Promise.resolve([]),
-      canCreateEvents && hasPermission(context, "trainers.read")
+      (canCreateEvents || canEditTeam) && hasPermission(context, "trainers.read")
         ? listTrainerOptions(context)
         : Promise.resolve([]),
       canCreateEvents ? listTeamOptions(context) : Promise.resolve([]),
+      canEditTeam && hasPermission(context, "athletes.read")
+        ? listAthleteOptions(context)
+        : Promise.resolve([]),
     ]);
 
   /*
@@ -203,7 +212,35 @@ export default async function TeamDetailPage({
       <PageHeader
         title={team.name}
         description={`${team.sport} · ${season.name}`}
-        action={<StatusBadge status={team.status} />}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={team.status} />
+            {canEditTeam ? (
+              <TeamFormDialog
+                mode="edit"
+                seasons={seasons.map((entry) => ({ value: entry.id, label: entry.name }))}
+                trainers={trainers.map((trainer) => ({
+                  value: trainer.id,
+                  label: `${trainer.first_name} ${trainer.last_name}`,
+                }))}
+                gyms={gyms.map((gym) => ({ value: gym.id, label: gym.name }))}
+                initialTrainerIds={relations.trainers.map((trainer) => trainer.id)}
+                team={{
+                  id: team.id,
+                  seasonId: team.season_id,
+                  name: team.name,
+                  sport: team.sport,
+                  category: team.category,
+                  ageGroup: team.age_group,
+                  gender: team.gender,
+                  homeGymId: team.home_gym_id,
+                  color: team.color,
+                  notes: team.notes,
+                }}
+              />
+            ) : null}
+          </div>
+        }
       />
 
       <Card>
@@ -275,14 +312,32 @@ export default async function TeamDetailPage({
             meta: trainer.email,
             color: trainer.color,
             tags: [
-              ...(trainer.isHeadCoach
-                ? [{ label: tRelated("headCoach"), variant: "secondary" as const }]
-                : []),
+              // Everyone on the staff who is not the head is an assistant —
+              // saying so is the difference between a list of names and a
+              // structure a club recognises.
+              trainer.isHeadCoach
+                ? { label: tRelated("headCoach"), variant: "secondary" as const }
+                : { label: tRelated("assistantCoach"), variant: "outline" as const },
               ...(trainer.status !== "ACTIVE"
                 ? [{ label: tCommon(trainer.status), variant: "outline" as const }]
                 : []),
             ],
           }))}
+          action={
+            canEditTeam && trainers.length > 0 ? (
+              <CoachingStaffDialog
+                teamId={id}
+                trainers={trainers.map((trainer) => ({
+                  id: trainer.id,
+                  name: `${trainer.first_name} ${trainer.last_name}`,
+                }))}
+                selected={relations.trainers.map((trainer) => trainer.id)}
+                headCoachId={
+                  relations.trainers.find((trainer) => trainer.isHeadCoach)?.id ?? null
+                }
+              />
+            ) : null
+          }
         />
       ) : null}
 
@@ -310,6 +365,20 @@ export default async function TeamDetailPage({
                 : []),
             ],
           }))}
+          action={
+            canEditTeam && athletePool.length > 0 ? (
+              <ManageRelationDialog
+                title={tRelated("athletes")}
+                options={athletePool.map((athlete) => ({
+                  value: athlete.id,
+                  label: `${athlete.last_name} ${athlete.first_name}`,
+                }))}
+                selected={relations.athletes.map((athlete) => athlete.id)}
+                id={id}
+                save={setTeamAthletesAction}
+              />
+            ) : null
+          }
         />
       ) : null}
 

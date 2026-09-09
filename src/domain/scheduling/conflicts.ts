@@ -51,6 +51,8 @@ export type FindingCode =
   | "GYM_NOT_ALLOWED"
   | "NO_TRAINER_ASSIGNED"
   | "NOT_PREFERRED_WEEKDAY"
+  /* Free slots existed, but all of them sat too close to a session already placed. */
+  | "SESSION_SPACING"
   | "NOT_PREFERRED_TIME"
   | "NOT_PREFERRED_GYM"
   /* Why a team can never reach its weekly total, whatever the optimizer does. */
@@ -71,7 +73,13 @@ export type FindingCode =
   | "SUGGEST_TRAINER_HOURS"
   | "SUGGEST_ASSIGN_TRAINER"
   | "SUGGEST_EXTEND_WINDOW"
-  | "SUGGEST_MORE_CAPACITY";
+  | "SUGGEST_MORE_CAPACITY"
+  | "SUGGEST_SPACING"
+  /* A concrete slot that would work, and what it would cost to use it. */
+  | "SUGGEST_SLOT_LATER"
+  | "SUGGEST_SLOT_EARLIER"
+  | "SUGGEST_SLOT_GYM"
+  | "SUGGEST_SLOT_WEEKDAY";
 
 export interface Finding {
   code: FindingCode;

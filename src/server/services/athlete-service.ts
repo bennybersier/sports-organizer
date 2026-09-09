@@ -300,3 +300,48 @@ export async function restoreAthlete(context: AuthContext, id: string): Promise<
   if (error) throw fromDatabaseError(error, { resource: "athlete" });
   return data;
 }
+
+/** Active athletes, for a picker. */
+export async function listAthleteOptions(context: AuthContext) {
+  assertPermission(context, "athletes.read");
+
+  const { data, error } = await context.db
+    .from("athletes")
+    .select("id, first_name, last_name")
+    .eq("tenant_id", context.tenant.id)
+    .eq("status", "ACTIVE")
+    .is("deleted_at", null)
+    .order("last_name");
+
+  if (error) throw fromDatabaseError(error, { resource: "athlete" });
+  return data ?? [];
+}
+
+/**
+ * Which squads an athlete plays for, set from their own page.
+ *
+ * An athlete plays up an age group as often as not, so this is a list rather
+ * than a field, and it is the same join the team's roster writes — from the
+ * other side, and under the athlete's permission rather than the team's.
+ */
+export async function setAthleteTeams(
+  context: AuthContext,
+  athleteId: string,
+  teamIds: string[],
+): Promise<{ added: number; removed: number }> {
+  assertPermission(context, "athletes.update");
+
+  const athlete = await getAthlete(context, athleteId);
+  const result = await syncTeams(context, athleteId, teamIds);
+
+  if (result.added || result.removed) {
+    await recordAudit(context, {
+      action: AUDIT_ACTIONS.ATHLETE_UPDATED,
+      resourceType: "athlete",
+      resourceId: athleteId,
+      newValue: { athlete: `${athlete.first_name} ${athlete.last_name}`, teams: teamIds.length },
+    });
+  }
+
+  return result;
+}

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { ChevronLeft, ChevronRight, MapPin, UserCog } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -13,7 +13,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
-import { TIME_FORMAT } from "@/lib/time-format";
+import { toWallClock } from "@/domain/scheduling/timezone";
+import { WeekGrid } from "@/components/calendar/week-grid";
 import type { TrainingWeek } from "@/server/services/calendar-service";
 import { previewVersionWeekAction } from "@/server/actions/organizer";
 
@@ -67,8 +68,32 @@ export function VersionPreview({
       day: "numeric",
       timeZone: "UTC",
     });
-  const time = (value: string) =>
-    format.dateTime(new Date(value), { ...TIME_FORMAT, timeZone: timezone });
+  /*
+    Positioned on the club's wall clock, exactly as the calendar does it — a
+    22:00 session in Rome is already tomorrow in UTC, and would otherwise land
+    on the wrong column.
+  */
+  const positioned = week.days.flatMap((entry) =>
+    entry.items.map((item) => {
+      const start = toWallClock(item.startAt, timezone);
+      const end = toWallClock(item.endAt, timezone);
+      return {
+        ...item,
+        date: start.date,
+        startMinutes: start.minutes,
+        endMinutes: end.date === start.date ? end.minutes : 1440,
+      };
+    }),
+  );
+
+  // The grid spans the hours the club actually uses, with a little air, rather
+  // than a fixed 00:00-24:00 that is mostly empty.
+  const usedStart = Math.min(...positioned.map((item) => item.startMinutes), 16 * 60);
+  const usedEnd = Math.max(...positioned.map((item) => item.endMinutes), 22 * 60);
+  const dayStartHour = Math.max(0, Math.floor(usedStart / 60) - 1);
+  const dayEndHour = Math.min(24, Math.ceil(usedEnd / 60) + 1);
+
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <Dialog open onOpenChange={onOpenChange}>
@@ -78,7 +103,7 @@ export function VersionPreview({
         the two things you check before publishing — truncate to nothing.
         Capped so it stays a dialog rather than becoming a second page.
       */}
-      <DialogContent className="sm:max-w-[min(96rem,calc(100vw-3rem))]">
+      <DialogContent className="flex h-[90dvh] max-h-[90dvh] flex-col sm:max-w-[min(96rem,calc(100vw-3rem))]">
         <DialogHeader>
           <DialogTitle>{versionLabel}</DialogTitle>
           <DialogDescription>{t("previewDescription")}</DialogDescription>
@@ -121,85 +146,33 @@ export function VersionPreview({
         ) : null}
 
         <div
-            className={cn(
-              "grid gap-2 sm:grid-cols-7",
-              // Dimmed rather than blanked while the next week loads, so the
-              // dialog does not jump about as you step through weeks.
-              isPending && "opacity-60",
-            )}
-          >
-            {week.days.map((entry) => (
-              <div
-                key={entry.date}
-                className={cn(
-                  "flex min-h-40 flex-col gap-1.5 rounded-lg border p-2",
-                  entry.items.length === 0 && "bg-muted/30",
-                  // A day the schedule does not cover yet is not an empty day.
-                  week.coverageStart !== null &&
-                    entry.date < week.coverageStart &&
-                    "border-dashed opacity-50",
-                )}
-                title={
-                  week.coverageStart !== null && entry.date < week.coverageStart
-                    ? tCalendar("beforeStart")
-                    : undefined
-                }
-              >
-                <p className="text-xs font-medium text-muted-foreground">{day(entry.date)}</p>
-
-                {entry.items.map((item) => (
-                  <div
-                    key={item.id}
-                    className={cn(
-                      "rounded-md border-l-2 bg-card px-2 py-1 text-xs",
-                      item.status === "CANCELLED" && "line-through opacity-60",
-                    )}
-                    style={{ borderLeftColor: item.color ?? undefined }}
-                  >
-                    <p className="font-medium">{item.teamName}</p>
-                    {/* One line: a wrapped time range reads as two events. */}
-                    <p className="whitespace-nowrap tabular-nums">
-                      {time(item.startAt)}–{time(item.endAt)}
-                    </p>
-                    {item.gymName ? (
-                      <p className="flex items-center gap-1 text-muted-foreground">
-                        <MapPin className="size-3 shrink-0" aria-hidden />
-                        <span className="truncate">{item.gymName}</span>
-                      </p>
-                    ) : null}
-                    {item.trainerName ? (
-                      <p className="flex items-center gap-1 text-muted-foreground">
-                        <UserCog className="size-3 shrink-0" aria-hidden />
-                        <span className="truncate">{item.trainerName}</span>
-                      </p>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-            ))}
+          className={cn(
+            // Dimmed rather than blanked while the next week loads, so the
+            // dialog does not jump about as you step through weeks.
+            "min-h-0 flex-1 overflow-auto",
+            isPending && "opacity-60",
+          )}
+        >
+          <WeekGrid
+            days={week.days.map((entry) => ({
+              date: entry.date,
+              label: day(entry.date),
+              isToday: entry.date === today,
+            }))}
+            items={positioned}
+            dayStartHour={dayStartHour}
+            dayEndHour={dayEndHour}
+            timeZone={timezone}
+            /*
+              Read-only on purpose. Dragging edits the published schedule, and
+              this is a draft nobody has agreed to yet — the way to change it is
+              to adjust the requirements and generate again.
+            */
+            canEdit={false}
+            onSelect={() => {}}
+          />
         </div>
 
-        {/*
-          The first week of a schedule generated mid-week is genuinely partial.
-          Saying so beats leaving an organizer to conclude the optimizer
-          skipped Monday.
-        */}
-        {week.coverageStart !== null && week.weekStart < week.coverageStart ? (
-          <p className="text-xs text-muted-foreground">
-            {tCalendar("scheduleStartsOn", {
-              date: format.dateTime(new Date(`${week.coverageStart}T12:00:00Z`), {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-                timeZone: "UTC",
-              }),
-            })}
-          </p>
-        ) : null}
-
-        {week.scheduledCount === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("previewEmptyWeek")}</p>
-        ) : null}
       </DialogContent>
     </Dialog>
   );

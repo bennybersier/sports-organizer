@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
-import { AlertCircle, Loader2, Plus } from "lucide-react";
+import { AlertCircle, Loader2, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -39,6 +39,12 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { MultiSelect, type MultiSelectOption } from "@/components/data/multi-select";
+
+/**
+ * Radix refuses an empty string as a Select value — it reserves it for "no
+ * selection" — so "nobody leads this side yet" needs a token of its own.
+ */
+const NO_HEAD_COACH = "__none__";
 import { useFormDialog } from "@/hooks/use-form-dialog";
 import { createTeamAction, updateTeamAction } from "@/server/actions/teams";
 
@@ -79,6 +85,7 @@ export function TeamFormDialog({
   gyms,
   defaultSeasonId,
   initialTrainerIds,
+  initialHeadCoachId,
   open: controlledOpen,
   onOpenChange,
 }: {
@@ -89,17 +96,22 @@ export function TeamFormDialog({
   gyms: MultiSelectOption[];
   defaultSeasonId?: string;
   initialTrainerIds?: string[];
+  initialHeadCoachId?: string | null;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
   const router = useRouter();
   const t = useTranslations("teams");
   const tCommon = useTranslations("common");
+  const tRelated = useTranslations("related");
   const tGender = useTranslations("gender");
   const [formError, setFormError] = useState<string | null>(null);
   // The row menu fetches current assignments before mounting this dialog, so
   // the initial state is already correct — no effect needed to sync it.
   const [trainerIds, setTrainerIds] = useState<string[]>(initialTrainerIds ?? []);
+  // Carried through the form even though it is edited more often on the team's
+  // own page: submitting without it would demote whoever is leading the side.
+  const [headCoachId, setHeadCoachId] = useState<string>(initialHeadCoachId ?? "");
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -141,7 +153,13 @@ export function TeamFormDialog({
 
   async function onSubmit(values: Values) {
     setFormError(null);
-    const payload = { ...(mode === "edit" ? { id: team?.id } : {}), ...values, trainerIds };
+    const payload = {
+      ...(mode === "edit" ? { id: team?.id } : {}),
+      ...values,
+      trainerIds,
+      // A head coach who is no longer on the staff is not a head coach.
+      headCoachId: trainerIds.includes(headCoachId) ? headCoachId : "",
+    };
     const result =
       mode === "create" ? await createTeamAction(payload) : await updateTeamAction(payload);
 
@@ -161,11 +179,17 @@ export function TeamFormDialog({
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      {mode === "create" && controlledOpen === undefined ? (
+      {/*
+        The same dialog opens from a list row and from the record's own page,
+        so it carries its own button rather than each caller inventing one.
+        A controlled caller — a dropdown that has already been clicked — passes
+        `open` and gets no trigger at all.
+      */}
+      {controlledOpen === undefined ? (
         <DialogTrigger asChild>
-          <Button>
-            <Plus aria-hidden />
-            {t("new")}
+          <Button size="sm" variant={mode === "create" ? "default" : "outline"}>
+            {mode === "create" ? <Plus aria-hidden /> : <Pencil aria-hidden />}
+            {mode === "create" ? t("new") : tCommon("edit")}
           </Button>
         </DialogTrigger>
       ) : null}
@@ -324,16 +348,48 @@ export function TeamFormDialog({
             </div>
 
             {trainers.length > 0 ? (
-              <FormItem>
-                <FormLabel>{t("trainers")}</FormLabel>
-                <MultiSelect
-                  options={trainers}
-                  value={trainerIds}
-                  onChange={setTrainerIds}
-                  placeholder={t("trainers")}
-                  emptyText={tCommon("none")}
-                />
-              </FormItem>
+              <>
+                <FormItem>
+                  <FormLabel>{t("trainers")}</FormLabel>
+                  <MultiSelect
+                    options={trainers}
+                    value={trainerIds}
+                    onChange={(next) => {
+                      setTrainerIds(next);
+                      if (!next.includes(headCoachId)) setHeadCoachId("");
+                    }}
+                    placeholder={t("trainers")}
+                    emptyText={tCommon("none")}
+                  />
+                </FormItem>
+
+                {/* Only offered once there is somebody to choose from. */}
+                {trainerIds.length > 0 ? (
+                  <FormItem>
+                    <FormLabel>{tRelated("headCoach")}</FormLabel>
+                    <Select
+                      value={headCoachId || NO_HEAD_COACH}
+                      onValueChange={(value) =>
+                        setHeadCoachId(value === NO_HEAD_COACH ? "" : value)
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value={NO_HEAD_COACH}>{tRelated("noHeadCoachYet")}</SelectItem>
+                        {trainers
+                          .filter((trainer) => trainerIds.includes(trainer.value))
+                          .map((trainer) => (
+                            <SelectItem key={trainer.value} value={trainer.value}>
+                              {trainer.label}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </FormItem>
+                ) : null}
+              </>
             ) : null}
 
             <FormField

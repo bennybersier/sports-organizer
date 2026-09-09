@@ -19,6 +19,10 @@ import { requireAuthContext } from "@/server/auth/context";
 import { listAvailability, listExceptions } from "@/server/services/availability-service";
 import { listCompetitionsForTeams } from "@/server/services/competition-service";
 import { getTrainerRelations } from "@/server/services/relations-service";
+import { ManageRelationDialog } from "@/components/data/manage-relation-dialog";
+import { TrainerFormDialog } from "../trainer-form-dialog";
+import { setTrainerTeamsAction } from "@/server/actions/relations";
+import { listTeamOptions } from "@/server/services/team-service";
 import { getAvailabilityAnchorDate } from "@/server/services/season-service";
 import { getTrainer } from "@/server/services/trainer-service";
 
@@ -69,6 +73,8 @@ export default async function TrainerDetailPage({
   const canReadAvailability = hasPermission(context, "availability.read");
 
   const canReadTeams = hasPermission(context, "teams.read");
+  const canEditTrainer = hasPermission(context, "trainers.update");
+  const teamPool = canEditTrainer && canReadTeams ? await listTeamOptions(context) : [];
   const canReadAthletes = hasPermission(context, "athletes.read");
   const canReadGyms = hasPermission(context, "gyms.read");
 
@@ -100,7 +106,28 @@ export default async function TrainerDetailPage({
       <PageHeader
         title={`${trainer.first_name} ${trainer.last_name}`}
         description={trainer.email ?? undefined}
-        action={<StatusBadge status={trainer.status} />}
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={trainer.status} />
+            {canEditTrainer ? (
+              <TrainerFormDialog
+                mode="edit"
+                teams={teamPool.map((entry) => ({ value: entry.id, label: entry.name }))}
+                initialTeamIds={relations.teams.map((entry) => entry.id)}
+                trainer={{
+                  id: trainer.id,
+                  firstName: trainer.first_name,
+                  lastName: trainer.last_name,
+                  email: trainer.email,
+                  phone: trainer.phone,
+                  qualifications: trainer.qualifications,
+                  color: trainer.color,
+                  notes: trainer.notes,
+                }}
+              />
+            ) : null}
+          </div>
+        }
       />
 
       <Card>
@@ -175,6 +202,17 @@ export default async function TrainerDetailPage({
               ? [{ label: tRelated("sessions", { count: team.sessions }), variant: "outline" as const }]
               : [],
           }))}
+          action={
+            teamPool.length > 0 ? (
+              <ManageRelationDialog
+                title={tRelated("teams")}
+                options={teamPool.map((team) => ({ value: team.id, label: team.name }))}
+                selected={relations.teams.map((team) => team.id)}
+                id={id}
+                save={setTrainerTeamsAction}
+              />
+            ) : null
+          }
         />
       ) : null}
 
