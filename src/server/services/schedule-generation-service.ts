@@ -443,6 +443,7 @@ export async function generateAndStore(
     rawAvailability,
     teamStartDates,
     teamRestDays,
+    gyms: input.gyms,
   });
 
   const { data: version, error: versionError } = await context.db
@@ -552,6 +553,7 @@ async function planOccurrences(
     rawAvailability: RawAvailability;
     teamStartDates: Map<string, string | null>;
     teamRestDays: Map<string, number>;
+    gyms: ScheduleInput["gyms"];
   },
 ): Promise<{
   rows: Omit<
@@ -574,6 +576,10 @@ async function planOccurrences(
     side by side deliberately and must not be merged: one answers "is the room
     busy", the other "is this team playing".
   */
+  /* Where every session ended up, so "was another hall free?" is answerable. */
+  const placed = new Map<string, { start: number; end: number }[]>();
+  const slot = (date: string, gymId: string) => `${date}|${gymId}`;
+
   const byDate = new Map<string, BlockingEvent[]>();
   const fixturesByTeam = new Map<string, Map<string, string>>();
 
@@ -714,6 +720,11 @@ async function planOccurrences(
         continue;
       }
 
+      placed.set(slot(date, assignment.gymId), [
+        ...(placed.get(slot(date, assignment.gymId)) ?? []),
+        assignment.window,
+      ]);
+
       rows.push({
         series_id: seriesId,
         team_id: assignment.teamId,
@@ -731,6 +742,72 @@ async function planOccurrences(
           : "VALID") as ValidationState,
       });
     }
+  }
+
+  /*
+    Remedies, once every session has landed. Deliberately a second pass: asking
+    "was another hall free that evening" while the plan is half-built would
+    answer against a room that a later team goes on to take.
+  */
+  const gymNames = new Map(args.gyms.map((gym) => [gym.id, gym.name]));
+  const teamsById = new Map(args.teams.map((team) => [team.id, team]));
+
+  for (const entry of skipped) {
+    if (entry.code === "SKIP_MATCH" || entry.code === "SKIP_TEAM_AWAY") continue;
+
+    if (entry.code === "SKIP_REST_DAY") {
+      entry.fix = { code: "FIX_REST_DAYS" };
+      continue;
+    }
+    if (entry.code === "SKIP_TRAINER_AWAY") {
+      entry.fix = { code: "FIX_TRAINER_HOURS" };
+      continue;
+    }
+
+    // A hall problem. The useful answer is whether one of this team's other
+    // halls could have taken it, named — not "try another hall".
+    const team = teamsById.get(entry.teamId);
+    const own = args.assignments.find(
+      (a) => a.teamId === entry.teamId && isoWeekdayOfDate(entry.date) === a.isoWeekday,
+    );
+
+    /*
+      Even with nowhere to point at, a hall problem has a remedy — longer
+      opening hours, or letting the room take a changeover. Falling through to
+      no advice at all was the common case rather than the rare one, because
+      most evenings the other halls are busy too.
+    */
+    if (!team || !own) {
+      entry.fix = { code: "FIX_GYM_HOURS" };
+      continue;
+    }
+
+    const candidates = args.gyms.filter(
+      (gym) =>
+        gym.id !== own.gymId &&
+        (team.allowedGymIds.length === 0 || team.allowedGymIds.includes(gym.id)),
+    );
+
+    const free = candidates.find((gym) => {
+      if (!covers(`gym:${gym.id}`, entry.date, own.window)) return false;
+
+      const startAt = toInstant(entry.date, own.window.start, zone).toISOString();
+      const endAt = toInstant(entry.date, own.window.end, zone).toISOString();
+      const held = (byDate.get(entry.date) ?? []).some(
+        (event) =>
+          event.gymId === gym.id &&
+          overlaps({ start: startAt, end: endAt }, { start: event.occupiedStartAt, end: event.occupiedEndAt }),
+      );
+      if (held) return false;
+
+      return !(placed.get(slot(entry.date, gym.id)) ?? []).some(
+        (window) => window.start < own.window.end && own.window.start < window.end,
+      );
+    });
+
+    entry.fix = free
+      ? { code: "FIX_TRY_GYM", gym: gymNames.get(free.id) ?? free.id }
+      : { code: "FIX_GYM_HOURS" };
   }
 
   return { rows, seriesCount: args.assignments.length, skipped };
@@ -755,6 +832,18 @@ export interface SkippedOccurrence {
     | "SKIP_TRAINER_AWAY"
     | "SKIP_TEAM_AWAY";
   values?: { title: string };
+  /**
+   * What would get this session back, when anything would.
+   *
+   * A reason on its own leaves an organizer to work out the remedy, and the
+   * remedy is usually the whole point: a hall taken by somebody else's match is
+   * only a problem if no other hall the team may use was free that evening, and
+   * the schedule knows whether one was.
+   *
+   * Absent when nothing can be done — a team playing a match is not a problem
+   * to solve, and offering a fix for it would be noise.
+   */
+  fix?: { code: "FIX_TRY_GYM" | "FIX_REST_DAYS" | "FIX_GYM_HOURS" | "FIX_TRAINER_HOURS"; gym?: string };
 }
 
 /** Everything already occupying time across the whole schedule window. */

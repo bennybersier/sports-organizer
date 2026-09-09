@@ -262,7 +262,12 @@
     "competitions": "Competitions",
     "noCompetitions": "Not entered in any competition yet.",
     "noCompetitionsForTrainer": "None of this coach's squads are entered in a competition.",
-    "clubsIn": "{count} clubs"
+    "clubsIn": "{count} clubs",
+    "manageStaff": "Manage coaching staff",
+    "makeHeadCoach": "Make head",
+    "headCoachHint": "Tick who coaches this side, then star the one who leads it. Everyone else assists.",
+    "noHeadCoach": "No head coach named — this side is listed as between coaches.",
+    "assistantCoach": "Assistant"
   },
   "gender": {
     "MALE": "Male",
@@ -739,7 +744,11 @@
     "SKIP_GYM_CLOSED": "The hall was closed that week",
     "SKIP_TRAINER_AWAY": "The coach was away that week",
     "SKIP_TEAM_AWAY": "The team was away that week",
-    "SKIP_REST_DAY": "Resting around {title}"
+    "SKIP_REST_DAY": "Resting around {title}",
+    "FIX_TRY_GYM": "{gym} was free on {count, plural, one {# of these evenings} other {# of these evenings}}. Move the session there from the calendar, or make it this team's preferred hall.",
+    "FIX_REST_DAYS": "These are rest days around fixtures. Lower this team's rest days on its training requirements to keep them.",
+    "FIX_GYM_HOURS": "No other hall this team may use was free. Extend the hall's opening hours, or let it take a changeover overlap.",
+    "FIX_TRAINER_HOURS": "The coach was unavailable those weeks. Add their hours, or assign a second coach to this team."
   },
   "members": {
     "title": "Members",

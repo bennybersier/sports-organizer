@@ -262,7 +262,12 @@
     "competitions": "Competizioni",
     "noCompetitions": "Non ancora iscritta a nessuna competizione.",
     "noCompetitionsForTrainer": "Nessuna squadra di questo allenatore è iscritta a una competizione.",
-    "clubsIn": "{count} società"
+    "clubsIn": "{count} società",
+    "manageStaff": "Gestisci lo staff tecnico",
+    "makeHeadCoach": "Rendi capo",
+    "headCoachHint": "Spunta chi allena questa squadra, poi indica con la stella chi la guida. Gli altri sono assistenti.",
+    "noHeadCoach": "Nessun capo allenatore indicato — la squadra risulta senza guida.",
+    "assistantCoach": "Assistente"
   },
   "gender": {
     "MALE": "Maschile",
@@ -739,7 +744,11 @@
     "SKIP_GYM_CLOSED": "La palestra era chiusa quella settimana",
     "SKIP_TRAINER_AWAY": "L'allenatore era assente quella settimana",
     "SKIP_TEAM_AWAY": "La squadra era assente quella settimana",
-    "SKIP_REST_DAY": "Riposo attorno a {title}"
+    "SKIP_REST_DAY": "Riposo attorno a {title}",
+    "FIX_TRY_GYM": "{gym} era libera in {count, plural, one {# di queste sere} other {# di queste sere}}. Sposta lì l'allenamento dal calendario, o rendila la palestra preferita della squadra.",
+    "FIX_REST_DAYS": "Sono giorni di riposo attorno alle partite. Riduci i giorni di riposo nei requisiti di allenamento della squadra per recuperarli.",
+    "FIX_GYM_HOURS": "Nessun'altra palestra utilizzabile era libera. Estendi gli orari della palestra, oppure consenti la sovrapposizione del cambio.",
+    "FIX_TRAINER_HOURS": "L'allenatore non era disponibile in quelle settimane. Aggiungi i suoi orari, o assegna un secondo allenatore alla squadra."
   },
   "members": {
     "title": "Membri",

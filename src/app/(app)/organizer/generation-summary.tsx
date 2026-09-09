@@ -44,11 +44,33 @@ export function GenerationSummary({
     one side losing forty — and the club needs to know which side to look at.
   */
   const skippedByTeam = [...Map.groupBy(skipped, (entry) => entry.teamId)]
-    .map(([teamId, entries]) => ({
-      teamId,
-      name: teamNames[teamId] ?? teamId,
-      entries: [...entries].sort((a, b) => a.date.localeCompare(b.date)),
-    }))
+    .map(([teamId, entries]) => {
+      /*
+        One remedy per team, not one per date. Twenty-three identical lines
+        saying "lower the rest days" is the same sentence twenty-three times,
+        and the thing an organizer has to do is still one thing.
+      */
+      const fixes = entries.map((entry) => entry.fix).filter((fix) => fix !== undefined);
+      const commonest = [...Map.groupBy(fixes, (fix) => fix.code)].sort(
+        (a, b) => b[1].length - a[1].length,
+      )[0];
+
+      return {
+        teamId,
+        name: teamNames[teamId] ?? teamId,
+        entries: [...entries].sort((a, b) => a.date.localeCompare(b.date)),
+        fix: commonest
+          ? {
+              code: commonest[0],
+              // Whichever hall came up most often, so the sentence names a real
+              // one rather than "another hall".
+              gym: [...Map.groupBy(commonest[1].map((f) => f.gym ?? ""), (g) => g)]
+                .sort((a, b) => b[1].length - a[1].length)[0]?.[0],
+              count: commonest[1].length,
+            }
+          : null,
+      };
+    })
     .sort((a, b) => b.entries.length - a.entries.length);
 
   const completion =
@@ -118,6 +140,12 @@ export function GenerationSummary({
                     {team.name}
                     <Badge variant="secondary">{team.entries.length}</Badge>
                   </p>
+                  {team.fix ? (
+                    <p className="flex items-start gap-1.5 rounded-md bg-muted/50 p-2 text-xs">
+                      <Lightbulb className="mt-px size-3.5 shrink-0" aria-hidden />
+                      {t(team.fix.code, { gym: team.fix.gym ?? "", count: team.fix.count })}
+                    </p>
+                  ) : null}
                   <ul className="space-y-0.5 pl-1">
                     {team.entries.map((entry) => (
                       <li key={`${entry.date}-${entry.code}`} className="text-sm text-muted-foreground">
