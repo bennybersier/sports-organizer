@@ -108,6 +108,7 @@ export default async function CompetitionDetailPage({
         canEdit={canEdit}
         canGenerate={canGenerate}
         format={competition.format}
+        competitionName={competition.name}
         fixtures={fixtures.map((fixture) => {
           // Split on the club's clock, not the server's, so a late kick-off
           // does not show tomorrow's date.

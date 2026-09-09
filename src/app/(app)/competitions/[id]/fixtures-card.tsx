@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { CalendarPlus, Loader2, Swords } from "lucide-react";
+import { CalendarPlus, Download, Loader2, Printer, Swords } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAction } from "@/hooks/use-action";
+import { downloadCsv, slugForFile, toCsv, type CsvColumn } from "@/lib/csv";
 import { generateFixturesAction, scheduleFixtureAction } from "@/server/actions/competitions";
 
 export interface FixtureRowView {
@@ -53,19 +54,47 @@ export function FixturesCard({
   canGenerate,
   canEdit,
   format,
+  competitionName,
 }: {
   competitionId: string;
   fixtures: FixtureRowView[];
   canGenerate: boolean;
   canEdit: boolean;
   format: string;
+  competitionName: string;
 }) {
   const t = useTranslations("competitions");
   const tCommon = useTranslations("common");
   const { run, isPending } = useAction();
   const [editing, setEditing] = useState<FixtureRowView | null>(null);
+  const [scope, setScope] = useState<"all" | "home" | "away">("all");
 
-  const dated = fixtures.filter((fixture) => fixture.date !== null).length;
+  /*
+    One list, filtered once. What is on screen is what leaves in the file and
+    what comes out of the printer — an export that quietly disagreed with the
+    table would be the kind of bug nobody reports, they just retype it.
+  */
+  const shown = fixtures.filter((fixture) =>
+    scope === "all" ? true : scope === "home" ? fixture.isHome === true : fixture.isHome === false,
+  );
+
+  const dated = shown.filter((fixture) => fixture.date !== null).length;
+
+  function exportCsv() {
+    const columns: CsvColumn<FixtureRowView>[] = [
+      { header: t("matchday"), value: (fixture) => fixture.matchday },
+      { header: t("date"), value: (fixture) => fixture.date },
+      { header: t("startTime"), value: (fixture) => fixture.time },
+      {
+        header: t("homeAway"),
+        value: (fixture) => (fixture.isHome === null ? "" : t(fixture.isHome ? "home" : "away")),
+      },
+      { header: t("opponent"), value: (fixture) => fixture.opponent },
+      { header: t("venue"), value: (fixture) => fixture.venue },
+    ];
+
+    downloadCsv(`${slugForFile(competitionName)}-${scope}`, toCsv(shown, columns));
+  }
 
   return (
     <Card>
@@ -77,9 +106,38 @@ export function FixturesCard({
           </CardTitle>
           <CardDescription>
             {fixtures.length > 0
-              ? t("dated", { dated, total: fixtures.length })
+              ? t("dated", { dated, total: shown.length })
               : t("noFixtures")}
           </CardDescription>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1 print:hidden">
+          {/* The filter is the export scope as well, so there is one thing to
+              get right rather than a menu of six. */}
+          {(["all", "home", "away"] as const).map((option) => (
+            <Button
+              key={option}
+              size="sm"
+              variant={scope === option ? "secondary" : "ghost"}
+              onClick={() => setScope(option)}
+              aria-pressed={scope === option}
+            >
+              {t(option === "all" ? "scopeAll" : option)}
+            </Button>
+          ))}
+
+          {fixtures.length > 0 ? (
+            <>
+              <Button size="sm" variant="ghost" onClick={exportCsv}>
+                <Download aria-hidden />
+                {t("exportCsv")}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => window.print()}>
+                <Printer aria-hidden />
+                {t("print")}
+              </Button>
+            </>
+          ) : null}
         </div>
 
         {canGenerate && fixtures.length === 0 && format === "LEAGUE" ? (
@@ -98,7 +156,7 @@ export function FixturesCard({
         ) : null}
       </CardHeader>
 
-      {fixtures.length > 0 ? (
+      {shown.length > 0 ? (
         <CardContent className="overflow-x-auto p-0 sm:px-6">
           <Table>
             <TableHeader>
@@ -106,11 +164,13 @@ export function FixturesCard({
                 <TableHead className="w-16">{t("matchday")}</TableHead>
                 <TableHead>{t("opponent")}</TableHead>
                 <TableHead>{t("date")}</TableHead>
-                {canEdit ? <TableHead className="text-right">{tCommon("actions")}</TableHead> : null}
+                {canEdit ? (
+                  <TableHead className="text-right print:hidden">{tCommon("actions")}</TableHead>
+                ) : null}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {fixtures.map((fixture) => (
+              {shown.map((fixture) => (
                 <TableRow key={fixture.id}>
                   <TableCell data-label={t("matchday")} className="tabular-nums">
                     {fixture.matchday}
@@ -138,7 +198,7 @@ export function FixturesCard({
                     )}
                   </TableCell>
                   {canEdit ? (
-                    <TableCell variant="actions" className="text-right">
+                    <TableCell variant="actions" className="text-right print:hidden">
                       <Button
                         variant="ghost"
                         size="icon-xs"
