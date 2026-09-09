@@ -7,12 +7,22 @@ export const uuidSchema = z.uuid("That doesn't look like a valid reference.");
 export const nameSchema = (max = 150) =>
   z.string().trim().min(1, "This can't be empty.").max(max, `Keep this under ${max} characters.`);
 
+/**
+ * Free text that may be left out.
+ *
+ * Accepts null as well as undefined, because the two arrive from different
+ * places and mean the same thing: a form control that was never filled in sends
+ * undefined, while a row read back from the database and sent up again sends
+ * null. Rejecting null failed the second case with a message about types on a
+ * field path no input maps to — so the form showed "check the highlighted
+ * fields" and highlighted nothing.
+ */
 export const optionalText = (max = 2000) =>
   z
     .string()
     .trim()
     .max(max)
-    .optional()
+    .nullish()
     .transform((value) => (value ? value : null));
 
 export const optionalEmail = z

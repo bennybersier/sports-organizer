@@ -2,13 +2,17 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { ArrowLeft, Dumbbell, MapPin, UserCog, Users } from "lucide-react";
+import { ArrowLeft, Dumbbell, MapPin, Trophy, UserCog, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccessDenied } from "@/components/data/access-denied";
 import { PageHeader } from "@/components/data/page-header";
 import { RelatedCard } from "@/components/data/related-card";
+import {
+  TrainingSchedule,
+  type TrainingScheduleView,
+} from "@/components/calendar/training-schedule";
 import { StatusBadge } from "@/components/data/status-badge";
 import { ExceptionsEditor } from "@/components/availability/exceptions-editor";
 import { WeeklyAvailabilityEditor } from "@/components/availability/weekly-availability-editor";
@@ -17,6 +21,7 @@ import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
 import { listAvailability, listExceptions } from "@/server/services/availability-service";
 import { listGymOptions } from "@/server/services/gym-service";
+import { listCompetitionsForTeams } from "@/server/services/competition-service";
 import { getTeamRelations } from "@/server/services/relations-service";
 import { getSeason, listSeasonOptions } from "@/server/services/season-service";
 import { getTeam, listTeamOptions } from "@/server/services/team-service";
@@ -29,7 +34,7 @@ import {
 } from "@/server/services/calendar-service";
 
 import { RequirementsCard } from "./requirements-form";
-import { TeamSchedule, type TeamScheduleView } from "./team-schedule";
+
 
 /** Guards the week query param: anything else falls back to the next session. */
 function isIsoDate(value: string | undefined): value is string {
@@ -68,6 +73,7 @@ export default async function TeamDetailPage({
   const tCommon = await getTranslations("common");
   const tGender = await getTranslations("gender");
   const tRelated = await getTranslations("related");
+  const tCompetitions = await getTranslations("competitions");
   const tMembership = await getTranslations("membershipState");
 
   let team;
@@ -79,7 +85,7 @@ export default async function TeamDetailPage({
   }
 
   const { view: viewParam, date: dateParam, week: legacyWeekParam } = await searchParams;
-  const scheduleView: TeamScheduleView = viewParam === "month" ? "month" : "week";
+  const scheduleView: TrainingScheduleView = viewParam === "month" ? "month" : "week";
   // `week` is what this page used before it had two views; links out there
   // still carry it.
   const anchorParam = isIsoDate(dateParam) ? dateParam : isIsoDate(legacyWeekParam) ? legacyWeekParam : undefined;
@@ -161,6 +167,12 @@ export default async function TeamDetailPage({
   // a question its requirements answer.
   const relations = await getTeamRelations(context, id, requirement);
 
+  // A side can be in several at once — a league, the phase it came out of, a
+  // cup — so this is always a list.
+  const competitions = hasPermission(context, "competitions.read")
+    ? await listCompetitionsForTeams(context, [id])
+    : [];
+
   const gymOptions = gyms.map((gym) => ({ value: gym.id, label: gym.name }));
   const eventOptions = canCreateEvents
     ? {
@@ -222,6 +234,34 @@ export default async function TeamDetailPage({
           ) : null}
         </CardContent>
       </Card>
+
+      {competitions.length > 0 ? (
+        <RelatedCard
+          icon={Trophy}
+          title={tRelated("competitions")}
+          empty={tRelated("noCompetitions")}
+          items={competitions.map((competition) => ({
+            id: competition.id,
+            name: competition.name,
+            href: `/competitions/${competition.id}`,
+            meta: tCompetitions(competition.format),
+            tags: [
+              // The phase is only worth saying when there is more than one.
+              ...(competition.phase !== "SINGLE"
+                ? [{ label: tCompetitions(competition.phase), variant: "secondary" as const }]
+                : []),
+              ...(competition.entryCount > 0
+                ? [
+                    {
+                      label: tRelated("clubsIn", { count: competition.entryCount }),
+                      variant: "outline" as const,
+                    },
+                  ]
+                : []),
+            ],
+          }))}
+        />
+      ) : null}
 
       {canReadTrainers ? (
         <RelatedCard
@@ -303,8 +343,9 @@ export default async function TeamDetailPage({
       ) : null}
 
       {schedule ? (
-        <TeamSchedule
-          teamId={team.id}
+        <TrainingSchedule
+          basePath={`/teams/${team.id}`}
+          eventTeamIds={[team.id]}
           view={scheduleView}
           weeks={schedule.weeks}
           anchor={schedule.anchor}

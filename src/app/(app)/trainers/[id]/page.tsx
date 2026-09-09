@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { ArrowLeft, Dumbbell, MapPin, UserCog, Users } from "lucide-react";
+import { ArrowLeft, Dumbbell, MapPin, Trophy, UserCog, Users } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import { isAppError } from "@/lib/errors";
 import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
 import { listAvailability, listExceptions } from "@/server/services/availability-service";
+import { listCompetitionsForTeams } from "@/server/services/competition-service";
 import { getTrainerRelations } from "@/server/services/relations-service";
 import { getAvailabilityAnchorDate } from "@/server/services/season-service";
 import { getTrainer } from "@/server/services/trainer-service";
@@ -48,6 +49,7 @@ export default async function TrainerDetailPage({
   const t = await getTranslations("trainers");
   const tCommon = await getTranslations("common");
   const tRelated = await getTranslations("related");
+  const tCompetitions = await getTranslations("competitions");
   const tMembership = await getTranslations("membershipState");
 
   let trainer;
@@ -79,6 +81,12 @@ export default async function TrainerDetailPage({
     getAvailabilityAnchorDate(context),
     getTrainerRelations(context, id),
   ]);
+
+  // A coach reaches a competition through the squads they take, so this waits
+  // on the relations above rather than joining alongside them.
+  const competitions = hasPermission(context, "competitions.read")
+    ? await listCompetitionsForTeams(context, relations.teams.map((team) => team.id))
+    : [];
 
   return (
     <div className="flex w-full flex-col gap-6">
@@ -129,6 +137,28 @@ export default async function TrainerDetailPage({
           ) : null}
         </CardContent>
       </Card>
+
+      {competitions.length > 0 ? (
+        <RelatedCard
+          icon={Trophy}
+          title={tRelated("competitions")}
+          empty={tRelated("noCompetitionsForTrainer")}
+          items={competitions.map((competition) => ({
+            id: competition.id,
+            name: competition.name,
+            href: `/competitions/${competition.id}`,
+            // Which of their squads this is about — a coach with three teams
+            // needs to know which one the fixture list belongs to.
+            meta: [competition.teamName, tCompetitions(competition.format)]
+              .filter(Boolean)
+              .join(" · "),
+            tags:
+              competition.phase !== "SINGLE"
+                ? [{ label: tCompetitions(competition.phase), variant: "secondary" as const }]
+                : [],
+          }))}
+        />
+      ) : null}
 
       {canReadTeams ? (
         <RelatedCard

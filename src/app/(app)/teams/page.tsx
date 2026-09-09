@@ -17,6 +17,7 @@ import { EmptyState } from "@/components/data/empty-state";
 import { ListToolbar } from "@/components/data/list-toolbar";
 import { PageHeader } from "@/components/data/page-header";
 import { PaginationBar } from "@/components/data/pagination-bar";
+import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/data/status-badge";
 import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
@@ -46,6 +47,7 @@ export default async function TeamsPage({
   const tCommon = await getTranslations("common");
   const tList = await getTranslations("list");
   const tGender = await getTranslations("gender");
+  const tRelated = await getTranslations("related");
 
   const raw = await searchParams;
   const params = parseListParams(raw);
@@ -163,6 +165,7 @@ export default async function TeamsPage({
                 <TableRow>
                   <TableHead>{tCommon("name")}</TableHead>
                   <TableHead>{tCommon("sport")}</TableHead>
+                  <TableHead>{tRelated("competitions")}</TableHead>
                   <TableHead>{tCommon("season")}</TableHead>
                   <TableHead className="text-right">{t("athletes")}</TableHead>
                   <TableHead className="text-right">{t("trainers")}</TableHead>
@@ -191,6 +194,22 @@ export default async function TeamsPage({
                       </div>
                     </TableCell>
                     <TableCell data-label={tCommon("sport")} className="text-sm">{team.sport}</TableCell>
+                    {/* Plural on purpose: a league, the phase it came out of, a cup. */}
+                    <TableCell data-label={tRelated("competitions")}>
+                      {team.competitions.length === 0 ? (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      ) : (
+                        <span className="flex flex-wrap gap-1">
+                          {team.competitions.map((competition) => (
+                            <Link key={competition.id} href={`/competitions/${competition.id}`}>
+                              <Badge variant="outline" className="hover:bg-accent">
+                                {competition.name}
+                              </Badge>
+                            </Link>
+                          ))}
+                        </span>
+                      )}
+                    </TableCell>
                     <TableCell data-label={tCommon("season")} className="text-sm text-muted-foreground">
                       {team.season_name}
                     </TableCell>

@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { CalendarDays, ClipboardCheck, MapPin, Users } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccessDenied } from "@/components/data/access-denied";
 import { EmptyState } from "@/components/data/empty-state";
@@ -34,14 +36,28 @@ export const metadata: Metadata = { title: "Attendance" };
 export default async function AttendancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ team?: string }>;
+  searchParams: Promise<{ team?: string; tab?: string }>;
 }) {
   const context = await requireAuthContext();
   if (!hasPermission(context, "attendance.read")) return <AccessDenied />;
 
   const t = await getTranslations("attendance");
   const format = await getFormatter();
-  const { team: selectedTeam } = await searchParams;
+  const { team: selectedTeam, tab } = await searchParams;
+
+  /*
+    Three stacked lists made the page a scroll: what to pick, what to mark,
+    and how the squad is doing. They are separate jobs done at separate
+    moments, so they are separate tabs — and the tab lives in the URL rather
+    than in client state, because choosing a team in the report navigates and
+    would otherwise throw you back to the first one.
+  */
+  const active = tab === "pick" || tab === "report" ? tab : "mark";
+  const tabHref = (next: string) =>
+    `/attendance?${new URLSearchParams({
+      ...(selectedTeam ? { team: selectedTeam } : {}),
+      tab: next,
+    }).toString()}`;
 
   const [pending, upcoming, teams] = await Promise.all([
     listPendingSessions(context),
@@ -56,7 +72,33 @@ export default async function AttendancePage({
     <div className="space-y-8">
       <PageHeader title={t("title")} description={t("subtitle")} />
 
-      {upcoming.length > 0 ? (
+      <div className="flex flex-wrap gap-1 border-b pb-2">
+        {(
+          [
+            ["pick", t("toPick"), upcoming.length],
+            ["mark", t("toMark"), pending.length],
+            ["report", t("squadReport"), null],
+          ] as const
+        ).map(([key, label, count]) => (
+          <Button
+            key={key}
+            asChild
+            size="sm"
+            variant={active === key ? "secondary" : "ghost"}
+          >
+            <Link href={tabHref(key)}>
+              {label}
+              {count ? (
+                <Badge variant="outline" className="ms-1.5 tabular-nums">
+                  {count}
+                </Badge>
+              ) : null}
+            </Link>
+          </Button>
+        ))}
+      </div>
+
+      {active === "pick" && upcoming.length > 0 ? (
         <section className="space-y-3">
           <h2 className="text-sm font-medium text-muted-foreground">{t("toPick")}</h2>
           <ul className="divide-y rounded-lg border">
@@ -106,7 +148,8 @@ export default async function AttendancePage({
         </section>
       ) : null}
 
-      <section className="space-y-3">
+      {active === "mark" ? (
+        <section className="space-y-3">
         <h2 className="text-sm font-medium text-muted-foreground">{t("toMark")}</h2>
 
         {pending.length === 0 ? (
@@ -167,9 +210,11 @@ export default async function AttendancePage({
             ))}
           </ul>
         )}
-      </section>
+        </section>
+      ) : null}
 
-      <section className="space-y-3">
+      {active === "report" ? (
+        <section className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-sm font-medium text-muted-foreground">{t("squadReport")}</h2>
           <TeamPicker
@@ -188,7 +233,8 @@ export default async function AttendancePage({
             <CardContent className="text-sm text-muted-foreground">{t("stats.noData")}</CardContent>
           </Card>
         )}
-      </section>
+        </section>
+      ) : null}
     </div>
   );
 }

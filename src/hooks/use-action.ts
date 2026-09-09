@@ -28,8 +28,19 @@ export function useAction() {
       const result = await action();
 
       if (!result.ok) {
-        // Server-supplied copy wins; the code is the fallback for generic failures.
-        toast.error(result.error.message || tErrors(result.error.code));
+        /*
+          A validation failure names the fields it rejected, and for a form that
+          can highlight them the generic sentence is right. Several of these
+          surfaces cannot — a register is a table of rows, and an error at
+          `lines.4.note` has no input to mark — so telling somebody to check the
+          highlighted fields when nothing is highlighted is worse than saying
+          nothing. Where there is a specific complaint, show it.
+        */
+        const specific = Object.values(result.error.fieldErrors ?? {})
+          .flat()
+          .find(Boolean);
+
+        toast.error(specific ?? result.error.message ?? tErrors(result.error.code));
         return;
       }
 

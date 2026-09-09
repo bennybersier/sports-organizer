@@ -19,6 +19,8 @@ export interface TeamListItem extends TeamRow {
   athlete_count: number;
   trainer_count: number;
   season_name: string;
+  /** A side can be in several at once, so never a single value. */
+  competitions: { id: string; name: string }[];
 }
 
 const CONFLICTS = {
@@ -51,7 +53,7 @@ export async function listTeams(
   const ids = teams.map((team) => team.id);
   const seasonIds = [...new Set(teams.map((team) => team.season_id))];
 
-  const [athletes, trainers, seasons] = await Promise.all([
+  const [athletes, trainers, seasons, competitions] = await Promise.all([
     ids.length
       ? context.db
           .from("athlete_teams")
@@ -75,11 +77,29 @@ export async function listTeams(
           .eq("tenant_id", context.tenant.id)
           .in("id", seasonIds)
       : Promise.resolve({ data: [] }),
+    // Fetched for the page of teams rather than per row: a club with thirty
+    // sides would otherwise be thirty round trips for a single column.
+    ids.length
+      ? context.db
+          .from("competitions")
+          .select("id, name, team_id")
+          .eq("tenant_id", context.tenant.id)
+          .in("team_id", ids)
+          .is("deleted_at", null)
+          .order("name")
+      : Promise.resolve({ data: [] }),
   ]);
 
   const athleteCounts = tally(athletes.data ?? [], "team_id");
   const trainerCounts = tally(trainers.data ?? [], "team_id");
   const seasonNames = new Map((seasons.data ?? []).map((s) => [s.id, s.name]));
+
+  const competitionsByTeam = new Map<string, { id: string; name: string }[]>();
+  for (const competition of competitions.data ?? []) {
+    const list = competitionsByTeam.get(competition.team_id) ?? [];
+    list.push({ id: competition.id, name: competition.name });
+    competitionsByTeam.set(competition.team_id, list);
+  }
 
   return buildListResult(
     teams.map((team) => ({
@@ -87,6 +107,7 @@ export async function listTeams(
       athlete_count: athleteCounts.get(team.id) ?? 0,
       trainer_count: trainerCounts.get(team.id) ?? 0,
       season_name: seasonNames.get(team.season_id) ?? "",
+      competitions: competitionsByTeam.get(team.id) ?? [],
     })),
     count ?? 0,
     params,

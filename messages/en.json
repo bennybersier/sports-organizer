@@ -255,7 +255,11 @@
     "sessions": "{count, plural, one {# session} other {# sessions}}",
     "inTeams": "In {teams}",
     "coaches": "Coaches {teams}",
-    "jersey": "#{number}"
+    "jersey": "#{number}",
+    "competitions": "Competitions",
+    "noCompetitions": "Not entered in any competition yet.",
+    "noCompetitionsForTrainer": "None of this coach's squads are entered in a competition.",
+    "clubsIn": "{count} clubs"
   },
   "gender": {
     "MALE": "Male",
@@ -474,7 +478,10 @@
     "exceptionAdded": "Exception added.",
     "exceptionRemoved": "Exception removed.",
     "removeWindow": "Remove these hours",
-    "overlapWarning": "Overlapping hours on the same day are rejected — the scheduler can't act on contradictory availability."
+    "overlapWarning": "Overlapping hours on the same day are rejected — the scheduler can't act on contradictory availability.",
+    "editHours": "Edit hours",
+    "noWeeklyPattern": "No hours set yet.",
+    "noWeeklyPatternTeam": "No hours set — this squad follows the window in its requirements."
   },
   "requirements": {
     "title": "Training requirements",
@@ -1138,6 +1145,9 @@
       "saved": "Scoresheet saved."
     },
     "toPick": "Squads to pick",
-    "pickSquad": "Pick squad"
+    "pickSquad": "Pick squad",
+    "selectAll": "Select all",
+    "deselectAll": "Deselect all",
+    "sameAsLastGame": "Same as last game"
   }
 }

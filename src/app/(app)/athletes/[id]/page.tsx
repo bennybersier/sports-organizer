@@ -10,9 +10,17 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccessDenied } from "@/components/data/access-denied";
 import { PageHeader } from "@/components/data/page-header";
 import { RelatedCard } from "@/components/data/related-card";
+import {
+  TrainingSchedule,
+  type TrainingScheduleView,
+} from "@/components/calendar/training-schedule";
 import { StatusBadge } from "@/components/data/status-badge";
 import { isAppError } from "@/lib/errors";
 import { hasPermission } from "@/server/auth/authorization";
+import {
+  getAthleteTrainingMonth,
+  getAthleteTrainingWeek,
+} from "@/server/services/calendar-service";
 import { getAthletePerformance, listAbsences } from "@/server/services/performance-service";
 import { requireAuthContext } from "@/server/auth/context";
 import { getAthlete } from "@/server/services/athlete-service";
@@ -45,10 +53,19 @@ function assessmentPeriod() {
   return { start: start.toISOString().slice(0, 10), end: end.toISOString().slice(0, 10) };
 }
 
+/** Guards the date query param: anything else falls back to the next session. */
+function isIsoDate(value: string | undefined): value is string {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
 export default async function AthleteDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  // The range being viewed lives in the URL so it survives a refresh and can be
+  // linked to, exactly as it does on a team's page.
+  searchParams: Promise<{ view?: string; date?: string }>;
 }) {
   const context = await requireAuthContext();
   if (!hasPermission(context, "athletes.read")) return <AccessDenied />;
@@ -73,6 +90,19 @@ export default async function AthleteDetailPage({
   const canReadTeams = hasPermission(context, "teams.read");
   // Attendance is its own permission, and a page that can show an athlete does
   // not automatically get to show their season.
+  const { view: viewParam, date: dateParam } = await searchParams;
+  const scheduleView: TrainingScheduleView = viewParam === "month" ? "month" : "week";
+  const anchorParam = isIsoDate(dateParam) ? dateParam : undefined;
+
+  // Gathered from every squad they are in — a boy who trains up an age group
+  // has two teams' sessions in his week, and that is precisely the week worth
+  // seeing in one place.
+  const training = hasPermission(context, "calendar.read")
+    ? scheduleView === "month"
+      ? await getAthleteTrainingMonth(context, id, anchorParam)
+      : await getAthleteTrainingWeek(context, id, anchorParam)
+    : null;
+
   const canReadAttendance = hasPermission(context, "attendance.read");
   const [performance, absences] = canReadAttendance
     ? await Promise.all([getAthletePerformance(context, id), listAbsences(context, id)])
@@ -158,6 +188,30 @@ export default async function AthleteDetailPage({
           ) : null}
         </CardContent>
       </Card>
+
+      {training ? (
+        <TrainingSchedule
+          basePath={`/athletes/${id}`}
+          eventTeamIds={relations.teams.map((team) => team.id)}
+          view={scheduleView}
+          weeks={
+            "days" in training
+              ? [training.days.map((day) => ({ ...day, inMonth: true }))]
+              : training.weeks
+          }
+          anchor={"weekStart" in training ? training.weekStart : training.monthStart}
+          rangeStart={"weekStart" in training ? training.weekStart : training.from}
+          rangeEnd={"weekEnd" in training ? training.weekEnd : training.to}
+          previous={"previousWeek" in training ? training.previousWeek : training.previousMonth}
+          next={"nextWeek" in training ? training.nextWeek : training.nextMonth}
+          scheduledCount={training.scheduledCount}
+          coverageStart={training.coverageStart}
+          // An athlete has no weekly session target of their own — that belongs
+          // to each of their squads, and summing them would invent a number.
+          requiredPerWeek={null}
+          timezone={context.tenant.timezone}
+        />
+      ) : null}
 
       {performance ? (
         <PerformanceCard

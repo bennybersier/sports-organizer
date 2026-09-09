@@ -24,7 +24,10 @@ import type {
 } from "@/lib/validation/competition";
 import type {
   CompetitionEntryRow,
+  CompetitionFormat,
+  CompetitionPhase,
   CompetitionRow,
+  EntityStatus,
   FixtureRow,
 } from "@/types/database";
 
@@ -77,6 +80,78 @@ export async function listCompetitions(
     params,
     Boolean(params.q || filters.seasonId || filters.teamId || filters.status),
   );
+}
+
+/** A competition as it appears on some other record's page. */
+export interface RelatedCompetition {
+  id: string;
+  name: string;
+  format: CompetitionFormat;
+  phase: CompetitionPhase;
+  status: EntityStatus;
+  teamId: string;
+  /** Which of our sides plays in it — the reason it is on a trainer's page. */
+  teamName: string | null;
+  /** Clubs in it, ours included. Zero while the draw is still unknown. */
+  entryCount: number;
+}
+
+/**
+ * The competitions a set of our teams are in.
+ *
+ * A team can be in several — a league, the phase it came out of, a cup — which
+ * is why this returns a list and never a value. One query for any number of
+ * teams, so a trainer with three squads is not three round trips.
+ */
+export async function listCompetitionsForTeams(
+  context: AuthContext,
+  teamIds: string[],
+): Promise<RelatedCompetition[]> {
+  assertPermission(context, "competitions.read");
+  if (teamIds.length === 0) return [];
+
+  const { data, error } = await context.db
+    .from("competitions")
+    .select("id, name, format, phase, status, team_id")
+    .eq("tenant_id", context.tenant.id)
+    .in("team_id", teamIds)
+    .is("deleted_at", null)
+    .order("name");
+  if (error) throw fromDatabaseError(error, { resource: "competition" });
+
+  const competitions = data ?? [];
+  if (competitions.length === 0) return [];
+
+  // Counts and names fetched by key and stitched, rather than an embedded
+  // select: the generated types carry no relationships.
+  const [{ data: entries }, { data: teams }] = await Promise.all([
+    context.db
+      .from("competition_entries")
+      .select("competition_id")
+      .eq("tenant_id", context.tenant.id)
+      .in("competition_id", competitions.map((competition) => competition.id)),
+    context.db
+      .from("teams")
+      .select("id, name")
+      .in("id", [...new Set(competitions.map((competition) => competition.team_id))]),
+  ]);
+
+  const counts = new Map<string, number>();
+  for (const entry of entries ?? []) {
+    counts.set(entry.competition_id, (counts.get(entry.competition_id) ?? 0) + 1);
+  }
+  const teamName = new Map((teams ?? []).map((team) => [team.id, team.name]));
+
+  return competitions.map((competition) => ({
+    id: competition.id,
+    name: competition.name,
+    format: competition.format,
+    phase: competition.phase,
+    status: competition.status,
+    teamId: competition.team_id,
+    teamName: teamName.get(competition.team_id) ?? null,
+    entryCount: counts.get(competition.id) ?? 0,
+  }));
 }
 
 export async function getCompetition(context: AuthContext, id: string): Promise<CompetitionRow> {
