@@ -19,6 +19,9 @@ import { requireAuthContext } from "@/server/auth/context";
 import { listAvailability, listExceptions } from "@/server/services/availability-service";
 import { listCompetitionsForTeams } from "@/server/services/competition-service";
 import { getTrainerRelations } from "@/server/services/relations-service";
+import { ManageRelationDialog } from "@/components/data/manage-relation-dialog";
+import { setTrainerTeamsAction } from "@/server/actions/relations";
+import { listTeamOptions } from "@/server/services/team-service";
 import { getAvailabilityAnchorDate } from "@/server/services/season-service";
 import { getTrainer } from "@/server/services/trainer-service";
 
@@ -69,6 +72,8 @@ export default async function TrainerDetailPage({
   const canReadAvailability = hasPermission(context, "availability.read");
 
   const canReadTeams = hasPermission(context, "teams.read");
+  const canEditTrainer = hasPermission(context, "trainers.update");
+  const teamPool = canEditTrainer && canReadTeams ? await listTeamOptions(context) : [];
   const canReadAthletes = hasPermission(context, "athletes.read");
   const canReadGyms = hasPermission(context, "gyms.read");
 
@@ -175,6 +180,16 @@ export default async function TrainerDetailPage({
               ? [{ label: tRelated("sessions", { count: team.sessions }), variant: "outline" as const }]
               : [],
           }))}
+          action={
+            teamPool.length > 0 ? (
+              <ManageRelationDialog
+                title={tRelated("teams")}
+                options={teamPool.map((team) => ({ value: team.id, label: team.name }))}
+                selected={relations.teams.map((team) => team.id)}
+                save={(relatedIds) => setTrainerTeamsAction({ id, relatedIds })}
+              />
+            ) : null
+          }
         />
       ) : null}
 

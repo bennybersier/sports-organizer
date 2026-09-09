@@ -62,7 +62,8 @@
     "season": "Stagione",
     "team": "Squadra",
     "unsavedChanges": "Ci sono modifiche non salvate.",
-    "skipToContent": "Vai al contenuto"
+    "skipToContent": "Vai al contenuto",
+    "saved": "Salvato"
   },
   "nav": {
     "overview": "Panoramica",

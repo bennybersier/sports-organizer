@@ -26,6 +26,9 @@ import { getTeamRelations } from "@/server/services/relations-service";
 import { getSeason, listSeasonOptions } from "@/server/services/season-service";
 import { getTeam, listTeamOptions } from "@/server/services/team-service";
 import { listTrainerOptions } from "@/server/services/trainer-service";
+import { listAthleteOptions } from "@/server/services/athlete-service";
+import { ManageRelationDialog } from "@/components/data/manage-relation-dialog";
+import { setTeamAthletesAction, setTeamTrainersAction } from "@/server/actions/relations";
 import { getTrainingRequirement } from "@/server/services/training-requirement-service";
 
 import {
@@ -108,6 +111,7 @@ export default async function TeamDetailPage({
     seasons,
     trainers,
     teams,
+    athletePool,
   ] = await Promise.all([
       getSeason(context, team.season_id),
       getTrainingRequirement(context, id, team.season_id),
@@ -127,10 +131,13 @@ export default async function TeamDetailPage({
       canCreateEvents && hasPermission(context, "seasons.read")
         ? listSeasonOptions(context)
         : Promise.resolve([]),
-      canCreateEvents && hasPermission(context, "trainers.read")
+      (canCreateEvents || canEditTeam) && hasPermission(context, "trainers.read")
         ? listTrainerOptions(context)
         : Promise.resolve([]),
       canCreateEvents ? listTeamOptions(context) : Promise.resolve([]),
+      canEditTeam && hasPermission(context, "athletes.read")
+        ? listAthleteOptions(context)
+        : Promise.resolve([]),
     ]);
 
   /*
@@ -283,6 +290,19 @@ export default async function TeamDetailPage({
                 : []),
             ],
           }))}
+          action={
+            canEditTeam && trainers.length > 0 ? (
+              <ManageRelationDialog
+                title={tRelated("trainers")}
+                options={trainers.map((trainer) => ({
+                  value: trainer.id,
+                  label: `${trainer.first_name} ${trainer.last_name}`,
+                }))}
+                selected={relations.trainers.map((trainer) => trainer.id)}
+                save={(relatedIds) => setTeamTrainersAction({ id, relatedIds })}
+              />
+            ) : null
+          }
         />
       ) : null}
 
@@ -310,6 +330,19 @@ export default async function TeamDetailPage({
                 : []),
             ],
           }))}
+          action={
+            canEditTeam && athletePool.length > 0 ? (
+              <ManageRelationDialog
+                title={tRelated("athletes")}
+                options={athletePool.map((athlete) => ({
+                  value: athlete.id,
+                  label: `${athlete.last_name} ${athlete.first_name}`,
+                }))}
+                selected={relations.athletes.map((athlete) => athlete.id)}
+                save={(relatedIds) => setTeamAthletesAction({ id, relatedIds })}
+              />
+            ) : null
+          }
         />
       ) : null}
 

@@ -318,3 +318,101 @@ export async function restoreTeam(context: AuthContext, id: string): Promise<Tea
   if (error) throw fromDatabaseError(error, { resource: "team" });
   return data;
 }
+
+/**
+ * Who coaches this team, set from the team's own page.
+ *
+ * The same bookkeeping the team form does, reachable without opening it: a
+ * detail page that shows two coaches and cannot change them sends somebody to a
+ * dialog three fields away from what they are looking at.
+ *
+ * Removal ends the assignment rather than deleting it. A coach who took the
+ * side until March took it until March, and a schedule published in that time
+ * still refers to them.
+ */
+export async function setTeamTrainers(
+  context: AuthContext,
+  teamId: string,
+  trainerIds: string[],
+): Promise<{ added: number; removed: number }> {
+  assertPermission(context, "teams.update");
+
+  const team = await getTeam(context, teamId);
+  const result = await syncTrainers(context, teamId, trainerIds);
+
+  if (result.added || result.removed) {
+    await recordAudit(context, {
+      action: AUDIT_ACTIONS.TEAM_UPDATED,
+      resourceType: "team",
+      resourceId: teamId,
+      newValue: { team: team.name, trainers: trainerIds.length },
+    });
+  }
+
+  return result;
+}
+
+/**
+ * The squad, set from the team's own page.
+ *
+ * Mirrors `syncTeams` in the athlete service, from the other side. Both write
+ * the same join, and both end a membership rather than deleting it: an athlete
+ * who left in January was in the squad in December, and the register for that
+ * week has to keep making sense.
+ */
+export async function setTeamAthletes(
+  context: AuthContext,
+  teamId: string,
+  athleteIds: string[],
+): Promise<{ added: number; removed: number }> {
+  assertPermission(context, "teams.update");
+
+  const team = await getTeam(context, teamId);
+
+  const { data: currentRows, error } = await context.db
+    .from("athlete_teams")
+    .select("athlete_id")
+    .eq("tenant_id", context.tenant.id)
+    .eq("team_id", teamId)
+    .is("left_at", null);
+  if (error) throw fromDatabaseError(error, { resource: "team" });
+
+  const current = (currentRows ?? []).map((row) => row.athlete_id);
+  const desired = new Set(athleteIds);
+  const removed = current.filter((id) => !desired.has(id));
+  const added = athleteIds.filter((id) => !current.includes(id));
+
+  if (removed.length > 0) {
+    const { error: leaveError } = await context.db
+      .from("athlete_teams")
+      .update({ left_at: new Date().toISOString().slice(0, 10) })
+      .eq("tenant_id", context.tenant.id)
+      .eq("team_id", teamId)
+      .in("athlete_id", removed)
+      .is("left_at", null);
+    if (leaveError) throw fromDatabaseError(leaveError, { resource: "team" });
+  }
+
+  if (added.length > 0) {
+    const { error: joinError } = await context.db.from("athlete_teams").insert(
+      added.map((athleteId) => ({
+        tenant_id: context.tenant.id,
+        team_id: teamId,
+        athlete_id: athleteId,
+        created_by: context.user.id,
+      })),
+    );
+    if (joinError) throw fromDatabaseError(joinError, { resource: "team" });
+  }
+
+  if (added.length || removed.length) {
+    await recordAudit(context, {
+      action: AUDIT_ACTIONS.TEAM_UPDATED,
+      resourceType: "team",
+      resourceId: teamId,
+      newValue: { team: team.name, squad: athleteIds.length },
+    });
+  }
+
+  return { added: added.length, removed: removed.length };
+}

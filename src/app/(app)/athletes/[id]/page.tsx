@@ -10,6 +10,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccessDenied } from "@/components/data/access-denied";
 import { PageHeader } from "@/components/data/page-header";
 import { RelatedCard } from "@/components/data/related-card";
+import { ManageRelationDialog } from "@/components/data/manage-relation-dialog";
+import { setAthleteTeamsAction } from "@/server/actions/relations";
+import { listTeamOptions } from "@/server/services/team-service";
 import {
   TrainingSchedule,
   type TrainingScheduleView,
@@ -88,6 +91,9 @@ export default async function AthleteDetailPage({
 
   const relations = await getAthleteRelations(context, id);
   const canReadTeams = hasPermission(context, "teams.read");
+  const canEditAthlete = hasPermission(context, "athletes.update");
+  // Every squad they could be put in, not only the ones they are in.
+  const teamPool = canEditAthlete && canReadTeams ? await listTeamOptions(context) : [];
   // Attendance is its own permission, and a page that can show an athlete does
   // not automatically get to show their season.
   const { view: viewParam, date: dateParam } = await searchParams;
@@ -248,6 +254,16 @@ export default async function AthleteDetailPage({
             color: team.color,
             meta: [team.sport, team.ageGroup].filter(Boolean).join(" · "),
           }))}
+          action={
+            teamPool.length > 0 ? (
+              <ManageRelationDialog
+                title={tRelated("teams")}
+                options={teamPool.map((team) => ({ value: team.id, label: team.name }))}
+                selected={relations.teams.map((team) => team.id)}
+                save={(relatedIds) => setAthleteTeamsAction({ id, relatedIds })}
+              />
+            ) : null
+          }
         />
       ) : null}
 
