@@ -63,7 +63,9 @@
     "team": "Squadra",
     "unsavedChanges": "Ci sono modifiche non salvate.",
     "skipToContent": "Vai al contenuto",
-    "saved": "Salvato"
+    "saved": "Salvato",
+    "selectAll": "Seleziona tutti ({count})",
+    "clear": "Azzera"
   },
   "nav": {
     "overview": "Panoramica",

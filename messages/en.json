@@ -63,7 +63,9 @@
     "team": "Team",
     "unsavedChanges": "You have unsaved changes.",
     "skipToContent": "Skip to content",
-    "saved": "Saved"
+    "saved": "Saved",
+    "selectAll": "Select all {count}",
+    "clear": "Clear"
   },
   "nav": {
     "overview": "Overview",

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Check, ChevronsUpDown, X } from "lucide-react";
+import { Check, ChevronsUpDown, ListChecks, X } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,13 @@ export interface MultiSelectOption {
  *
  * Selected items stay visible as removable chips below the trigger, so a long
  * selection doesn't have to be reopened to be read or corrected.
+ *
+ * Select all and clear are there for the lists that got long: a club with
+ * thirty teams choosing "all but the two Eccellenza sides" would otherwise
+ * tick twenty-eight boxes. Select all says how many it will take, because it
+ * takes every option rather than only the ones a search has left on screen —
+ * filtering here is cmdk's, and it is fuzzier than a rule this button could
+ * honestly describe.
  */
 export function MultiSelect({
   options,
@@ -48,6 +55,7 @@ export function MultiSelect({
   const tCommon = useTranslations("common");
 
   const selected = options.filter((option) => value.includes(option.value));
+  const allSelected = options.length > 0 && selected.length === options.length;
 
   function toggle(optionValue: string) {
     onChange(
@@ -83,6 +91,33 @@ export function MultiSelect({
         <PopoverContent className="w-(--radix-popover-trigger-width) p-0" align="start">
           <Command>
             <CommandInput placeholder={placeholder} />
+
+            {options.length > 1 ? (
+              <div className="flex items-center gap-1 border-b p-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 flex-1 justify-start font-normal"
+                  disabled={allSelected}
+                  onClick={() => onChange(options.map((option) => option.value))}
+                >
+                  <ListChecks aria-hidden />
+                  {tCommon("selectAll", { count: options.length })}
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 font-normal"
+                  disabled={selected.length === 0}
+                  onClick={() => onChange([])}
+                >
+                  {tCommon("clear")}
+                </Button>
+              </div>
+            ) : null}
+
             <CommandList>
               <CommandEmpty>{emptyText}</CommandEmpty>
               <CommandGroup>
