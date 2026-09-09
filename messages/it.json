@@ -664,7 +664,11 @@
     "SUGGEST_EXTEND_WINDOW": "Amplia {gym} il {weekday}: si sovrappone all'allenatore solo per {minutes} dei {needed} minuti necessari.",
     "SUGGEST_MORE_CAPACITY": "Tutti gli spazi utilizzabili da questa squadra sono già occupati. Aggiungi orari di palestra, consenti più giorni oppure riduci gli allenamenti settimanali.",
     "SESSION_SPACING": "Tutti gli spazi ancora liberi sono in giorni in cui questa squadra si allena già. Richiede almeno {minDays, plural, one {# giorno} other {# giorni}} tra un allenamento e l'altro.",
-    "SUGGEST_SPACING": "Consenti più giorni alla squadra, oppure riduci i giorni richiesti tra un allenamento e l'altro."
+    "SUGGEST_SPACING": "Consenti più giorni alla squadra, oppure riduci i giorni richiesti tra un allenamento e l'altro.",
+    "SUGGEST_SLOT_LATER": "{weekday} alle {from} in {gym} è libero, se la squadra potesse allenarsi fino alle {until}.",
+    "SUGGEST_SLOT_EARLIER": "{weekday} alle {from} in {gym} è libero, se la squadra potesse iniziare da quell'ora.",
+    "SUGGEST_SLOT_GYM": "{weekday} alle {from} in {gym} è libero — aggiungi quella palestra alla squadra.",
+    "SUGGEST_SLOT_WEEKDAY": "{weekday} alle {from} in {gym} è libero — consenti {weekday} a questa squadra."
   },
   "organizer": {
     "title": "Organizzatore intelligente",

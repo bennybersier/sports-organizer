@@ -136,7 +136,7 @@ export async function buildScheduleInput(
         .is("deleted_at", null),
       context.db
         .from("gyms")
-        .select("id, name, max_concurrent_teams, max_shared_overlap_minutes")
+        .select("id, name, city, max_concurrent_teams, max_shared_overlap_minutes")
         .eq("tenant_id", tenantId)
         .eq("status", "ACTIVE")
         .is("deleted_at", null),
@@ -216,6 +216,7 @@ export async function buildScheduleInput(
     gyms.map(async (gym) => ({
       id: gym.id,
       name: gym.name,
+      city: gym.city,
       availability: await resolveFor("gym", gym.id),
       // Distinguishes "no hours entered" from "hours entered but not in force
       // for this week" — two different problems with two different fixes.

@@ -664,7 +664,11 @@
     "SUGGEST_EXTEND_WINDOW": "Widen {gym} on {weekday}: it overlaps the coach for only {minutes} of the {needed} minutes needed.",
     "SUGGEST_MORE_CAPACITY": "Every slot this team could use is already taken. Add hall hours, allow more weekdays for it, or lower its weekly sessions.",
     "SESSION_SPACING": "Every slot still free is on a day this team already trains. It asks for at least {minDays, plural, one {# day} other {# days}} between sessions.",
-    "SUGGEST_SPACING": "Allow this team more weekdays, or lower the days it needs between sessions."
+    "SUGGEST_SPACING": "Allow this team more weekdays, or lower the days it needs between sessions.",
+    "SUGGEST_SLOT_LATER": "{weekday} at {from} in {gym} is free, if this team could train until {until}.",
+    "SUGGEST_SLOT_EARLIER": "{weekday} at {from} in {gym} is free, if this team could start from then.",
+    "SUGGEST_SLOT_GYM": "{weekday} at {from} in {gym} is free — add that hall to this team.",
+    "SUGGEST_SLOT_WEEKDAY": "{weekday} at {from} in {gym} is free — allow {weekday} for this team."
   },
   "organizer": {
     "title": "Smart Organizer",

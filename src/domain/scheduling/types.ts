@@ -30,6 +30,14 @@ export interface EngineGym {
    */
   hasConfiguredAvailability?: boolean;
   /**
+   * The town it is in.
+   *
+   * Not used for scheduling — a hall is open or it is not. It is used when
+   * suggesting an alternative, so a Codogno side is offered a Codogno hall
+   * before one twenty kilometres away that happens to be free.
+   */
+  city?: string | null;
+  /**
    * Whether this hall tolerates two teams at once, and by how much.
    *
    * Absent means one team at a time, which is what almost every hall does and

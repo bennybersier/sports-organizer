@@ -74,7 +74,12 @@ export type FindingCode =
   | "SUGGEST_ASSIGN_TRAINER"
   | "SUGGEST_EXTEND_WINDOW"
   | "SUGGEST_MORE_CAPACITY"
-  | "SUGGEST_SPACING";
+  | "SUGGEST_SPACING"
+  /* A concrete slot that would work, and what it would cost to use it. */
+  | "SUGGEST_SLOT_LATER"
+  | "SUGGEST_SLOT_EARLIER"
+  | "SUGGEST_SLOT_GYM"
+  | "SUGGEST_SLOT_WEEKDAY";
 
 export interface Finding {
   code: FindingCode;

@@ -14,6 +14,7 @@ import {
   type WeekdayCapacity,
 } from "./capacity";
 import { circularDayGap, scoreCandidate, type ScoreContext } from "./scoring";
+import { findRescueSlot, type RescueSlot } from "./rescue";
 import type { Finding } from "./conflicts";
 import {
   DEFAULT_WEIGHTS,
@@ -344,6 +345,48 @@ export function generateSchedule(input: ScheduleInput): GenerationResult {
     return assignments.filter((a) => a.teamId === team.id).length;
   }
 
+  /**
+   * The nearest slot that would have worked, as a finding.
+   *
+   * Every branch below can say what went wrong; only this can say what to do
+   * about it in terms of a real evening in a real hall.
+   */
+  function rescueFinding(team: EngineTeam): Finding | null {
+    const slot: RescueSlot | null = findRescueSlot({
+      team,
+      gyms: input.gyms,
+      trainers: input.trainers,
+      blocked: input.blockedSlots,
+      granularity,
+      isPlaceable: (candidate) =>
+        assessCandidate(occupancy, candidate, sharing).verdict !== "BLOCKED" &&
+        respectsSpacing(team, candidate, assignments),
+    });
+
+    if (!slot) return null;
+
+    const gym = input.gyms.find((entry) => entry.id === slot.gymId);
+    const code = (
+      {
+        LATER: "SUGGEST_SLOT_LATER",
+        EARLIER: "SUGGEST_SLOT_EARLIER",
+        OTHER_GYM: "SUGGEST_SLOT_GYM",
+        OTHER_WEEKDAY: "SUGGEST_SLOT_WEEKDAY",
+      } as const
+    )[slot.relaxation];
+
+    return {
+      code,
+      severity: "WARNING",
+      values: {
+        weekday: slot.isoWeekday,
+        from: slot.start,
+        until: slot.end,
+        gym: gym?.name ?? "",
+      },
+    };
+  }
+
   /** Why a team could not get everything it asked for. */
   function explainShortfall(team: EngineTeam, candidates: Candidate[]): Finding[] {
     // With nothing placeable at all, the setup diagnosis is the sharper
@@ -376,6 +419,7 @@ export function generateSchedule(input: ScheduleInput): GenerationResult {
         ...suggestFixes(team, days).map(
           (suggestion): Finding => ({ ...suggestion, severity: "WARNING" }),
         ),
+        ...(rescueFinding(team) ? [rescueFinding(team)!] : []),
       ];
     }
 
@@ -399,6 +443,7 @@ export function generateSchedule(input: ScheduleInput): GenerationResult {
         // Nothing is misconfigured here — the club has simply run out of room,
         // so the fix is capacity rather than a correction.
         { code: "SUGGEST_MORE_CAPACITY", severity: "WARNING", values: { team: team.name } },
+        ...(rescueFinding(team) ? [rescueFinding(team)!] : []),
       ];
     }
 
@@ -418,6 +463,7 @@ export function generateSchedule(input: ScheduleInput): GenerationResult {
         values: { minDays: team.minDaysBetween, considered: candidates.length },
       },
       { code: "SUGGEST_SPACING", severity: "WARNING", values: { team: team.name } },
+      ...(rescueFinding(team) ? [rescueFinding(team)!] : []),
     ];
   }
 
