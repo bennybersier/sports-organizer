@@ -80,6 +80,42 @@ const serverSchema = z.object({
 
 export type ServerEnv = z.infer<typeof serverSchema>;
 
+/**
+ * Where this is running, and what it was actually handed.
+ *
+ * A missing secret on a hosted build is almost never a variable nobody added.
+ * It is one added to Production and not to Preview — and the dashboard looks
+ * correct either way, because the variable is plainly there. The failure says
+ * "undefined" and the settings say "set", and that argument can run for a while.
+ *
+ * So the error names the environment it was given and lists which variables
+ * arrived. Two of four present, on `preview`, is a scoping problem stated in
+ * one line rather than deduced.
+ *
+ * Names only. A value never appears here, and neither does anything outside the
+ * schema — this must stay safe to paste into a bug report.
+ */
+function environmentReport(): string {
+  const known = Object.keys(serverSchema.shape);
+  const present = known.filter((key) => (process.env[key] ?? "") !== "");
+  const absent = known.filter((key) => (process.env[key] ?? "") === "");
+
+  const where = process.env.VERCEL
+    ? [
+        `Vercel ${process.env.VERCEL_ENV ?? "build"}`,
+        process.env.VERCEL_GIT_COMMIT_REF ? `branch ${process.env.VERCEL_GIT_COMMIT_REF}` : null,
+      ]
+        .filter(Boolean)
+        .join(", ")
+    : "this machine";
+
+  return (
+    `Environment: ${where}\n` +
+    `  arrived: ${present.join(", ") || "(nothing)"}\n` +
+    `  missing: ${absent.join(", ") || "(nothing)"}`
+  );
+}
+
 function loadEnv(): ServerEnv {
   const parsed = serverSchema.safeParse(process.env);
 
@@ -88,9 +124,15 @@ function loadEnv(): ServerEnv {
       .map((issue) => `  - ${issue.path.join(".") || "(root)"}: ${issue.message}`)
       .join("\n");
 
+    // On a hosted build the file hint is noise; the variable is set somewhere,
+    // just not for the environment this build ran in.
+    const hint = process.env.VERCEL
+      ? "Check each variable is enabled for this environment, not only Production — " +
+        "then redeploy, as changing them does not rebuild on its own."
+      : "Copy .env.example to .env.local and fill in the missing values.";
+
     throw new Error(
-      `Invalid environment configuration.\n${issues}\n\n` +
-        "Copy .env.example to .env.local and fill in the missing values.",
+      `Invalid environment configuration.\n${issues}\n\n${environmentReport()}\n\n${hint}`,
     );
   }
 
