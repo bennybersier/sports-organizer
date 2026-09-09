@@ -59,6 +59,13 @@ export type IntegrationProvider = "GOOGLE_CALENDAR";
 export type IntegrationStatus = "CONNECTED" | "DISCONNECTED" | "ERROR" | "EXPIRED";
 export type NotificationChannel = "IN_APP" | "EMAIL";
 export type JobStatus = "QUEUED" | "RUNNING" | "SUCCEEDED" | "FAILED" | "CANCELLED";
+export type AttendanceOccasion = "TRAINING" | "MATCH";
+export type RegisterState = "OPEN" | "RECORDED" | "CANCELLED";
+export type AttendanceStateValue = "PRESENT" | "LATE" | "ABSENT" | "EXCUSED";
+export type AbsenceReason =
+  | "INJURY" | "ILLNESS" | "SCHOOL" | "FAMILY" | "HOLIDAY" | "TRANSPORT" | "OTHER";
+export type BenchReason =
+  | "COACH_DECISION" | "ROTATION" | "INJURY" | "DISCIPLINARY" | "OTHER";
 
 /** ISO-8601 weekday: 1 = Monday … 7 = Sunday. */
 export type IsoWeekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
@@ -170,6 +177,79 @@ export interface SeasonRow extends Timestamps {
   archived_at: string | null;
 }
 
+export type CompetitionFormat = "LEAGUE" | "CONCENTRATION";
+export type CompetitionPhase =
+  | "SINGLE"
+  | "GROUP"
+  | "GOLD"
+  | "SILVER"
+  | "BRONZE"
+  | "PLAYOFF";
+/** Where a fixture's date came from, which is not the same as who it is against. */
+export type FixtureSource = "FEDERATION" | "AGREED" | "PROVISIONAL";
+
+/** One of our teams, in one competition, for one season. */
+export interface CompetitionRow extends Timestamps {
+  id: string;
+  tenant_id: string;
+  season_id: string;
+  team_id: string;
+  name: string;
+  format: CompetitionFormat;
+  phase: CompetitionPhase;
+  /** The competition this phase came out of. Null for a standalone league. */
+  parent_id: string | null;
+  /** How many clubs the next phase should hold, before its draw is known. */
+  expected_clubs: number | null;
+  /** How long our hall is held either side of a home fixture here. */
+  home_buffer_before_minutes: number;
+  home_buffer_after_minutes: number;
+  status: EntityStatus;
+  notes: string | null;
+  created_by: string | null;
+  deleted_at: string | null;
+}
+
+/** A club in a competition. Exactly one row per competition is ours. */
+export interface CompetitionEntryRow extends Timestamps {
+  id: string;
+  tenant_id: string;
+  competition_id: string;
+  /** Set only on our own entry. */
+  team_id: string | null;
+  club_name: string;
+  town: string | null;
+  /** Free text: another club's hall is not one of our gyms. */
+  venue: string | null;
+  created_by: string | null;
+}
+
+/** A match we owe. Undated until the federation publishes it or clubs agree it. */
+export interface FixtureRow extends Timestamps {
+  id: string;
+  tenant_id: string;
+  competition_id: string;
+  matchday: number;
+  host_entry_id: string | null;
+  starts_at: string | null;
+  ends_at: string | null;
+  source: FixtureSource;
+  /** What this became once it had a date. */
+  calendar_event_id: string | null;
+  notes: string | null;
+  created_by: string | null;
+}
+
+/**
+ * Who is in a fixture. Two for a league, three or four for a concentration —
+ * and one, ours alone, when the opponent is not yet known.
+ */
+export interface FixtureParticipantRow {
+  fixture_id: string;
+  entry_id: string;
+  tenant_id: string;
+}
+
 export interface GymRow extends Timestamps {
   id: string;
   tenant_id: string;
@@ -221,6 +301,10 @@ export interface TeamRow extends Timestamps {
   gender: GenderCategory;
   /** Where this team plays home fixtures. Distinct from where it trains. */
   home_gym_id: string | null;
+  /** Maximum players on a match sheet. Null means no cap (minibasket). */
+  match_call_up_limit: number | null;
+  /** Whether this side records per-player match statistics. */
+  tracks_box_score: boolean;
   color: string;
   notes: string | null;
   status: EntityStatus;
@@ -601,6 +685,123 @@ export interface OnboardingProgressRow extends Timestamps {
   dismissed_at: string | null;
 }
 
+
+/* -------------------------------------------------------------------------- */
+/* Attendance, call-ups and performance                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * One team, one occasion, one sheet.
+ *
+ * `schedule_entry_id` and `event_id` are provenance, not identity: a register
+ * outlives the plan it came from, which is the whole reason it is not a column
+ * on schedule_entries.
+ */
+export interface AttendanceRegisterRow extends Timestamps {
+  id: string;
+  tenant_id: string;
+  season_id: string;
+  team_id: string;
+  occasion: AttendanceOccasion;
+  state: RegisterState;
+  schedule_entry_id: string | null;
+  event_id: string | null;
+  starts_at: string;
+  ends_at: string;
+  gym_id: string | null;
+  trainer_id: string | null;
+  /** Snapshotted from the team when the sheet opened. Matches only. */
+  call_up_limit: number | null;
+  notes: string | null;
+  cancellation_reason: string | null;
+  recorded_at: string | null;
+  recorded_by: string | null;
+  created_by: string | null;
+}
+
+export interface AttendanceRecordRow extends Timestamps {
+  id: string;
+  tenant_id: string;
+  register_id: string;
+  athlete_id: string;
+  state: AttendanceStateValue;
+  reason: AbsenceReason | null;
+  /** True while the row is what a declared absence assumed, not what was seen. */
+  prefilled: boolean;
+  minutes_late: number | null;
+  /** Match registers only; null on a training sheet. */
+  called_up: boolean | null;
+  started: boolean | null;
+  bench_reason: BenchReason | null;
+  note: string | null;
+  recorded_by: string | null;
+}
+
+export interface AthleteAvailabilityExceptionRow extends Timestamps {
+  id: string;
+  tenant_id: string;
+  athlete_id: string;
+  /** Null means every team the athlete plays for. */
+  team_id: string | null;
+  starts_on: string;
+  ends_on: string;
+  reason: AbsenceReason;
+  note: string | null;
+  reported_by: string | null;
+  created_by: string | null;
+}
+
+/** Computed by Postgres from the shots they are made of. Never written. */
+type BoxScoreGenerated = "points" | "rebounds" | "efficiency";
+type BoxScoreRequired = "tenant_id" | "register_id" | "athlete_id";
+
+export interface MatchBoxScoreRow extends Timestamps {
+  id: string;
+  tenant_id: string;
+  register_id: string;
+  athlete_id: string;
+  seconds_played: number;
+  two_point_made: number;
+  two_point_attempted: number;
+  three_point_made: number;
+  three_point_attempted: number;
+  free_throw_made: number;
+  free_throw_attempted: number;
+  offensive_rebounds: number;
+  defensive_rebounds: number;
+  assists: number;
+  steals: number;
+  blocks: number;
+  turnovers: number;
+  fouls_committed: number;
+  fouls_drawn: number;
+  plus_minus: number | null;
+  points: number;
+  rebounds: number;
+  efficiency: number;
+  created_by: string | null;
+}
+
+export interface AthleteEvaluationRow extends Timestamps {
+  id: string;
+  tenant_id: string;
+  season_id: string;
+  athlete_id: string;
+  team_id: string;
+  trainer_id: string | null;
+  period_start: string;
+  period_end: string;
+  technique: number | null;
+  tactical: number | null;
+  physical: number | null;
+  attitude: number | null;
+  strengths: string | null;
+  development: string | null;
+  note: string | null;
+  metadata: Json;
+  created_by: string | null;
+}
+
 /* -------------------------------------------------------------------------- */
 /* Database                                                                   */
 /* -------------------------------------------------------------------------- */
@@ -621,6 +822,10 @@ export type Database = {
       invitations: Def<InvitationRow, "tenant_id" | "email" | "role_id" | "token_hash" | "expires_at">;
       seasons: Def<SeasonRow, "tenant_id" | "name" | "start_date" | "end_date">;
       gyms: Def<GymRow, "tenant_id" | "name">;
+      competitions: Def<CompetitionRow, "tenant_id" | "season_id" | "team_id" | "name">;
+      competition_entries: Def<CompetitionEntryRow, "tenant_id" | "competition_id" | "club_name">;
+      fixtures: Def<FixtureRow, "tenant_id" | "competition_id" | "matchday">;
+      fixture_participants: Def<FixtureParticipantRow, "tenant_id" | "fixture_id" | "entry_id">;
       trainers: Def<TrainerRow, "tenant_id" | "first_name" | "last_name">;
       teams: Def<TeamRow, "tenant_id" | "season_id" | "name" | "sport">;
       athletes: Def<AthleteRow, "tenant_id" | "first_name" | "last_name">;
@@ -670,6 +875,35 @@ export type Database = {
       calendar_event_teams: Def<CalendarEventTeamRow, "event_id" | "team_id" | "tenant_id">;
       jobs: Def<JobRow, "tenant_id" | "kind">;
       audit_logs: Def<AuditLogRow, "tenant_id" | "action" | "resource_type">;
+      attendance_registers: Def<
+        AttendanceRegisterRow,
+        | "tenant_id" | "season_id" | "team_id" | "occasion" | "starts_at" | "ends_at"
+      >;
+      attendance_records: Def<
+        AttendanceRecordRow,
+        "tenant_id" | "register_id" | "athlete_id"
+      >;
+      athlete_availability_exceptions: Def<
+        AthleteAvailabilityExceptionRow,
+        "tenant_id" | "athlete_id" | "starts_on" | "ends_on" | "reason"
+      >;
+      // Spelt out rather than built with Def: points, rebounds and efficiency
+      // are generated columns, and Postgres rejects any write that names them.
+      // Def would offer them as optional on Insert, which is a type that
+      // compiles and a statement that fails.
+      match_box_scores: {
+        Row: Plain<MatchBoxScoreRow>;
+        Insert: Plain<
+          Pick<MatchBoxScoreRow, BoxScoreRequired> &
+            Partial<Omit<MatchBoxScoreRow, BoxScoreRequired | BoxScoreGenerated>>
+        >;
+        Update: Plain<Partial<Omit<MatchBoxScoreRow, BoxScoreGenerated>>>;
+        Relationships: [];
+      };
+      athlete_evaluations: Def<
+        AthleteEvaluationRow,
+        "tenant_id" | "season_id" | "athlete_id" | "team_id" | "period_start" | "period_end"
+      >;
       notifications: Def<NotificationRow, "tenant_id" | "user_id" | "type" | "title">;
       notification_preferences: Def<
         NotificationPreferenceRow,
@@ -779,6 +1013,11 @@ export type Database = {
       integration_status: IntegrationStatus;
       notification_channel: NotificationChannel;
       job_status: JobStatus;
+      attendance_occasion: AttendanceOccasion;
+      register_state: RegisterState;
+      attendance_state: AttendanceStateValue;
+      absence_reason: AbsenceReason;
+      bench_reason: BenchReason;
     };
     CompositeTypes: Record<never, never>;
   };

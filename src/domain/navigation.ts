@@ -2,12 +2,14 @@ import type { LucideIcon } from "lucide-react";
 import {
   Building2,
   CalendarDays,
+  ClipboardCheck,
   Dumbbell,
   LayoutDashboard,
   MapPin,
   Plug,
   ScrollText,
   Settings,
+  Swords,
   Sparkles,
   Trophy,
   UserCog,
@@ -54,6 +56,12 @@ export const NAVIGATION: NavSection[] = [
       { titleKey: "dashboard", href: "/dashboard", icon: LayoutDashboard },
       { titleKey: "calendar", href: "/calendar", icon: CalendarDays, permission: "calendar.read" },
       { titleKey: "organizer", href: "/organizer", icon: Sparkles, permission: "schedule.generate" },
+      {
+        titleKey: "attendance",
+        href: "/attendance",
+        icon: ClipboardCheck,
+        permission: "attendance.read",
+      },
     ],
   },
   {
@@ -64,6 +72,12 @@ export const NAVIGATION: NavSection[] = [
       { titleKey: "athletes", href: "/athletes", icon: Dumbbell, permission: "athletes.read" },
       { titleKey: "trainers", href: "/trainers", icon: UserCog, permission: "trainers.read" },
       { titleKey: "gyms", href: "/gyms", icon: MapPin, permission: "gyms.read" },
+      {
+        titleKey: "competitions",
+        href: "/competitions",
+        icon: Swords,
+        permission: "competitions.read",
+      },
     ],
   },
   {

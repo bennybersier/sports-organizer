@@ -142,3 +142,27 @@
     @apply font-sans;
   }
 }
+
+/*
+  Radix hides the scrollbar inside a Select's list: it injects its own
+  stylesheet setting `scrollbar-width: none` on the viewport. On a long list —
+  every gym, every team, every trainer — that leaves nothing to say more is
+  below the fold, and the dropdown reads as one that simply stops early.
+
+  Deliberately unlayered and important: the rule being overridden is injected
+  into the document at render, so it lands after this file and matches with the
+  same specificity. Nothing less wins.
+*/
+[data-radix-select-viewport] {
+  scrollbar-width: thin !important;
+}
+
+[data-radix-select-viewport]::-webkit-scrollbar {
+  display: block !important;
+  width: 0.5rem;
+}
+
+[data-radix-select-viewport]::-webkit-scrollbar-thumb {
+  background-color: var(--border);
+  border-radius: 0.25rem;
+}

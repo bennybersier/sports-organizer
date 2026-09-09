@@ -58,6 +58,12 @@ export type FindingCode =
   | "DAY_NO_GYM_OPEN"
   | "DAY_NO_TRAINER"
   | "DAY_NO_OVERLAP"
+  /*
+    No longer produced: a team is unconstrained on a day it says nothing about,
+    so no weekday is blocked by the team alone. Kept because it is stored in
+    `validation_details` on schedules generated before that changed, and the UI
+    still has to be able to phrase what it reads back.
+  */
   | "DAY_TEAM_UNAVAILABLE"
   | "DAY_WINDOW_TOO_SHORT"
   /* What to change to fix the above. Rendered apart from the diagnosis. */

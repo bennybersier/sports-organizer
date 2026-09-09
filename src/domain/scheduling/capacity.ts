@@ -19,7 +19,6 @@ export type WeekdayBlocker =
   | "NO_GYM_OPEN"
   | "NO_TRAINER_AVAILABLE"
   | "GYM_TRAINER_NO_OVERLAP"
-  | "TEAM_UNAVAILABLE"
   | "WINDOW_TOO_SHORT";
 
 export interface WeekdayCapacity {

@@ -1,5 +1,6 @@
 /**
- * The permission taxonomy, mirroring supabase/migrations/*_0007_permissions_seed.sql.
+ * The permission taxonomy, mirroring supabase/migrations/*_0007_permissions_seed.sql and
+ * the later migrations that add to it.
  *
  * This file exists so the UI and server code get compile-time checking on
  * permission strings. The database remains authoritative at runtime — RLS calls
@@ -46,6 +47,11 @@ export const PERMISSIONS = [
   "gyms.update",
   "gyms.delete",
 
+  "competitions.read",
+  "competitions.create",
+  "competitions.update",
+  "competitions.delete",
+
   "availability.read",
   "availability.create",
   "availability.update",
@@ -67,6 +73,13 @@ export const PERMISSIONS = [
   "ai.manage",
 
   "mcp.manage",
+
+  "attendance.read",
+  "attendance.record",
+  "attendance.manage",
+
+  "evaluations.read",
+  "evaluations.write",
 
   "audit_logs.read",
 ] as const;
