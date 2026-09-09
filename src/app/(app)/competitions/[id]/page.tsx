@@ -71,13 +71,14 @@ export default async function CompetitionDetailPage({
 
   return (
     <div className="flex w-full flex-col gap-6">
-      <Button asChild variant="ghost" size="sm" className="-ml-2 w-fit">
+      <Button asChild variant="ghost" size="sm" className="-ml-2 w-fit print:hidden">
         <Link href="/competitions">
           <ArrowLeft aria-hidden />
           {t("title")}
         </Link>
       </Button>
 
+      <div className="print:hidden">
       <PageHeader
         title={competition.name}
         description={team.name}
@@ -92,6 +93,9 @@ export default async function CompetitionDetailPage({
         }
       />
 
+      </div>
+
+      <div className="print:hidden">
       <EntriesCard
         competitionId={id}
         canEdit={canEdit}
@@ -103,12 +107,24 @@ export default async function CompetitionDetailPage({
         }))}
       />
 
+      </div>
+
       <FixturesCard
         competitionId={id}
         canEdit={canEdit}
         canGenerate={canGenerate}
         format={competition.format}
         competitionName={competition.name}
+        // The document's own heading: what this list is, whose it is, and when
+        // it was taken off the screen. The app's header is chrome and does not
+        // print — a printed sheet is read away from the thing that made it.
+        printHeading={{
+          club: context.tenant.name,
+          competition: competition.name,
+          team: team.name,
+          phase: competition.phase === "SINGLE" ? null : t(competition.phase),
+          printedOn: format.dateTime(new Date(), { dateStyle: "long" }),
+        }}
         fixtures={fixtures.map((fixture) => {
           // Split on the club's clock, not the server's, so a late kick-off
           // does not show tomorrow's date.
@@ -128,10 +144,12 @@ export default async function CompetitionDetailPage({
       />
 
       {competition.notes ? (
-        <p className="text-muted-foreground text-sm whitespace-pre-line">{competition.notes}</p>
+        <p className="text-muted-foreground text-sm whitespace-pre-line print:hidden">
+          {competition.notes}
+        </p>
       ) : null}
 
-      <p className="text-muted-foreground text-xs">
+      <p className="text-muted-foreground text-xs print:hidden">
         {format.dateTime(new Date(competition.created_at), { dateStyle: "medium" })}
       </p>
     </div>

@@ -55,6 +55,7 @@ export function FixturesCard({
   canEdit,
   format,
   competitionName,
+  printHeading,
 }: {
   competitionId: string;
   fixtures: FixtureRowView[];
@@ -62,6 +63,13 @@ export function FixturesCard({
   canEdit: boolean;
   format: string;
   competitionName: string;
+  printHeading: {
+    club: string;
+    competition: string;
+    team: string;
+    phase: string | null;
+    printedOn: string;
+  };
 }) {
   const t = useTranslations("competitions");
   const tCommon = useTranslations("common");
@@ -97,8 +105,27 @@ export function FixturesCard({
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
+    <Card className="print:border-0 print:shadow-none">
+      {/*
+        Only the printer sees this. The screen already says what competition
+        this is, in the page header above; a sheet of paper carries none of
+        that context with it and has to say so itself.
+      */}
+      <div className="hidden print:block">
+        <p className="text-xs uppercase tracking-wide">{printHeading.club}</p>
+        <h1 className="mt-1 text-xl font-semibold">{printHeading.competition}</h1>
+        <p className="mt-0.5 text-sm">
+          {printHeading.team}
+          {printHeading.phase ? ` · ${printHeading.phase}` : ""}
+          {` · ${t(scope === "all" ? "scopeAll" : scope)}`}
+        </p>
+        <p className="mt-2 text-xs">
+          {t("dated", { dated, total: shown.length })} · {printHeading.printedOn}
+        </p>
+        <hr className="mt-3 mb-1" />
+      </div>
+
+      <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2 print:hidden">
         <div className="space-y-1.5">
           <CardTitle className="flex items-center gap-2">
             <Swords className="size-4" aria-hidden />
@@ -157,7 +184,7 @@ export function FixturesCard({
       </CardHeader>
 
       {shown.length > 0 ? (
-        <CardContent className="overflow-x-auto p-0 sm:px-6">
+        <CardContent className="overflow-x-auto p-0 sm:px-6 print:overflow-visible print:px-0">
           <Table>
             <TableHeader>
               <TableRow>

@@ -24,6 +24,7 @@ export function StaffBanner({ tenantName }: { tenantName: string }) {
   return (
     <div
       role="status"
+      data-slot="staff-banner"
       className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-900 dark:text-amber-200"
     >
       <ShieldAlert className="size-4 shrink-0" aria-hidden />

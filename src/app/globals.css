@@ -178,9 +178,26 @@
   Per-element `print:hidden` handles the rest inside a page; this covers the
   shell every page shares.
 */
+/*
+  The browser prints a URL, a date and a page number into the paper's margin
+  unless there is no margin to print them into. Setting the page margin to zero
+  is what suppresses them; the padding below then puts the document back a
+  sensible distance from the edge, under our control rather than the browser's.
+*/
+@page {
+  size: A4;
+  margin: 0;
+}
+
 @media print {
+  /* The page's own margin, now that @page has none for the browser to use. */
+  #main-content {
+    padding: 14mm 12mm !important;
+  }
+
   [data-slot="sidebar-wrapper"] > [data-slot="sidebar"],
-  [data-slot="sidebar-inset"] > header {
+  [data-slot="sidebar-inset"] > header,
+  [data-slot="sidebar-inset"] > [data-slot="staff-banner"] {
     display: none !important;
   }
 
