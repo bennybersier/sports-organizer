@@ -98,28 +98,116 @@ export async function PerformanceCard({
             {boxScore ? (
               <>
                 <Separator />
-                <div className="grid gap-4 sm:grid-cols-4">
-                  <Stat
-                    label={t("stats.points")}
-                    value={boxScore.perGame.points.toFixed(1)}
-                    hint={t("stats.perGame")}
-                  />
-                  <Stat
-                    label={t("stats.rebounds")}
-                    value={boxScore.perGame.rebounds.toFixed(1)}
-                    hint={t("stats.perGame")}
-                  />
-                  <Stat
-                    label={t("stats.assists")}
-                    value={boxScore.perGame.assists.toFixed(1)}
-                    hint={t("stats.perGame")}
-                  />
-                  <Stat
-                    label={t("stats.efficiency")}
-                    value={boxScore.perGame.efficiency.toFixed(1)}
-                    hint={`${boxScore.games} ${t("stats.games").toLowerCase()}`}
-                  />
+
+                {/*
+                  Two blocks, and the split is the point. The first holds what a
+                  game sheet can tell you, so it is averaged over every match.
+                  The second holds what only a full stat entry can, and is
+                  averaged over just those matches — showing a rebound average
+                  that includes ten referto games would be a claim about the
+                  player rather than about the paperwork.
+                */}
+                <div className="space-y-2">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {t("stats.scoring")}
+                  </p>
+                  <div className="grid gap-4 sm:grid-cols-4">
+                    <Stat
+                      label={t("stats.points")}
+                      value={boxScore.perGame.points.toFixed(1)}
+                      hint={`${t("stats.perGame")} · ${boxScore.games} ${t("stats.games").toLowerCase()}`}
+                    />
+                    <Stat
+                      label={t("stats.fouls")}
+                      value={boxScore.perGame.fouls.toFixed(1)}
+                      hint={t("stats.perGame")}
+                    />
+                    <Stat
+                      label={t("stats.twoPoint")}
+                      value={String(boxScore.basic.twoPointMade)}
+                      hint={t("stats.made")}
+                    />
+                    <Stat
+                      label={t("stats.threePoint")}
+                      value={String(boxScore.basic.threePointMade)}
+                      hint={t("stats.made")}
+                    />
+                  </div>
                 </div>
+
+                {boxScore.detail ? (
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium text-muted-foreground">
+                      {boxScore.detail.games === 1
+                        ? t("stats.fullStatsOne")
+                        : t("stats.fullStats", {
+                            games: boxScore.detail.games,
+                            total: boxScore.games,
+                          })}
+                    </p>
+                    <div className="grid gap-4 sm:grid-cols-4">
+                      <Stat
+                        label={t("stats.rebounds")}
+                        value={boxScore.detail.perGame.rebounds.toFixed(1)}
+                        hint={t("stats.perGame")}
+                      />
+                      <Stat
+                        label={t("stats.assists")}
+                        value={boxScore.detail.perGame.assists.toFixed(1)}
+                        hint={t("stats.perGame")}
+                      />
+                      <Stat
+                        label={t("stats.steals")}
+                        value={boxScore.detail.perGame.steals.toFixed(1)}
+                        hint={t("stats.perGame")}
+                      />
+                      <Stat
+                        label={t("stats.turnovers")}
+                        value={boxScore.detail.perGame.turnovers.toFixed(1)}
+                        hint={t("stats.perGame")}
+                      />
+                      <Stat
+                        label={t("stats.minutes")}
+                        value={boxScore.detail.perGame.minutes.toFixed(0)}
+                        hint={t("stats.perGame")}
+                      />
+                      <Stat
+                        label={t("stats.efficiency")}
+                        value={boxScore.detail.perGame.efficiency.toFixed(1)}
+                        hint={t("stats.perGame")}
+                      />
+                      <Stat
+                        label={t("stats.twoPoint")}
+                        value={percent(boxScore.detail.shooting.twoPoint)}
+                        hint={t("stats.shooting")}
+                      />
+                      <Stat
+                        label={t("stats.threePoint")}
+                        value={percent(boxScore.detail.shooting.threePoint)}
+                        hint={t("stats.shooting")}
+                      />
+                    </div>
+
+                    {/* Only worth saying when some games are missing from the
+                        figures directly above. */}
+                    {boxScore.sheetGames > 0 ? (
+                      <p className="text-xs text-muted-foreground">
+                        {t("stats.sheetSome", {
+                          sheetGames: boxScore.sheetGames,
+                          games: boxScore.games,
+                        })}
+                      </p>
+                    ) : null}
+                  </div>
+                ) : (
+                  /*
+                    Every game came off a sheet, so there is no rebound average,
+                    no percentage and no valutazione to show. Saying why is the
+                    whole of this branch: an empty space reads as a bug, and a
+                    "0.0" reads as a fact.
+                  */
+                  <p className="text-xs text-muted-foreground">{t("stats.sheetOnly")}</p>
+                )}
               </>
             ) : null}
           </>
@@ -155,6 +243,11 @@ export async function PerformanceCard({
       </CardContent>
     </Card>
   );
+}
+
+/** A fraction as a percentage, or nothing where there is no denominator. */
+function percent(value: number | null): string {
+  return value === null ? "—" : `${Math.round(value * 100)}%`;
 }
 
 function Stat({
