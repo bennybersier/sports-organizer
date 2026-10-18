@@ -93,6 +93,10 @@ export default async function AthleteDetailPage({
   }
 
   const relations = await getAthleteRelations(context, id);
+  const shirts = relations.teams.filter(
+    (team): team is typeof team & { jerseyNumber: number } =>
+      team.jerseyNumber !== null && team.jerseyNumber !== undefined,
+  );
   const canReadTeams = hasPermission(context, "teams.read");
   const canEditAthlete = hasPermission(context, "athletes.update");
   // Every squad they could be put in, not only the ones they are in.
@@ -147,8 +151,25 @@ export default async function AthleteDetailPage({
       </Button>
 
       <PageHeader
-        title={`${athlete.first_name} ${athlete.last_name}`}
-        description={athlete.email ?? undefined}
+        /*
+          The shirt beside the name, where a coach looks for it.
+
+          A number belongs to a player *in a team*, so a boy who trains up an
+          age group has two. One number reads as part of the name; two have to
+          say which side each belongs to, or the header states something that
+          is only half true.
+        */
+        title={`${athlete.first_name} ${athlete.last_name}${shirts.length === 1 ? ` #${shirts[0].jerseyNumber}` : ""}`}
+        description={
+          [
+            athlete.email,
+            shirts.length > 1
+              ? shirts.map((team) => `#${team.jerseyNumber} ${team.name}`).join(" · ")
+              : null,
+          ]
+            .filter(Boolean)
+            .join(" · ") || undefined
+        }
         action={
           <>
             <Badge variant={athlete.membership_status === "ACTIVE" ? "secondary" : "outline"}>
@@ -287,6 +308,11 @@ export default async function AthleteDetailPage({
             href: `/teams/${team.id}`,
             color: team.color,
             meta: [team.sport, team.ageGroup].filter(Boolean).join(" · "),
+            // Which shirt for which side — the pairing the number belongs to.
+            tags:
+              team.jerseyNumber !== null && team.jerseyNumber !== undefined
+                ? [{ label: tRelated("jersey", { number: team.jerseyNumber }) }]
+                : [],
           }))}
           action={
             teamPool.length > 0 ? (

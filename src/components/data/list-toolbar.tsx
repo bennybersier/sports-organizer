@@ -15,6 +15,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
+/**
+ * How long to wait after the last keystroke before searching.
+ *
+ * Long enough to cover the gap between words at a normal typing speed, so a
+ * search is one query rather than one per letter.
+ */
+const SEARCH_DEBOUNCE_MS = 400;
+
 export interface ToolbarFilter {
   /** Query-string key this filter writes to. */
   name: string;
@@ -46,14 +54,31 @@ export function ListToolbar({
   const urlTerm = searchParams.get("q") ?? "";
   const [term, setTerm] = useState(urlTerm);
 
+  /*
+    The last term this component put into the URL.
+
+    Without it, the sync below ate letters. Typing is debounced, so a search
+    lands in the URL a moment after it was typed — and by then the user has
+    usually typed more. The arriving URL is the echo of our own navigation, but
+    it is indistinguishable from an external change, so the box was reset to the
+    older value and whatever had been typed since vanished. At speed that reads
+    as the field deleting characters while it searches.
+  */
+  const [lastSent, setLastSent] = useState(urlTerm);
+
   // Keep the box in step when the URL changes from elsewhere — back button,
   // "clear filters" — without fighting the user mid-keystroke. Adjusting during
   // render rather than in an effect avoids a second render pass and the
-  // cascading-update it would cause.
+  // cascading update it would cause.
   const [syncedTerm, setSyncedTerm] = useState(urlTerm);
   if (urlTerm !== syncedTerm) {
     setSyncedTerm(urlTerm);
-    setTerm(urlTerm);
+    // Only adopt a value this component did not send. Its own echo is already
+    // older than what is in the box.
+    if (urlTerm !== lastSent) {
+      setTerm(urlTerm);
+      setLastSent(urlTerm);
+    }
   }
 
   function apply(changes: Record<string, string | null>) {
@@ -68,14 +93,23 @@ export function ListToolbar({
     startTransition(() => router.replace(`${pathname}?${next.toString()}`));
   }
 
-  // Debounce typing so each keystroke isn't a database round-trip. This effect
-  // writes to an external system (the URL), which is what effects are for.
+  /*
+    Debounce typing so each keystroke is not a database round-trip. This effect
+    writes to an external system (the URL), which is what effects are for.
+
+    It waits on the typing, not on the URL. Depending on `urlTerm` restarted
+    the timer every time our own navigation landed, which is a race against the
+    very thing the debounce exists to avoid.
+  */
   useEffect(() => {
-    if (term === urlTerm) return;
-    const timer = setTimeout(() => apply({ q: term || null }), 300);
+    if (term === lastSent) return;
+    const timer = setTimeout(() => {
+      setLastSent(term);
+      apply({ q: term || null });
+    }, SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [term, urlTerm]);
+  }, [term, lastSent]);
 
   const hasFilters =
     (searchParams.get("q") ?? "") !== "" ||

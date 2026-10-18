@@ -1296,7 +1296,7 @@
     "sideHint": "If the names below are the opponent's, switch sides. Nothing is re-read and nothing is charged.",
     "assign": "Who is who",
     "assignHint": "Match each shirt number to a player. Suggestions come from the squad numbers you already have on file.",
-    "shirt": "No.",
+    "shirt": "#",
     "onSheet": "On the sheet",
     "player": "Player",
     "unassigned": "Not assigned",
@@ -1373,6 +1373,16 @@
     "blockedByQuestions": "Answer the remaining questions first.",
     "blockedByProblems": "The sheet doesn't reconcile yet, so it can't be imported.",
     "editMatch": "Edit match",
-    "newMatch": "New match"
+    "newMatch": "New match",
+    "seasonSummary": "{total} matches, {played} played.",
+    "competitionColumn": "Competition",
+    "venue": "H/A",
+    "homeShort": "H",
+    "awayShort": "A",
+    "notPlayedYet": "Not played",
+    "date": "Date",
+    "startingFive": "Starting five",
+    "started": "Started",
+    "startingFiveAre": "Starting five: {players}"
   }
 }

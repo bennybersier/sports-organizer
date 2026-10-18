@@ -580,6 +580,46 @@ export async function listUpcomingFixtures(
 /* Box scores                                                                 */
 /* -------------------------------------------------------------------------- */
 
+/** Who was picked for one match, and which five of them started it. */
+export interface MatchSelection {
+  athleteId: string;
+  calledUp: boolean;
+  started: boolean;
+  attended: boolean;
+}
+
+/**
+ * The team sheet behind a box score.
+ *
+ * Separate from `listBoxScores` because the two answer different questions and
+ * one can exist without the other: a side that keeps no scoresheet still picks
+ * a twelve and still starts a five, and a match can be marked long before
+ * anybody types the numbers up.
+ *
+ * On a referto the starters are the circled crosses in the E/N. column — see
+ * docs/referto-import.md §3 — and there are always exactly five of them.
+ */
+export async function listSelections(
+  context: AuthContext,
+  registerId: string,
+): Promise<MatchSelection[]> {
+  assertPermission(context, "attendance.read");
+
+  const { data, error } = await context.db
+    .from("attendance_records")
+    .select("athlete_id, called_up, started, state")
+    .eq("tenant_id", context.tenant.id)
+    .eq("register_id", registerId);
+  if (error) throw fromDatabaseError(error, { resource: "register" });
+
+  return (data ?? []).map((row) => ({
+    athleteId: row.athlete_id,
+    calledUp: Boolean(row.called_up),
+    started: Boolean(row.started),
+    attended: row.state === "PRESENT" || row.state === "LATE",
+  }));
+}
+
 export async function listBoxScores(
   context: AuthContext,
   registerId: string,

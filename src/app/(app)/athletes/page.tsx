@@ -149,6 +149,12 @@ export default async function AthletesPage({
                                 aria-hidden
                               />
                               {team.name}
+                              {/* The shirt belongs to the team, so it is shown on it. */}
+                              {team.jerseyNumber !== null ? (
+                                <span className="font-semibold tabular-nums">
+                                  #{team.jerseyNumber}
+                                </span>
+                              ) : null}
                             </Badge>
                           ))
                         )}

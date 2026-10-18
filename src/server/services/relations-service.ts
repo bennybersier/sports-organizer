@@ -28,6 +28,15 @@ export interface RelatedTeam {
   sport: string;
   ageGroup: string | null;
   status: EntityStatus;
+  /**
+   * The shirt an athlete wears for this side.
+   *
+   * Set only where the record being viewed is a person: a number belongs to
+   * the pairing of player and team, so a boy who trains up an age group has
+   * one for the U13s and another for the U15s, and there is no number to put
+   * beside his name on its own.
+   */
+  jerseyNumber?: number | null;
   /** Why this team is related — how many sessions it has in the hall, say. */
   sessions?: number;
 }
@@ -354,10 +363,22 @@ export async function getTrainerRelations(
   ]);
 
   const viaByAthlete = new Map<string, string[]>();
+  /*
+    The shirt, but only when it is unambiguous.
+
+    A player in two of this coach's squads wears two numbers, and printing one
+    of them beside the name would state the wrong one half the time. `via`
+    already names the squads, so the honest answer there is to say nothing.
+  */
+  const shirtByAthlete = new Map<string, number | null>();
   for (const link of squad) {
     const name = teamNames.get(link.team_id);
     if (!name) continue;
     viaByAthlete.set(link.athlete_id, [...(viaByAthlete.get(link.athlete_id) ?? []), name]);
+    shirtByAthlete.set(
+      link.athlete_id,
+      shirtByAthlete.has(link.athlete_id) ? null : link.jersey_number,
+    );
   }
 
   const gymSessions = countBy(entries, "gym_id");
@@ -380,6 +401,7 @@ export async function getTrainerRelations(
       membershipStatus: athlete.membership_status,
       status: athlete.status,
       via: viaByAthlete.get(athlete.id) ?? [],
+      jerseyNumber: shirtByAthlete.get(athlete.id) ?? null,
     })),
     gyms: gyms.map((gym) => ({
       id: gym.id,
@@ -511,6 +533,10 @@ export async function getAthleteRelations(
     coaching.filter((link) => link.is_head_coach).map((link) => link.trainer_id),
   );
 
+  const shirtByTeam = new Map<string, number | null>(
+    (memberships ?? []).map((row) => [row.team_id, row.jersey_number]),
+  );
+
   return {
     teams: teams.map((team) => ({
       id: team.id,
@@ -519,6 +545,7 @@ export async function getAthleteRelations(
       sport: team.sport,
       ageGroup: team.age_group,
       status: team.status,
+      jerseyNumber: shirtByTeam.get(team.id) ?? null,
     })),
     trainers: trainers.map((trainer) => ({
       id: trainer.id,

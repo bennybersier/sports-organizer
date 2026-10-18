@@ -31,9 +31,23 @@ const relationSchema = z.object({
  * coaches and this one is head" is a single decision — splitting it would let
  * a team briefly have a head coach who is no longer on its staff.
  */
-const coachingStaffSchema = relationSchema.extend({
-  headCoachId: z.union([z.literal(""), uuidSchema]).optional().transform((v) => v || null),
-});
+const coachingStaffSchema = relationSchema
+  .extend({
+    headCoachId: z.union([z.literal(""), uuidSchema]).optional().transform((v) => v || null),
+  })
+  /*
+    The head coach has to be one of the coaches being saved.
+
+    Enforced here and not only in the dialog, because the consequence of
+    letting the pair disagree is silent: the service stands the incumbent down
+    before promoting the successor, so naming someone who is not on the list
+    demotes everybody and promotes nobody, and the team quietly ends up with no
+    head coach at all.
+  */
+  .refine((value) => !value.headCoachId || value.relatedIds.includes(value.headCoachId), {
+    message: "The head coach must be one of this team's coaches.",
+    path: ["headCoachId"],
+  });
 
 export async function setTeamTrainersAction(input: unknown): Promise<ActionResult<{ count: number }>> {
   return runAction(async () => {
