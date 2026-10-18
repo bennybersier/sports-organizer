@@ -8,6 +8,14 @@ import { Button } from "@/components/ui/button";
 import { AccessDenied } from "@/components/data/access-denied";
 import { EmptyState } from "@/components/data/empty-state";
 import { PageHeader } from "@/components/data/page-header";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
 import { listMatches } from "@/server/services/match-service";
@@ -147,53 +155,82 @@ export default async function MatchesPage({
           description={filtered ? t("emptyFilteredBody") : t("emptyBody")}
         />
       ) : (
-        <ul className="divide-y rounded-lg border">
-          {matches.map((match) => (
-            <li key={`${match.eventId}:${match.teamId}`}>
-              <Link
-                href={`/matches/${match.eventId}/${match.teamId}`}
-                className="flex flex-wrap items-center gap-3 p-3 transition-colors hover:bg-muted/50 sm:p-4"
-              >
-                <span
-                  className="size-2.5 shrink-0 rounded-full"
-                  style={{ backgroundColor: match.teamColor }}
-                  aria-hidden
-                />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium">
-                    {match.teamName}
-                    <span className="text-muted-foreground"> · </span>
-                    <span className="font-normal">{t("versus", { opponent: match.opponent })}</span>
-                  </p>
-                  <p className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
-                    <span>
-                      {format.dateTime(new Date(match.startsAt), {
-                        weekday: "short",
-                        day: "numeric",
-                        month: "short",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
+        /*
+          A table, not a stack of rows. The questions asked of this page are
+          comparative — which of these has a result, which competition is this
+          one, when is the next away game — and comparison wants columns.
+        */
+        <div className="overflow-x-auto rounded-lg border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-28">{t("date")}</TableHead>
+                <TableHead>{t("team")}</TableHead>
+                <TableHead>{t("opponent")}</TableHead>
+                <TableHead>{t("competitionColumn")}</TableHead>
+                <TableHead className="w-16 text-center">{t("venue")}</TableHead>
+                <TableHead className="text-end">{t("result")}</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {matches.map((match) => (
+                <TableRow key={`${match.eventId}:${match.teamId}`}>
+                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground tabular-nums">
+                    {format.dateTime(new Date(match.startsAt), {
+                      day: "numeric",
+                      month: "short",
+                      year: "2-digit",
+                    })}
+                  </TableCell>
+
+                  <TableCell>
+                    <span className="flex items-center gap-2">
+                      <span
+                        className="size-2.5 shrink-0 rounded-full"
+                        style={{ backgroundColor: match.teamColor }}
+                        aria-hidden
+                      />
+                      <span className="truncate text-sm">{match.teamName}</span>
                     </span>
+                  </TableCell>
+
+                  <TableCell>
+                    <Link
+                      href={`/matches/${match.eventId}/${match.teamId}`}
+                      className="font-medium hover:underline"
+                    >
+                      {match.opponent}
+                    </Link>
                     {match.gymName ? (
-                      <span className="flex items-center gap-1">
-                        <MapPin className="size-3.5" aria-hidden />
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <MapPin className="size-3" aria-hidden />
                         {match.gymName}
                       </span>
                     ) : null}
-                    {match.competition ? <span>{match.competition}</span> : null}
-                  </p>
-                </div>
-                {match.isHome !== null ? (
-                  <Badge variant="outline" className="shrink-0 font-normal">
-                    {match.isHome ? t("home") : t("away")}
-                  </Badge>
-                ) : null}
-                <ScoreBadge result={match.result} labels={labels} />
-              </Link>
-            </li>
-          ))}
-        </ul>
+                  </TableCell>
+
+                  <TableCell className="text-sm text-muted-foreground">
+                    {match.competition ?? "—"}
+                  </TableCell>
+
+                  <TableCell className="text-center">
+                    {match.isHome === null ? (
+                      <span className="text-xs text-muted-foreground">—</span>
+                    ) : (
+                      <Badge variant="outline" className="font-normal">
+                        {match.isHome ? t("homeShort") : t("awayShort")}
+                      </Badge>
+                    )}
+                  </TableCell>
+
+                  <TableCell className="text-end">
+                    <ScoreBadge result={match.result} labels={labels} />
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
       )}
     </div>
   );

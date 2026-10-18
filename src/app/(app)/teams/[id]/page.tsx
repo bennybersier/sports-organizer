@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { ArrowLeft, Dumbbell, MapPin, Swords, Trophy, UserCog, Users } from "lucide-react";
+import { ArrowLeft, Dumbbell, MapPin, Trophy, UserCog, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -40,6 +40,7 @@ import {
 } from "@/server/services/calendar-service";
 
 import { CoachingStaffDialog } from "./coaching-staff-dialog";
+import { TeamMatchTable } from "./match-table";
 import { RequirementsCard } from "./requirements-form";
 
 
@@ -81,7 +82,6 @@ export default async function TeamDetailPage({
   const tGender = await getTranslations("gender");
   const tRelated = await getTranslations("related");
   const tCompetitions = await getTranslations("competitions");
-  const tMatches = await getTranslations("matches");
   const tMembership = await getTranslations("membershipState");
 
   let team;
@@ -290,44 +290,7 @@ export default async function TeamDetailPage({
 
       {record ? <RecordCard record={record} teamId={id} /> : null}
 
-      {recentMatches.length > 0 ? (
-        <RelatedCard
-          icon={Swords}
-          title={tMatches("title")}
-          empty={tMatches("emptyTitle")}
-          /* The season is long; this card is a pointer, not the list. */
-          count={recentMatches.length}
-          items={recentMatches.slice(0, 8).map((match) => ({
-            id: `${match.eventId}:${match.teamId}`,
-            name: tMatches("versus", { opponent: match.opponent }),
-            href: `/matches/${match.eventId}/${match.teamId}`,
-            meta: match.competition,
-            tags: [
-              ...(match.result?.ourScore != null && match.result.theirScore != null
-                ? [
-                    {
-                      label: `${match.result.ourScore}–${match.result.theirScore}`,
-                      variant:
-                        match.result.outcome === "WIN"
-                          ? ("default" as const)
-                          : match.result.outcome === "DRAW"
-                            ? ("secondary" as const)
-                            : ("destructive" as const),
-                    },
-                  ]
-                : [{ label: tMatches("noResult"), variant: "outline" as const }]),
-              ...(match.isHome !== null
-                ? [{ label: tMatches(match.isHome ? "home" : "away"), variant: "outline" as const }]
-                : []),
-            ],
-          }))}
-          action={
-            <Button variant="link" size="sm" asChild className="h-auto p-0">
-              <Link href={`/matches?team=${id}&scope=played`}>{tMatches("scopePlayed")}</Link>
-            </Button>
-          }
-        />
-      ) : null}
+      <TeamMatchTable matches={recentMatches} />
 
       {competitions.length > 0 ? (
         <RelatedCard
