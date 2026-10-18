@@ -17,6 +17,8 @@ import {
   listEntries,
   listFixtures,
 } from "@/server/services/competition-service";
+import { getTeamRecord, listMatches } from "@/server/services/match-service";
+import { RecordCard } from "@/components/data/record-card";
 import { getTeam, listTeamOptions } from "@/server/services/team-service";
 import { listSeasonOptions } from "@/server/services/season-service";
 import { CompetitionFormDialog } from "../competition-form-dialog";
@@ -61,11 +63,25 @@ export default async function CompetitionDetailPage({
     throw error;
   }
 
-  const [entries, fixtures, team] = await Promise.all([
+  const canReadResults = hasPermission(context, "attendance.read");
+
+  const [entries, fixtures, team, matches, record] = await Promise.all([
     listEntries(context, id),
     listFixtures(context, id),
     getTeam(context, competition.team_id),
+    // Results hang off the calendar event a fixture became, so they are fetched
+    // per competition and joined to the fixtures below rather than per row.
+    canReadResults ? listMatches(context, { competitionId: id }) : Promise.resolve([]),
+    canReadResults
+      ? getTeamRecord(context, competition.team_id, { competitionId: id })
+      : Promise.resolve(null),
   ]);
+
+  const resultByEvent = new Map(
+    matches
+      .filter((match) => match.teamId === competition.team_id)
+      .map((match) => [match.eventId, match]),
+  );
 
   const canEdit = hasPermission(context, "competitions.update");
   // Only for the edit dialog's own pickers.
@@ -155,6 +171,9 @@ export default async function CompetitionDetailPage({
           printedOn: format.dateTime(new Date(), { dateStyle: "long" }),
         }}
         fixtures={fixtures.map((fixture) => {
+          const match = fixture.calendar_event_id
+            ? resultByEvent.get(fixture.calendar_event_id)
+            : undefined;
           // Split on the club's clock, not the server's, so a late kick-off
           // does not show tomorrow's date.
           const wall = fixture.starts_at ? toWallClock(fixture.starts_at, zone) : null;
@@ -168,9 +187,26 @@ export default async function CompetitionDetailPage({
             date: wall?.date ?? null,
             time: wall ? fromMinutes(wall.minutes) : null,
             durationMinutes: wall && end ? end.minutes - wall.minutes : 120,
+            result:
+              match?.result?.ourScore != null &&
+              match.result.theirScore != null &&
+              match.result.outcome !== null
+                ? {
+                    ourScore: match.result.ourScore,
+                    theirScore: match.result.theirScore,
+                    outcome: match.result.outcome,
+                  }
+                : null,
+            href: match ? `/matches/${match.eventId}/${match.teamId}` : null,
           };
         })}
       />
+
+      {record ? (
+        <div className="print:hidden">
+          <RecordCard record={record} teamId={competition.team_id} competitionId={id} />
+        </div>
+      ) : null}
 
       {competition.notes ? (
         <p className="text-muted-foreground text-sm whitespace-pre-line print:hidden">

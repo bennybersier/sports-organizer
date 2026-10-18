@@ -22,11 +22,21 @@ export class GeminiProvider implements AiProvider {
     this.client = new GoogleGenAI({ apiKey });
   }
 
-  /** Gemini takes a single content list; roles are `user` and `model`. */
+  /**
+   * Gemini takes a single content list; roles are `user` and `model`.
+   *
+   * Pictures are `inlineData` parts and come before the text, so the model has
+   * the thing in front of it before being told what to do with it.
+   */
   private toContents(options: GenerateOptions) {
     return options.messages.map((message) => ({
       role: message.role === "assistant" ? "model" : "user",
-      parts: [{ text: message.content }],
+      parts: [
+        ...(message.images ?? []).map((image) => ({
+          inlineData: { mimeType: image.mediaType, data: image.data },
+        })),
+        { text: message.content },
+      ],
     }));
   }
 

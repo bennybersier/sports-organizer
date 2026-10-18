@@ -82,6 +82,33 @@ export async function listCompetitions(
   );
 }
 
+/**
+ * Just the names, for a filter.
+ *
+ * `listCompetitions` is paginated because the index is a table with a search
+ * box; a picker wants every competition and no page furniture, and borrowing
+ * the paginated one means inventing a page size that is wrong either way.
+ */
+export async function listCompetitionOptions(
+  context: AuthContext,
+  seasonId?: string,
+): Promise<{ id: string; name: string; teamId: string }[]> {
+  assertPermission(context, "competitions.read");
+
+  let query = context.db
+    .from("competitions")
+    .select("id, name, team_id")
+    .eq("tenant_id", context.tenant.id)
+    .eq("status", "ACTIVE")
+    .is("deleted_at", null);
+  if (seasonId) query = query.eq("season_id", seasonId);
+
+  const { data, error } = await query.order("name");
+  if (error) throw fromDatabaseError(error, { resource: "competition" });
+
+  return (data ?? []).map((row) => ({ id: row.id, name: row.name, teamId: row.team_id }));
+}
+
 /** A competition as it appears on some other record's page. */
 export interface RelatedCompetition {
   id: string;

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { CalendarPlus, Download, Loader2, Printer, Swords } from "lucide-react";
 
@@ -38,6 +39,15 @@ export interface FixtureRowView {
   date: string | null;
   time: string | null;
   durationMinutes: number;
+  /**
+   * What it finished, once somebody has recorded it. Null for a fixture that
+   * has not been played, or not been typed in — which are different states to
+   * a club and both look like an empty cell here, so the date column is what
+   * tells them apart.
+   */
+  result: { ourScore: number; theirScore: number; outcome: "WIN" | "LOSS" | "DRAW" } | null;
+  /** The match page, for a fixture that has become one. */
+  href: string | null;
 }
 
 /**
@@ -73,6 +83,8 @@ export function FixturesCard({
 }) {
   const t = useTranslations("competitions");
   const tCommon = useTranslations("common");
+  // Results have their own vocabulary, shared with the matches pages.
+  const tMatches = useTranslations("matches");
   const { run, isPending } = useAction();
   const [editing, setEditing] = useState<FixtureRowView | null>(null);
   const [scope, setScope] = useState<"all" | "home" | "away">("all");
@@ -98,6 +110,11 @@ export function FixturesCard({
         value: (fixture) => (fixture.isHome === null ? "" : t(fixture.isHome ? "home" : "away")),
       },
       { header: t("opponent"), value: (fixture) => fixture.opponent },
+      {
+        header: tMatches("result"),
+        value: (fixture) =>
+          fixture.result ? `${fixture.result.ourScore}-${fixture.result.theirScore}` : "",
+      },
       { header: t("venue"), value: (fixture) => fixture.venue },
     ];
 
@@ -191,6 +208,7 @@ export function FixturesCard({
                 <TableHead className="w-16">{t("matchday")}</TableHead>
                 <TableHead>{t("opponent")}</TableHead>
                 <TableHead>{t("date")}</TableHead>
+                <TableHead className="text-right">{tMatches("result")}</TableHead>
                 {canEdit ? (
                   <TableHead className="text-right print:hidden">{tCommon("actions")}</TableHead>
                 ) : null}
@@ -222,6 +240,40 @@ export function FixturesCard({
                       </>
                     ) : (
                       <span className="text-muted-foreground">{t("notDated")}</span>
+                    )}
+                  </TableCell>
+                  <TableCell
+                    data-label={tMatches("result")}
+                    className="text-right whitespace-nowrap"
+                  >
+                    {fixture.result ? (
+                      <Badge
+                        variant={
+                          fixture.result.outcome === "WIN"
+                            ? "default"
+                            : fixture.result.outcome === "DRAW"
+                              ? "secondary"
+                              : "destructive"
+                        }
+                        className="tabular-nums"
+                        asChild={fixture.href !== null}
+                      >
+                        {fixture.href !== null ? (
+                          <Link href={fixture.href}>
+                            {fixture.result.ourScore}–{fixture.result.theirScore}
+                          </Link>
+                        ) : (
+                          <span>
+                            {fixture.result.ourScore}–{fixture.result.theirScore}
+                          </span>
+                        )}
+                      </Badge>
+                    ) : fixture.href !== null ? (
+                      <Button variant="link" size="sm" asChild className="h-auto p-0 print:hidden">
+                        <Link href={fixture.href}>{tMatches("noResult")}</Link>
+                      </Button>
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
                     )}
                   </TableCell>
                   {canEdit ? (
