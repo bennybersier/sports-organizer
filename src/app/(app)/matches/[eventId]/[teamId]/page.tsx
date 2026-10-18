@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
-import { ArrowLeft, ClipboardCheck, MapPin } from "lucide-react";
+import { ArrowLeft, ClipboardCheck, MapPin, Star } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -23,7 +23,7 @@ import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
 import { getMatch, listSquad } from "@/server/services/match-service";
 import { listSheets } from "@/server/services/match-sheet-service";
-import { listBoxScores } from "@/server/services/performance-service";
+import { listBoxScores, listSelections } from "@/server/services/performance-service";
 import { getDefaultProvider } from "@/server/services/ai-config-service";
 import { listGymOptions } from "@/server/services/gym-service";
 import { listSeasonOptions } from "@/server/services/season-service";
@@ -83,12 +83,14 @@ export default async function MatchPage({
   // Everything the shared event dialog needs, loaded only for someone who may
   // actually change the match.
   const canEditEvent = hasPermission(context, "calendar.update");
-  const [squad, sheets, boxScores, provider, seasons, gyms, trainers, teams] = await Promise.all([
+  const [squad, sheets, boxScores, selections, provider, seasons, gyms, trainers, teams] =
+    await Promise.all([
     listSquad(context, teamId),
     match.registerId ? listSheets(context, match.registerId) : Promise.resolve([]),
     match.registerId && match.tracksBoxScore
       ? listBoxScores(context, match.registerId)
       : Promise.resolve([]),
+    match.registerId ? listSelections(context, match.registerId) : Promise.resolve([]),
     // Asked here so the sheet card can say "no provider configured" rather than
     // offering a button that fails.
     hasPermission(context, "ai.read")
@@ -113,6 +115,23 @@ export default async function MatchPage({
   };
 
   const nameById = new Map(squad.map((member) => [member.athleteId, member.name]));
+  // The sheet identifies a scorer by shirt, so the table that comes off it
+  // should read the same way round.
+  const shirtById = new Map(squad.map((member) => [member.athleteId, member.jerseyNumber]));
+  /*
+    The starting five, which on a referto are the circled crosses in the E/N.
+    column. Worth its own mark in the table: who finished with the points and
+    who the coach actually trusted to start are different questions, and the
+    second one is invisible in a column of totals.
+  */
+  const starters = new Set(
+    selections.filter((selection) => selection.started).map((selection) => selection.athleteId),
+  );
+  const starterNames = squad
+    .filter((member) => starters.has(member.athleteId))
+    .map((member) =>
+      member.jerseyNumber !== null ? `${member.jerseyNumber} ${member.name}` : member.name,
+    );
   const canReadAthletes = hasPermission(context, "athletes.read");
   const subtitle = [
     format.dateTime(new Date(match.startsAt), {
@@ -213,6 +232,11 @@ export default async function MatchPage({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">{t("boxScore")}</CardTitle>
+            {starterNames.length > 0 ? (
+              <CardDescription>
+                {t("startingFiveAre", { players: starterNames.join(", ") })}
+              </CardDescription>
+            ) : null}
             {fromSheet ? <CardDescription>{t("fromSheetCaveat")}</CardDescription> : null}
           </CardHeader>
           <CardContent>
@@ -223,6 +247,8 @@ export default async function MatchPage({
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-10" aria-label={t("startingFive")} />
+                      <TableHead className="w-12 text-end">{t("shirt")}</TableHead>
                       <TableHead>{t("player")}</TableHead>
                       <TableHead className="text-end">{t("twos")}</TableHead>
                       <TableHead className="text-end">{t("threes")}</TableHead>
@@ -238,6 +264,18 @@ export default async function MatchPage({
                       .sort((a, b) => b.points - a.points)
                       .map((row) => (
                         <TableRow key={row.id}>
+                          <TableCell className="pe-0">
+                            {starters.has(row.athlete_id) ? (
+                              <Star
+                                className="size-3.5 fill-current text-amber-500"
+                                aria-label={t("started")}
+                              />
+                            ) : null}
+                          </TableCell>
+                          {/* The sheet names a scorer by shirt, so this reads the same way round. */}
+                          <TableCell className="text-end tabular-nums text-muted-foreground">
+                            {shirtById.get(row.athlete_id) ?? "—"}
+                          </TableCell>
                           <TableCell className="font-medium">
                             {/*
                               Through to the player's own page, which is where
