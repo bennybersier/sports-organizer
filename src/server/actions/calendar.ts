@@ -82,6 +82,18 @@ export async function getEventAction(id: string): Promise<ActionResult<{
   allDay: boolean;
   allowsGymSharing: boolean;
   blocksScheduling: boolean;
+  /*
+    The fixture fields were missing here, and the edit dialog takes whatever
+    this returns as its starting values — so opening a match and saving it
+    erased its opponent, its competition, which side of the fixture it was and
+    the time the hall is held around it. The caller cast the result to the
+    form's type, which is why the compiler never said so.
+  */
+  opponent: string | null;
+  isHome: boolean | null;
+  competition: string | null;
+  bufferBeforeMinutes: number;
+  bufferAfterMinutes: number;
 }>> {
   return runAction(async () => {
     const context = await requirePermission("calendar.read");
@@ -99,6 +111,11 @@ export async function getEventAction(id: string): Promise<ActionResult<{
       allDay: event.all_day,
       allowsGymSharing: event.allows_gym_sharing,
       blocksScheduling: event.blocks_scheduling,
+      opponent: event.opponent,
+      isHome: event.is_home,
+      competition: event.competition,
+      bufferBeforeMinutes: event.buffer_before_minutes,
+      bufferAfterMinutes: event.buffer_after_minutes,
     };
   });
 }
