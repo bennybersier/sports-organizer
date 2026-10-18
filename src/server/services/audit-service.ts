@@ -83,6 +83,12 @@ export const AUDIT_ACTIONS = {
   REGISTER_REOPENED: "REGISTER_REOPENED",
   ABSENCE_DECLARED: "ABSENCE_DECLARED",
   BOX_SCORE_RECORDED: "BOX_SCORE_RECORDED",
+  MATCH_RESULT_RECORDED: "MATCH_RESULT_RECORDED",
+  /* A photographed game sheet arriving, and a human accepting what was read
+     off it. Two lines rather than one: the upload is somebody's phone, the
+     import is somebody's judgement, and they are often different people. */
+  MATCH_SHEET_UPLOADED: "MATCH_SHEET_UPLOADED",
+  MATCH_SHEET_IMPORTED: "MATCH_SHEET_IMPORTED",
   EVALUATION_WRITTEN: "EVALUATION_WRITTEN",
 
   AI_CONFIGURATION_CHANGED: "AI_CONFIGURATION_CHANGED",

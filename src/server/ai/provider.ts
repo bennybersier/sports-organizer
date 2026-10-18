@@ -17,11 +17,31 @@ import "server-only";
 export type { AiProviderId } from "@/domain/ai";
 export { AI_PROVIDER_IDS, DEFAULT_MODELS, PROVIDER_LABELS } from "@/domain/ai";
 
-import type { AiProviderId } from "@/domain/ai";
+import type { AiProviderId, ReadableImageType } from "@/domain/ai";
+
+/**
+ * A picture sent with a message.
+ *
+ * Base64 without the `data:` prefix, because that is what two of the three
+ * SDKs want and the third is one template string away. The media type is
+ * narrowed to what every provider reads, so an unreadable upload is refused
+ * where it is uploaded rather than by a vendor error three layers down.
+ */
+export interface AiImage {
+  data: string;
+  mediaType: ReadableImageType;
+}
 
 export interface AiMessage {
   role: "user" | "assistant";
   content: string;
+  /**
+   * Pictures to send alongside the text, in order, before it.
+   *
+   * Optional and ignored by every existing caller: scheduling advice is a
+   * conversation about rows in a database and has nothing to look at.
+   */
+  images?: AiImage[];
 }
 
 export interface GenerateOptions {

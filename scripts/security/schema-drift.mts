@@ -110,6 +110,13 @@ const TENANT_TABLES = [
   "jobs", "audit_logs", "notifications", "notification_preferences",
   "onboarding_progress", "integrations", "invitations",
   "tenant_memberships", "user_permission_overrides",
+  // Attendance and performance (0024). These were missing from this list,
+  // which meant the module holding every child's attendance record and
+  // evaluation was the one part of the schema whose RLS nothing checked.
+  "attendance_registers", "attendance_records", "match_box_scores",
+  "athlete_evaluations", "athlete_availability_exceptions",
+  // Results and game sheets (0026).
+  "match_results", "match_sheets",
 ];
 
 let leaks = 0;

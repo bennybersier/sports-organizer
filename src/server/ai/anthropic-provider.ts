@@ -4,6 +4,7 @@ import Anthropic from "@anthropic-ai/sdk";
 
 import {
   describeProviderError,
+  type AiMessage,
   type AiProvider,
   type GenerateOptions,
   type GenerateResult,
@@ -28,6 +29,27 @@ export class AnthropicProvider implements AiProvider {
     this.client = new Anthropic({ apiKey });
   }
 
+  /**
+   * A message's content, as blocks when it carries pictures.
+   *
+   * Plain string when it does not: the API accepts both, and leaving existing
+   * text-only calls byte-identical means nothing about them can change here.
+   * Images lead, because a model reads the instruction better when it already
+   * has the thing the instruction is about.
+   */
+  private toContent(message: AiMessage): Anthropic.MessageParam["content"] {
+    if (!message.images?.length) return message.content;
+    return [
+      ...message.images.map(
+        (image): Anthropic.ImageBlockParam => ({
+          type: "image",
+          source: { type: "base64", media_type: image.mediaType, data: image.data },
+        }),
+      ),
+      { type: "text", text: message.content },
+    ];
+  }
+
   async generate(options: GenerateOptions): Promise<GenerateResult> {
     const response = await this.client.messages.create(
       {
@@ -36,7 +58,7 @@ export class AnthropicProvider implements AiProvider {
         ...(options.system ? { system: options.system } : {}),
         messages: options.messages.map((message) => ({
           role: message.role,
-          content: message.content,
+          content: this.toContent(message),
         })),
       },
       { signal: options.signal },
@@ -65,7 +87,7 @@ export class AnthropicProvider implements AiProvider {
         ...(options.system ? { system: options.system } : {}),
         messages: options.messages.map((message) => ({
           role: message.role,
-          content: message.content,
+          content: this.toContent(message),
         })),
       },
       { signal: options.signal },

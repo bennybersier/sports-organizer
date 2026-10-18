@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
-import { ArrowLeft, Dumbbell, MapPin, Trophy, UserCog, Users } from "lucide-react";
+import { ArrowLeft, Dumbbell, MapPin, Swords, Trophy, UserCog, Users } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccessDenied } from "@/components/data/access-denied";
 import { PageHeader } from "@/components/data/page-header";
 import { RelatedCard } from "@/components/data/related-card";
+import { RecordCard } from "@/components/data/record-card";
 import {
   TrainingSchedule,
   type TrainingScheduleView,
@@ -23,6 +24,7 @@ import { listAvailability, listExceptions } from "@/server/services/availability
 import { listGymOptions } from "@/server/services/gym-service";
 import { listCompetitionsForTeams } from "@/server/services/competition-service";
 import { getTeamRelations } from "@/server/services/relations-service";
+import { getTeamRecord, listMatches } from "@/server/services/match-service";
 import { getSeason, listSeasonOptions } from "@/server/services/season-service";
 import { getTeam, listTeamOptions } from "@/server/services/team-service";
 import { listTrainerOptions } from "@/server/services/trainer-service";
@@ -79,6 +81,7 @@ export default async function TeamDetailPage({
   const tGender = await getTranslations("gender");
   const tRelated = await getTranslations("related");
   const tCompetitions = await getTranslations("competitions");
+  const tMatches = await getTranslations("matches");
   const tMembership = await getTranslations("membershipState");
 
   let team;
@@ -182,6 +185,19 @@ export default async function TeamDetailPage({
     ? await listCompetitionsForTeams(context, [id])
     : [];
 
+  /*
+    A team's own matches, which Competitions could not answer: a side may be in
+    a league, the phase it came out of and a cup at once, so "its matches" is a
+    question about the team rather than about any one competition.
+  */
+  const canReadResults = hasPermission(context, "attendance.read");
+  const [record, recentMatches] = canReadResults
+    ? await Promise.all([
+        getTeamRecord(context, id),
+        listMatches(context, { teamId: id }),
+      ])
+    : [null, []];
+
   const gymOptions = gyms.map((gym) => ({ value: gym.id, label: gym.name }));
   const eventOptions = canCreateEvents
     ? {
@@ -271,6 +287,47 @@ export default async function TeamDetailPage({
           ) : null}
         </CardContent>
       </Card>
+
+      {record ? <RecordCard record={record} teamId={id} /> : null}
+
+      {recentMatches.length > 0 ? (
+        <RelatedCard
+          icon={Swords}
+          title={tMatches("title")}
+          empty={tMatches("emptyTitle")}
+          /* The season is long; this card is a pointer, not the list. */
+          count={recentMatches.length}
+          items={recentMatches.slice(0, 8).map((match) => ({
+            id: `${match.eventId}:${match.teamId}`,
+            name: tMatches("versus", { opponent: match.opponent }),
+            href: `/matches/${match.eventId}/${match.teamId}`,
+            meta: match.competition,
+            tags: [
+              ...(match.result?.ourScore != null && match.result.theirScore != null
+                ? [
+                    {
+                      label: `${match.result.ourScore}–${match.result.theirScore}`,
+                      variant:
+                        match.result.outcome === "WIN"
+                          ? ("default" as const)
+                          : match.result.outcome === "DRAW"
+                            ? ("secondary" as const)
+                            : ("destructive" as const),
+                    },
+                  ]
+                : [{ label: tMatches("noResult"), variant: "outline" as const }]),
+              ...(match.isHome !== null
+                ? [{ label: tMatches(match.isHome ? "home" : "away"), variant: "outline" as const }]
+                : []),
+            ],
+          }))}
+          action={
+            <Button variant="link" size="sm" asChild className="h-auto p-0">
+              <Link href={`/matches?team=${id}&scope=played`}>{tMatches("scopePlayed")}</Link>
+            </Button>
+          }
+        />
+      ) : null}
 
       {competitions.length > 0 ? (
         <RelatedCard

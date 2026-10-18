@@ -66,6 +66,16 @@ export type AbsenceReason =
   | "INJURY" | "ILLNESS" | "SCHOOL" | "FAMILY" | "HOLIDAY" | "TRANSPORT" | "OTHER";
 export type BenchReason =
   | "COACH_DECISION" | "ROTATION" | "INJURY" | "DISCIPLINARY" | "OTHER";
+/** Why a match has no score. PENDING is not the same as 0–0. */
+export type MatchResultState = "PENDING" | "PLAYED" | "FORFEIT" | "ABANDONED";
+/**
+ * Where a box score's numbers came from. A referto records makes but never
+ * attempts, so a REFERTO row has `attempted = made` and neither its shooting
+ * percentages nor its efficiency mean anything.
+ */
+export type BoxScoreSource = "MANUAL" | "REFERTO";
+/** The life of an uploaded game sheet. */
+export type MatchSheetState = "UPLOADED" | "READ" | "FAILED" | "IMPORTED";
 
 /** ISO-8601 weekday: 1 = Monday … 7 = Sunday. */
 export type IsoWeekday = 1 | 2 | 3 | 4 | 5 | 6 | 7;
@@ -779,7 +789,59 @@ export interface MatchBoxScoreRow extends Timestamps {
   points: number;
   rebounds: number;
   efficiency: number;
+  source: BoxScoreSource;
   created_by: string | null;
+}
+
+/**
+ * Our score and theirs, for one of our teams in one match.
+ *
+ * Keyed `(event_id, team_id)` exactly like an attendance register, so a result
+ * and a register are always about the same match and are found the same way.
+ * Ours and theirs rather than home and away: `calendar_events.is_home` already
+ * says which we were, and storing it twice is how the two come to disagree.
+ */
+export interface MatchResultRow extends Timestamps {
+  id: string;
+  tenant_id: string;
+  season_id: string;
+  event_id: string;
+  team_id: string;
+  state: MatchResultState;
+  our_score: number | null;
+  their_score: number | null;
+  /** Per period and not cumulative: a 16–20–15–16 match is [16, 20, 15, 16]. */
+  our_periods: number[] | null;
+  their_periods: number[] | null;
+  notes: string | null;
+  recorded_by: string | null;
+}
+
+/**
+ * An uploaded photograph of a game sheet.
+ *
+ * `transcription` is what a model said it saw — marks on paper, no arithmetic.
+ * `reading` is what `src/domain/referto` derived from that, with the result of
+ * every check. Kept apart so a disputed import can be re-derived without paying
+ * to re-read the photograph, and so "did the model misread the paper or did we
+ * misread the model?" has an answer.
+ */
+export interface MatchSheetRow extends Timestamps {
+  id: string;
+  tenant_id: string;
+  register_id: string;
+  /** Key in the private `match-sheets` bucket: <tenant>/<register>/<id>.<ext>. */
+  storage_path: string;
+  mime_type: string;
+  byte_size: number;
+  state: MatchSheetState;
+  transcription: Json;
+  reading: Json;
+  read_model: string | null;
+  failure: string | null;
+  imported_at: string | null;
+  imported_by: string | null;
+  uploaded_by: string | null;
 }
 
 export interface AthleteEvaluationRow extends Timestamps {
@@ -900,6 +962,14 @@ export type Database = {
         Update: Plain<Partial<Omit<MatchBoxScoreRow, BoxScoreGenerated>>>;
         Relationships: [];
       };
+      match_results: Def<
+        MatchResultRow,
+        "tenant_id" | "season_id" | "event_id" | "team_id"
+      >;
+      match_sheets: Def<
+        MatchSheetRow,
+        "tenant_id" | "register_id" | "storage_path" | "mime_type" | "byte_size"
+      >;
       athlete_evaluations: Def<
         AthleteEvaluationRow,
         "tenant_id" | "season_id" | "athlete_id" | "team_id" | "period_start" | "period_end"

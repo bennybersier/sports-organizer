@@ -24,6 +24,11 @@ import type {
   MatchBoxScoreRow,
 } from "@/types/database";
 import type { SaveBoxScoresInput, SaveEvaluationInput } from "@/lib/validation/attendance";
+import {
+  summariseBoxScores,
+  type BoxScoreFact,
+  type BoxScoreSummary,
+} from "@/domain/attendance/box-score";
 
 /**
  * Reading a season back.
@@ -126,16 +131,16 @@ async function collectFacts(
 /* One athlete                                                                */
 /* -------------------------------------------------------------------------- */
 
-export interface BoxScoreTotals {
-  games: number;
-  minutes: number;
-  points: number;
-  rebounds: number;
-  assists: number;
-  efficiency: number;
-  /** Per-game averages, which is how a coach reads a season. */
-  perGame: { points: number; rebounds: number; assists: number; efficiency: number };
-}
+/**
+ * Null when this athlete has no box score at all.
+ *
+ * The shape is `BoxScoreSummary` from `@/domain/attendance/box-score`, where
+ * the reason it is split in two is argued at length: a game sheet records no
+ * attempts, rebounds, assists or minutes, so those figures live behind a
+ * nullable `detail` and cannot be rendered without checking whether any game
+ * actually recorded them.
+ */
+export type { BoxScoreSummary } from "@/domain/attendance/box-score";
 
 export interface AthletePerformance {
   training: TrainingStats;
@@ -143,7 +148,7 @@ export interface AthletePerformance {
   trend: MonthlyTurnout[];
   evaluations: AthleteEvaluationRow[];
   /** Null when this athlete plays for no side that keeps a scoresheet. */
-  boxScore: BoxScoreTotals | null;
+  boxScore: BoxScoreSummary | null;
 }
 
 export async function getAthletePerformance(
@@ -171,12 +176,18 @@ export async function getAthletePerformance(
   };
 }
 
-/** Season totals and averages, or null when nothing was ever scored. */
+/**
+ * Season totals and averages, or null when nothing was ever scored.
+ *
+ * Selects `source` along with the numbers, because which of these figures mean
+ * anything depends on where the row came from — and the summary refuses to
+ * average a statistic over games that could not have recorded it.
+ */
 async function boxScoreTotals(
   context: AuthContext,
   athleteId: string,
   registers: RegisterFact[],
-): Promise<BoxScoreTotals | null> {
+): Promise<BoxScoreSummary | null> {
   const matchIds = registers
     .filter((register) => register.occasion === "MATCH")
     .map((register) => register.id);
@@ -184,39 +195,36 @@ async function boxScoreTotals(
 
   const { data } = await context.db
     .from("match_box_scores")
-    .select("seconds_played, points, rebounds, assists, efficiency")
+    .select("*")
     .eq("tenant_id", context.tenant.id)
     .eq("athlete_id", athleteId)
     .in("register_id", matchIds);
 
-  const rows = data ?? [];
-  if (rows.length === 0) return null;
+  return summariseBoxScores((data ?? []).map(toFact));
+}
 
-  const totals = rows.reduce(
-    (sum, row) => ({
-      minutes: sum.minutes + row.seconds_played / 60,
-      points: sum.points + row.points,
-      rebounds: sum.rebounds + row.rebounds,
-      assists: sum.assists + row.assists,
-      efficiency: sum.efficiency + row.efficiency,
-    }),
-    { minutes: 0, points: 0, rebounds: 0, assists: 0, efficiency: 0 },
-  );
-
-  const games = rows.length;
+/** A database row as the summary wants it. */
+function toFact(row: MatchBoxScoreRow): BoxScoreFact {
   return {
-    games,
-    minutes: Math.round(totals.minutes),
-    points: totals.points,
-    rebounds: totals.rebounds,
-    assists: totals.assists,
-    efficiency: totals.efficiency,
-    perGame: {
-      points: totals.points / games,
-      rebounds: totals.rebounds / games,
-      assists: totals.assists / games,
-      efficiency: totals.efficiency / games,
-    },
+    source: row.source,
+    secondsPlayed: row.seconds_played,
+    twoPointMade: row.two_point_made,
+    twoPointAttempted: row.two_point_attempted,
+    threePointMade: row.three_point_made,
+    threePointAttempted: row.three_point_attempted,
+    freeThrowMade: row.free_throw_made,
+    freeThrowAttempted: row.free_throw_attempted,
+    offensiveRebounds: row.offensive_rebounds,
+    defensiveRebounds: row.defensive_rebounds,
+    assists: row.assists,
+    steals: row.steals,
+    blocks: row.blocks,
+    turnovers: row.turnovers,
+    foulsCommitted: row.fouls_committed,
+    foulsDrawn: row.fouls_drawn,
+    points: row.points,
+    rebounds: row.rebounds,
+    efficiency: row.efficiency,
   };
 }
 

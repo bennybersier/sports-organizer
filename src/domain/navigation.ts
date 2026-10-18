@@ -62,6 +62,13 @@ export const NAVIGATION: NavSection[] = [
         icon: ClipboardCheck,
         permission: "attendance.read",
       },
+      /*
+        Results, rather than fixtures. Competitions lists the matches a season
+        owes; this lists the ones that happened and what they finished, which is
+        a different question asked by different people at a different time of
+        the week.
+      */
+      { titleKey: "matches", href: "/matches", icon: Trophy, permission: "attendance.read" },
     ],
   },
   {

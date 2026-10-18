@@ -26,12 +26,14 @@ import {
   getAthleteTrainingWeek,
 } from "@/server/services/calendar-service";
 import { getAthletePerformance, listAbsences } from "@/server/services/performance-service";
+import { listAthleteMatches } from "@/server/services/match-service";
 import { requireAuthContext } from "@/server/auth/context";
 import { getAthlete } from "@/server/services/athlete-service";
 import { getAthleteRelations } from "@/server/services/relations-service";
 
 import { AbsencesCard } from "./absences-card";
 import { EvaluationDialog } from "./evaluation-dialog";
+import { MatchLogCard } from "./match-log-card";
 import { PerformanceCard } from "./performance-card";
 
 export async function generateMetadata({
@@ -111,9 +113,14 @@ export default async function AthleteDetailPage({
     : null;
 
   const canReadAttendance = hasPermission(context, "attendance.read");
-  const [performance, absences] = canReadAttendance
-    ? await Promise.all([getAthletePerformance(context, id), listAbsences(context, id)])
-    : [null, []];
+  const [performance, absences, matchLog] = canReadAttendance
+    ? await Promise.all([
+        getAthletePerformance(context, id),
+        listAbsences(context, id),
+        // The games behind the averages, each one a link back to the match.
+        listAthleteMatches(context, id),
+      ])
+    : [null, [], []];
   const canReadTrainers = hasPermission(context, "trainers.read");
 
   const address =
@@ -258,6 +265,8 @@ export default async function AthleteDetailPage({
           }
         />
       ) : null}
+
+      {matchLog.length > 0 ? <MatchLogCard matches={matchLog} /> : null}
 
       {canReadAttendance ? (
         <AbsencesCard

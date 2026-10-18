@@ -4,6 +4,7 @@ import OpenAI from "openai";
 
 import {
   describeProviderError,
+  type AiMessage,
   type AiProvider,
   type GenerateOptions,
   type GenerateResult,
@@ -25,16 +26,37 @@ export class OpenAiProvider implements AiProvider {
     this.client = new OpenAI({ apiKey });
   }
 
+  /**
+   * One turn of `input`, with pictures as content parts when it has any.
+   *
+   * The Responses API wants a `data:` URL rather than raw base64, and it
+   * distinguishes input from output text — `input_text` here, not `text`, which
+   * is the mistake that costs an afternoon.
+   */
+  private toInput(message: AiMessage) {
+    if (!message.images?.length) {
+      return { role: message.role, content: message.content };
+    }
+    return {
+      role: message.role,
+      content: [
+        ...message.images.map((image) => ({
+          type: "input_image" as const,
+          image_url: `data:${image.mediaType};base64,${image.data}`,
+          detail: "high" as const,
+        })),
+        { type: "input_text" as const, text: message.content },
+      ],
+    };
+  }
+
   async generate(options: GenerateOptions): Promise<GenerateResult> {
     const model = options.model ?? this.model;
     const response = await this.client.responses.create(
       {
         model,
         ...(options.system ? { instructions: options.system } : {}),
-        input: options.messages.map((message) => ({
-          role: message.role,
-          content: message.content,
-        })),
+        input: options.messages.map((message) => this.toInput(message)),
         max_output_tokens: options.maxTokens ?? 4096,
       },
       { signal: options.signal },
@@ -55,10 +77,7 @@ export class OpenAiProvider implements AiProvider {
       {
         model: options.model ?? this.model,
         ...(options.system ? { instructions: options.system } : {}),
-        input: options.messages.map((message) => ({
-          role: message.role,
-          content: message.content,
-        })),
+        input: options.messages.map((message) => this.toInput(message)),
         max_output_tokens: options.maxTokens ?? 4096,
         stream: true,
       },

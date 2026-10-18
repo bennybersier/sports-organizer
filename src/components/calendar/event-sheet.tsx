@@ -93,7 +93,7 @@ export function EventSheet({
 
   async function openEditor() {
     const result = await getEventAction(item!.id);
-    if (result.ok) setEditing(result.data as EventFormValues);
+    if (result.ok) setEditing(result.data);
   }
 
   const findings = ((item as unknown as { validationDetails?: { findings?: Finding[] } })
