@@ -58,7 +58,8 @@ beforeAll(async () => {
     });
     team[name] = row.id;
   }
-  for (const name of ["Ada", "Bo"]) {
+  // Cy coaches nothing: the outsider a head-coach assignment must refuse.
+  for (const name of ["Ada", "Bo", "Cy"]) {
     const row = await insert<{ id: string }>("trainers", {
       tenant_id: tenantId, first_name: name, last_name: "Coach",
     });
@@ -194,6 +195,19 @@ describe("a team's head coach", () => {
 
     // A group between coaches is a real state, not a validation failure.
     expect(await headOf(team.U15)).toBeNull();
+  }, 30_000);
+
+  it("refuses to name a head coach who is not on the staff", async () => {
+    await setTeamTrainers(context, team.U15, [coach.Ada, coach.Bo], coach.Ada);
+
+    // The dangerous shape: the incumbent is stood down before the successor is
+    // promoted, so naming an outsider used to demote everyone and promote
+    // nobody — leaving the side with no head coach and no error.
+    await expect(
+      setTeamTrainers(context, team.U15, [coach.Ada, coach.Bo], coach.Cy),
+    ).rejects.toThrow(/not on this team/i);
+
+    expect(await headOf(team.U15)).toBe(coach.Ada);
   }, 30_000);
 
   it("drops the role when the head coach leaves the staff", async () => {

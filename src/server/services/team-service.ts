@@ -1,6 +1,6 @@
 import "server-only";
 
-import { NotFoundError, fromDatabaseError } from "@/lib/errors";
+import { ConflictError, NotFoundError, fromDatabaseError } from "@/lib/errors";
 import type { AuthContext } from "@/server/auth/context";
 import { assertPermission } from "@/server/auth/authorization";
 import { AUDIT_ACTIONS, diffFields, recordAudit } from "@/server/services/audit-service";
@@ -223,12 +223,15 @@ async function syncTrainers(
   }
 
   for (const trainerId of added) {
-    await context.db.from("trainer_teams").insert({
+    // Checked, not fired and forgotten: a swallowed failure here used to look
+    // like a coach who was assigned and simply is not there.
+    const { error } = await context.db.from("trainer_teams").insert({
       tenant_id: context.tenant.id,
       team_id: teamId,
       trainer_id: trainerId,
       created_by: context.user.id,
     });
+    if (error) throw fromDatabaseError(error, { resource: "team" });
   }
 
   await setHeadCoach(context, teamId, headCoachId);
@@ -253,6 +256,29 @@ async function setHeadCoach(
   teamId: string,
   headCoachId: string | null,
 ): Promise<void> {
+  /*
+    Checked before anything is written.
+
+    Demoting and promoting are two statements with no transaction around them,
+    so the order decides what a failure costs. Standing the incumbent down
+    first and discovering afterwards that the successor is not on the staff
+    leaves the side with no head coach at all — which is how this was found.
+  */
+  if (headCoachId) {
+    const { data: onStaff, error: lookupError } = await context.db
+      .from("trainer_teams")
+      .select("id")
+      .eq("tenant_id", context.tenant.id)
+      .eq("team_id", teamId)
+      .eq("trainer_id", headCoachId)
+      .is("unassigned_at", null)
+      .maybeSingle();
+    if (lookupError) throw fromDatabaseError(lookupError, { resource: "team" });
+    if (!onStaff) {
+      throw new ConflictError("That coach is not on this team's staff, so they cannot lead it.");
+    }
+  }
+
   const demote = context.db
     .from("trainer_teams")
     .update({ is_head_coach: false })
