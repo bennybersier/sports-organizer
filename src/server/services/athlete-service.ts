@@ -15,7 +15,12 @@ import type { CreateAthleteInput, UpdateAthleteInput } from "@/lib/validation/at
 import type { AthleteRow } from "@/types/database";
 
 export interface AthleteListItem extends AthleteRow {
-  teams: { id: string; name: string; color: string }[];
+  /*
+    The shirt comes with the team, not with the athlete: a player who trains up
+    an age group wears one number for the U13s and another for the U15s, so
+    there is no single number to hang on the person.
+  */
+  teams: { id: string; name: string; color: string; jerseyNumber: number | null }[];
 }
 
 const CONFLICTS = {
@@ -80,12 +85,12 @@ export async function listAthletes(
  * rather than a query per athlete.
  */
 async function teamsFor(context: AuthContext, athleteIds: string[]) {
-  const result = new Map<string, { id: string; name: string; color: string }[]>();
+  const result = new Map<string, AthleteListItem["teams"]>();
   if (athleteIds.length === 0) return result;
 
   const { data: links } = await context.db
     .from("athlete_teams")
-    .select("athlete_id, team_id")
+    .select("athlete_id, team_id, jersey_number")
     .eq("tenant_id", context.tenant.id)
     .in("athlete_id", athleteIds)
     .is("left_at", null);
@@ -105,7 +110,7 @@ async function teamsFor(context: AuthContext, athleteIds: string[]) {
     const team = byId.get(link.team_id);
     if (!team) continue;
     const list = result.get(link.athlete_id) ?? [];
-    list.push(team);
+    list.push({ ...team, jerseyNumber: link.jersey_number });
     result.set(link.athlete_id, list);
   }
 

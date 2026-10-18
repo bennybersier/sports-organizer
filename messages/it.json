@@ -1296,7 +1296,7 @@
     "sideHint": "Se i nomi qui sotto sono quelli degli avversari, cambia parte. Niente viene riletto e niente viene addebitato.",
     "assign": "Chi è chi",
     "assignHint": "Abbina ogni numero di maglia a un giocatore. I suggerimenti vengono dai numeri già registrati.",
-    "shirt": "N.",
+    "shirt": "#",
     "onSheet": "Sul referto",
     "player": "Giocatore",
     "unassigned": "Non abbinato",
@@ -1373,6 +1373,16 @@
     "blockedByQuestions": "Prima rispondi alle domande che restano.",
     "blockedByProblems": "Il referto non torna ancora, quindi non si può importare.",
     "editMatch": "Modifica partita",
-    "newMatch": "Nuova partita"
+    "newMatch": "Nuova partita",
+    "seasonSummary": "{total} partite, {played} giocate.",
+    "competitionColumn": "Competizione",
+    "venue": "C/T",
+    "homeShort": "C",
+    "awayShort": "T",
+    "notPlayedYet": "Da giocare",
+    "date": "Data",
+    "startingFive": "Quintetto base",
+    "started": "In quintetto",
+    "startingFiveAre": "Quintetto base: {players}"
   }
 }

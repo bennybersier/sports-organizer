@@ -228,10 +228,16 @@ export default async function TrainerDetailPage({
             // Athletes reach a trainer only through a squad, so the squad is
             // the thing worth showing next to the name.
             meta: athlete.via?.length ? tRelated("inTeams", { teams: athlete.via.join(", ") }) : null,
-            tags:
-              athlete.membershipStatus !== "ACTIVE"
+            tags: [
+              // Omitted when the player is in two of this coach's squads and
+              // so wears two numbers.
+              ...(athlete.jerseyNumber !== null && athlete.jerseyNumber !== undefined
+                ? [{ label: tRelated("jersey", { number: athlete.jerseyNumber }) }]
+                : []),
+              ...(athlete.membershipStatus !== "ACTIVE"
                 ? [{ label: tMembership(athlete.membershipStatus), variant: "outline" as const }]
-                : [],
+                : []),
+            ],
           }))}
         />
       ) : null}
