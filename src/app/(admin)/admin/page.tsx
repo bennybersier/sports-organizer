@@ -34,11 +34,11 @@ export default async function AdminPage() {
   const tenants = data ?? [];
 
   return (
-    <div className="flex w-full flex-col gap-6 p-6 md:p-10">
+    <div className="flex w-full flex-col gap-6 p-4 md:p-10">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="min-w-0">
           <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
-          <p className="text-sm text-muted-foreground">{t("signedInAs", { email: user.email })}</p>
+          <p className="text-sm wrap-anywhere text-muted-foreground">{t("signedInAs", { email: user.email })}</p>
         </div>
         <CreateTenantDialog defaultOwnerEmail={user.email} />
       </div>

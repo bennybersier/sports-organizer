@@ -84,7 +84,6 @@
     "auditLog": "Registro attività",
     "settings": "Impostazioni",
     "competitions": "Competizioni",
-    "attendance": "Presenze",
     "matches": "Partite"
   },
   "roles": {
@@ -1110,7 +1109,11 @@
       "sheetSome": "{sheetGames} partite su {games} vengono dal referto, che non registra tiri tentati, rimbalzi, assist o minuti. Quelle voci sono calcolate sulle altre.",
       "matchLog": "Partita per partita",
       "matchLogEmpty": "Ancora nessuna statistica di partita.",
-      "notRecorded": "non registrato"
+      "notRecorded": "non registrato",
+      "pointsPerMatch": "Punti per partita",
+      "averagePoints": "Media {value}",
+      "pointsValue": "{points} punti",
+      "pointsChartLabel": "Punti segnati in ciascuna delle ultime {matches} partite, con una media di {average} a partita."
     },
     "findings": {
       "title": "Da segnalare",
@@ -1219,7 +1222,6 @@
     "versus": "vs {opponent}",
     "openRegister": "Apri il registro",
     "noRegister": "Nessun registro",
-    "openRegisterHint": "Apri un registro per questa partita per convocare e caricare il referto.",
     "backToMatches": "Partite",
     "result": "Risultato",
     "resultHint": "Il nostro punteggio e il loro. I quarti sono facoltativi e devono dare la somma del punteggio.",
@@ -1260,7 +1262,6 @@
     "boxScoreEmpty": "Ancora niente.",
     "fromSheet": "Dal referto",
     "fromSheetCaveat": "Un referto registra i canestri realizzati ma non i tiri tentati: per queste righe le percentuali e la valutazione non hanno senso.",
-    "editInRegister": "Modifica nel registro",
     "sheets": "Referto",
     "sheetsHint": "Fotografa il referto e fallo leggere. Niente finisce nei dati di un atleta prima che tu accetti quello che dice.",
     "upload": "Carica una foto",
@@ -1383,6 +1384,18 @@
     "date": "Data",
     "startingFive": "Quintetto base",
     "started": "In quintetto",
-    "startingFiveAre": "Quintetto base: {players}"
+    "startingFiveAre": "Quintetto base: {players}",
+    "certainSideHome": "La nostra parte del referto: {club} — squadra A, perché era in casa",
+    "certainSideAway": "La nostra parte del referto: {club} — squadra B, perché eravamo in trasferta",
+    "qSideConflictBody": "La partita risulta giocata {fixture}, quindi saremmo la squadra {expected} — ma il nome sull'altra parte sembra il nostro. Una delle due cose è sbagliata, quindi nessuna delle due è affidabile.",
+    "qSideHomeWord": "in casa",
+    "qSideAwayWord": "in trasferta",
+    "qSideConflictShort": "La partita e il nome sul referto non concordano su quale fosse la nostra parte.",
+    "noRegisterBody": "Nessuno ha ancora fatto le convocazioni per questa partita. Aprile per segnare chi è stato convocato, chi era in quintetto e chi si è presentato — oppure carica il referto e verrà compilato da quello.",
+    "pickSquad": "Fai le convocazioni",
+    "enterByHand": "Inserisci le statistiche a mano",
+    "opponentSheet": "{club} — dal referto",
+    "opponentUnreadable": "La loro metà del referto non torna, quindi i dati dei loro giocatori non vengono mostrati.",
+    "opponentNotKept": "Letti dal referto e non archiviati: i giocatori della società avversaria non sono anagrafiche nostre."
   }
 }

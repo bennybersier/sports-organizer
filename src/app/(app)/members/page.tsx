@@ -101,7 +101,7 @@ export default async function MembersPage() {
         </Card>
       ) : null}
 
-      <Card className="overflow-x-auto p-0">
+      <Card className="overflow-x-auto p-0 max-lg:rounded-none max-lg:bg-transparent max-lg:ring-0">
         <Table>
           <TableHeader>
             <TableRow>
@@ -116,12 +116,12 @@ export default async function MembersPage() {
             {members.map((member) => (
               <TableRow key={member.membershipId}>
                 <TableCell variant="primary">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium">{member.fullName ?? member.email}</span>
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="min-w-0 font-medium wrap-anywhere">{member.fullName ?? member.email}</span>
                     {member.isSelf ? <Badge variant="secondary">{t("you")}</Badge> : null}
                   </div>
                   {member.fullName ? (
-                    <div className="text-xs text-muted-foreground">{member.email}</div>
+                    <div className="text-xs wrap-anywhere text-muted-foreground">{member.email}</div>
                   ) : null}
                 </TableCell>
                 <TableCell data-label={t("role")}>

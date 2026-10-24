@@ -27,7 +27,7 @@ export function ProfileSettingsForm({
     <Card>
       <CardHeader>
         <CardTitle className="text-base">{t("yourAccount")}</CardTitle>
-        <CardDescription>{profile.email}</CardDescription>
+        <CardDescription className="wrap-anywhere">{profile.email}</CardDescription>
       </CardHeader>
 
       <CardContent className="space-y-4">

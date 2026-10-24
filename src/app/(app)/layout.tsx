@@ -87,7 +87,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
-          <span className="text-sm font-medium">{context.tenant.name}</span>
+          <span className="min-w-0 truncate text-sm font-medium">{context.tenant.name}</span>
         </header>
         <div id="main-content" tabIndex={-1} className="flex-1 p-4 md:p-6">
           {children}

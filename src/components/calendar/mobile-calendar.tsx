@@ -75,56 +75,60 @@ export function MobileCalendar({
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="rounded-lg border p-1">
-        <div className="grid grid-cols-7">
-          {weekdayLabels.map((label) => (
-            <div
-              key={label}
-              className="pb-1 text-center text-[0.7rem] font-medium text-muted-foreground"
-            >
-              {label}
-            </div>
-          ))}
-
-          {days.map((day) => {
-            const isSelected = day.date === selected?.date;
-            return (
-              <button
-                key={day.date}
-                type="button"
-                aria-pressed={isSelected}
-                onClick={() => setSelectedDate(day.date)}
-                className={cn(
-                  "flex flex-col items-center gap-1 rounded-md py-1.5",
-                  !day.inMonth && "text-muted-foreground/50",
-                )}
+      {/* A single day (the day view) has nothing to pick between, and one
+          date under seven weekday headings sat under the wrong one. */}
+      {days.length > 1 ? (
+        <div className="rounded-lg border p-1">
+          <div className="grid grid-cols-7">
+            {weekdayLabels.map((label) => (
+              <div
+                key={label}
+                className="pb-1 text-center text-[0.7rem] font-medium text-muted-foreground"
               >
-                <span
+                {label}
+              </div>
+            ))}
+
+            {days.map((day) => {
+              const isSelected = day.date === selected?.date;
+              return (
+                <button
+                  key={day.date}
+                  type="button"
+                  aria-pressed={isSelected}
+                  onClick={() => setSelectedDate(day.date)}
                   className={cn(
-                    "flex size-8 items-center justify-center rounded-full text-sm tabular-nums",
-                    day.isToday && !isSelected && "font-semibold text-primary",
-                    isSelected && "bg-primary font-semibold text-primary-foreground",
+                    "flex flex-col items-center gap-1 rounded-md py-1.5",
+                    !day.inMonth && "text-muted-foreground/50",
                   )}
                 >
-                  {day.day}
-                </span>
+                  <span
+                    className={cn(
+                      "flex size-8 items-center justify-center rounded-full text-sm tabular-nums",
+                      day.isToday && !isSelected && "font-semibold text-primary",
+                      isSelected && "bg-primary font-semibold text-primary-foreground",
+                    )}
+                  >
+                    {day.day}
+                  </span>
 
-                {/* Three dots is the useful limit: past that it is a smudge. */}
-                <span className="flex h-1.5 items-center gap-0.5">
-                  {day.items.slice(0, 3).map((item) => (
-                    <span
-                      key={item.id}
-                      className="size-1.5 rounded-full"
-                      style={{ backgroundColor: item.color ?? "var(--muted-foreground)" }}
-                      aria-hidden
-                    />
-                  ))}
-                </span>
-              </button>
-            );
-          })}
+                  {/* Three dots is the useful limit: past that it is a smudge. */}
+                  <span className="flex h-1.5 items-center gap-0.5">
+                    {day.items.slice(0, 3).map((item) => (
+                      <span
+                        key={item.id}
+                        className="size-1.5 rounded-full"
+                        style={{ backgroundColor: item.color ?? "var(--muted-foreground)" }}
+                        aria-hidden
+                      />
+                    ))}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      ) : null}
 
       {selected ? (
         <div className="flex flex-col gap-2">

@@ -109,7 +109,7 @@ export async function TrainingSchedule({
           {t("trainingCalendar")}
         </CardTitle>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {isMonth ? (
             <Badge variant="secondary">{t("sessionsThisMonth", { count: scheduledCount })}</Badge>
           ) : requiredPerWeek !== null ? (
@@ -183,6 +183,8 @@ export async function TrainingSchedule({
                     // The team whose page this is starts selected: a match added
                     // from here is almost always theirs.
                     teamIds={eventTeamIds}
+                    // A finger-sized target on a phone, where the days stack.
+                    className="max-sm:size-8"
                   />
                 ) : null}
               </div>

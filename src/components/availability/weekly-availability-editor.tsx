@@ -88,7 +88,7 @@ export function WeeklyAvailabilityEditor({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <div className="min-w-0">
           <CardTitle className="flex items-center gap-2">
             <Clock className="size-4" aria-hidden />
@@ -183,7 +183,7 @@ function WeeklyAvailabilityDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex h-[90vh] w-[90vw] max-w-none flex-col gap-4 sm:max-w-none"
+        className="flex h-[90dvh] w-[90vw] max-w-none flex-col gap-4 sm:max-w-none"
         showCloseButton
       >
         <DialogHeader>
@@ -202,7 +202,9 @@ function WeeklyAvailabilityDialog({
                   {tWeekdays(WEEKDAY_KEYS[weekday])}
                 </span>
 
-                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+                {/* On a phone the windows get a line of their own below the day
+                    and its add button; squeezed between them they had ~40px. */}
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 max-sm:order-last max-sm:basis-full">
                   {dayWindows.length === 0 && addingTo !== weekday ? (
                     <span className="text-sm text-muted-foreground">
                       {isTeam ? t("unrestricted") : t("noWindows")}
@@ -219,7 +221,7 @@ function WeeklyAvailabilityDialog({
                         type="button"
                         disabled={isPending}
                         aria-label={`${t("removeWindow")}: ${tWeekdays(WEEKDAY_KEYS[weekday])} ${window.startTime}–${window.endTime}`}
-                        className="rounded-sm p-0.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                        className="-my-1 rounded-sm p-1.5 text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
                         onClick={() =>
                           run(() => deleteAvailabilityAction(domain, window.id, ownerId), {
                             success: () => t("removed"),
@@ -294,7 +296,7 @@ function WeeklyAvailabilityDialog({
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-8"
+                    className="ml-auto h-8 sm:ml-0"
                     disabled={isPending}
                     onClick={() => setAddingTo(weekday)}
                   >

@@ -218,13 +218,14 @@ function QuarterRow({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="w-28 shrink-0 text-sm text-muted-foreground">{label}</span>
+      {/* On its own line on a phone, so the four boxes and the sum fit on one. */}
+      <span className="w-full shrink-0 text-sm text-muted-foreground sm:w-28">{label}</span>
       {values.map((value, index) => (
         <Input
           key={index}
           inputMode="numeric"
           aria-label={`${label} ${index + 1}`}
-          className="w-14 text-center tabular-nums"
+          className="w-12 px-1 text-center tabular-nums sm:w-14"
           value={value}
           disabled={disabled}
           onChange={(event) => {

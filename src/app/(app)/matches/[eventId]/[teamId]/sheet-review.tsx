@@ -27,6 +27,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { SCROLLING_GRID } from "@/components/attendance/scrolling-grid";
+import { Disclosure } from "@/components/data/disclosure";
 import { useAction } from "@/hooks/use-action";
 import {
   NotationError,
@@ -113,14 +115,19 @@ export function SheetReview({
     if (!state) return null;
     const team = state.transcription.teams[state.side];
     const reading = readTeam(team);
-    const options = { needsOpponentScore: needsResult && withResult };
+    const options = {
+      needsOpponentScore: needsResult && withResult,
+      // Why we believe this is our block — home and away first, the club name
+      // only as a cross-check. Recorded when the sheet was read.
+      side: sheet.reading?.evidence,
+    };
     return {
       team,
       reading,
       questions: askQuestions(state, reading, squad, options),
       sure: certainties(state, reading, options),
     };
-  }, [state, squad, needsResult, withResult]);
+  }, [state, squad, needsResult, withResult, sheet.reading?.evidence]);
 
   if (!state || !derived) {
     return (
@@ -292,11 +299,9 @@ export function SheetReview({
       ) : null}
 
       {/* The lines themselves, for the final read-through before confirming. */}
-      <details className="rounded-md border">
-        <summary className="cursor-pointer px-3 py-2 text-sm font-medium">
-          {t("boxScore")} · {reading.points}
-        </summary>
-        <div className="overflow-x-auto border-t">
+      <Disclosure title={t("boxScore")} meta={String(reading.points)}>
+        {/* Read against the paper, so a grid on a phone too: see SCROLLING_GRID. */}
+        <div className={SCROLLING_GRID}>
           <Table>
             <TableHeader>
               <TableRow>
@@ -347,7 +352,7 @@ export function SheetReview({
             </TableBody>
           </Table>
         </div>
-      </details>
+      </Disclosure>
 
       {/* The correction path, for the problems above. */}
       {canRecord ? (
@@ -445,6 +450,16 @@ export function SheetReview({
 function describe(entry: Certainty, t: ReturnType<typeof useTranslations<"matches">>): string {
   switch (entry.kind) {
     case "SIDE":
+      /*
+        The reason is the useful half. "Squadra B, because we played away" is
+        checkable at a glance by whoever was there; the club name alone is not,
+        which is exactly how the wrong side got chosen before.
+      */
+      if (entry.because === "HOME_AWAY") {
+        return entry.isHome
+          ? t("certainSideHome", { club: entry.clubName })
+          : t("certainSideAway", { club: entry.clubName });
+      }
       return t("certainSide", { club: entry.clubName });
     case "PLAYERS_MATCHED":
       return t("certainPlayers", { matched: entry.matched, total: entry.total });
@@ -592,7 +607,9 @@ function TranscriptionEditor({
         <Textarea
           id="roster"
           rows={13}
-          className="font-mono text-xs"
+          // Only from md up: below it the textarea's own 16px is what keeps iOS
+          // from zooming the page on focus.
+          className="font-mono md:text-xs"
           value={rosterText}
           onChange={(event) => {
             setRosterText(event.target.value);
@@ -607,7 +624,7 @@ function TranscriptionEditor({
         <Textarea
           id="ladder"
           rows={14}
-          className="font-mono text-xs"
+          className="font-mono md:text-xs"
           value={ladderText}
           onChange={(event) => {
             setLadderText(event.target.value);

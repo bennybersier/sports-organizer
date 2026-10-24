@@ -201,7 +201,7 @@ export function FixturesCard({
       </CardHeader>
 
       {shown.length > 0 ? (
-        <CardContent className="overflow-x-auto p-0 sm:px-6 print:overflow-visible print:px-0">
+        <CardContent className="overflow-x-auto sm:px-6 print:overflow-visible print:px-0">
           <Table>
             <TableHeader>
               <TableRow>

@@ -14,6 +14,8 @@ import {
 } from "@/components/ui/table";
 import type { AthleteMatchLine } from "@/server/services/match-service";
 
+import { PointsChart } from "./points-chart";
+
 /**
  * The matches behind the averages, each one a link back to the match.
  *
@@ -44,7 +46,12 @@ export async function MatchLogCard({ matches }: { matches: AthleteMatchLine[] })
           {t("stats.matchLog")}
         </CardTitle>
       </CardHeader>
-      <CardContent className="overflow-x-auto p-0 sm:px-6">
+      <CardContent className="space-y-4 sm:px-6">
+        {/* The chart, and directly beneath it the table it is drawn from —
+            which is what keeps every plotted value reachable without hovering. */}
+        <PointsChart matches={matches} />
+
+        <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
@@ -64,7 +71,7 @@ export async function MatchLogCard({ matches }: { matches: AthleteMatchLine[] })
           <TableBody>
             {matches.map((match) => (
               <TableRow key={`${match.eventId}:${match.teamId}`}>
-                <TableCell>
+                <TableCell variant="primary">
                   <Link
                     href={`/matches/${match.eventId}/${match.teamId}`}
                     className="font-medium underline-offset-4 hover:underline"
@@ -82,7 +89,7 @@ export async function MatchLogCard({ matches }: { matches: AthleteMatchLine[] })
                     {` · ${match.teamName}`}
                   </p>
                 </TableCell>
-                <TableCell className="text-end">
+                <TableCell data-label={tMatches("result")} className="text-end">
                   {match.result ? (
                     <Badge
                       variant={
@@ -100,15 +107,18 @@ export async function MatchLogCard({ matches }: { matches: AthleteMatchLine[] })
                     <span className="text-muted-foreground">—</span>
                   )}
                 </TableCell>
-                <TableCell className="text-end font-semibold tabular-nums">
+                <TableCell data-label={t("stats.points")} className="text-end font-semibold tabular-nums">
                   {match.points}
                 </TableCell>
-                <TableCell className="text-end tabular-nums">{match.fouls}</TableCell>
+                <TableCell data-label={t("stats.fouls")} className="text-end tabular-nums">
+                  {match.fouls}
+                </TableCell>
                 {anyDetail ? (
                   <>
-                    <Unknowable value={match.detail?.rebounds} />
-                    <Unknowable value={match.detail?.assists} />
+                    <Unknowable label={t("stats.rebounds")} value={match.detail?.rebounds} />
+                    <Unknowable label={t("stats.assists")} value={match.detail?.assists} />
                     <Unknowable
+                      label={t("stats.minutes")}
                       value={match.detail ? Math.round(match.detail.minutes) : undefined}
                     />
                   </>
@@ -116,7 +126,8 @@ export async function MatchLogCard({ matches }: { matches: AthleteMatchLine[] })
               </TableRow>
             ))}
           </TableBody>
-        </Table>
+          </Table>
+        </div>
       </CardContent>
     </Card>
   );
@@ -128,9 +139,9 @@ export async function MatchLogCard({ matches }: { matches: AthleteMatchLine[] })
  * "·" rather than "0" or an empty cell: a zero is a claim about the player, and
  * a blank reads as a rendering bug.
  */
-function Unknowable({ value }: { value: number | undefined }) {
+function Unknowable({ label, value }: { label: string; value: number | undefined }) {
   return (
-    <TableCell className="text-end tabular-nums">
+    <TableCell data-label={label} className="text-end tabular-nums">
       {value === undefined ? <span className="text-muted-foreground">·</span> : value}
     </TableCell>
   );

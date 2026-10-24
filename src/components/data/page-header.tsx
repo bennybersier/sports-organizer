@@ -12,13 +12,14 @@ export function PageHeader({
 }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-4">
-      <div className="space-y-1">
+      {/* `min-w-0` so an unbroken name or email wraps instead of widening the page. */}
+      <div className="min-w-0 space-y-1 break-words">
         <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
         {description ? (
           <p className="text-sm text-muted-foreground">{description}</p>
         ) : null}
       </div>
-      {action ? <div className="flex items-center gap-2">{action}</div> : null}
+      {action ? <div className="flex flex-wrap items-center gap-2">{action}</div> : null}
     </div>
   );
 }

@@ -60,6 +60,8 @@ export function AgendaView({
                 date={group.date}
                 label={group.label}
                 options={eventOptions}
+                // The agenda is also the phone layout: a finger-sized target there.
+                className="max-lg:size-8"
               />
             ) : null}
           </div>

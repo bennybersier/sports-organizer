@@ -54,14 +54,14 @@ export function ClubPicker({ clubs }: { clubs: Club[] }) {
               disabled={pendingId !== null}
               className="flex w-full items-center gap-3 rounded-lg border p-3 text-left transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-none disabled:opacity-60"
             >
-              <span className="grid flex-1">
-                <span className="font-medium">{club.name}</span>
+              <span className="grid min-w-0 flex-1">
+                <span className="font-medium wrap-break-word">{club.name}</span>
                 <span className="text-sm text-muted-foreground">{club.roleName}</span>
               </span>
               {pendingId === club.id ? (
-                <Loader2 className="size-4 animate-spin" aria-hidden />
+                <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
               ) : (
-                <ChevronRight className="size-4 text-muted-foreground" aria-hidden />
+                <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
               )}
             </button>
           </li>

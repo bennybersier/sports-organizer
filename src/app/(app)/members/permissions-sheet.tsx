@@ -82,7 +82,8 @@ export function PermissionsSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-xl">
+      {/* The data-side variants are what the base classes use, so only they override them. */}
+      <SheetContent className="data-[side=right]:w-full data-[side=right]:sm:max-w-xl">
         <SheetHeader>
           <SheetTitle>{t("permissionsFor", { name })}</SheetTitle>
           <SheetDescription>{t("permissionsBody")}</SheetDescription>
@@ -93,7 +94,7 @@ export function PermissionsSheet({
             <Loader2 className="size-5 animate-spin text-muted-foreground" aria-hidden />
           </div>
         ) : (
-          <ScrollArea className="h-[calc(100vh-10rem)] px-4">
+          <ScrollArea className="min-h-0 flex-1 px-4">
             <div className="space-y-6 pb-8">
               {categories.map((category) => (
                 <section key={category}>
@@ -110,7 +111,7 @@ export function PermissionsSheet({
                         >
                           <div className="min-w-0 flex-1">
                             <p className="text-sm">{row.description}</p>
-                            <p className="font-mono text-xs text-muted-foreground">{row.key}</p>
+                            <p className="font-mono text-xs break-all text-muted-foreground">{row.key}</p>
                           </div>
 
                           {row.override ? (

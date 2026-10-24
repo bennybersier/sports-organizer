@@ -282,7 +282,7 @@ export default async function TeamDetailPage({
           {team.notes ? (
             <div className="sm:col-span-3">
               <dt className="text-xs text-muted-foreground">{tCommon("notes")}</dt>
-              <dd className="text-sm whitespace-pre-line">{team.notes}</dd>
+              <dd className="text-sm break-words whitespace-pre-line">{team.notes}</dd>
             </div>
           ) : null}
         </CardContent>

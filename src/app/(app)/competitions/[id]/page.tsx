@@ -209,7 +209,7 @@ export default async function CompetitionDetailPage({
       ) : null}
 
       {competition.notes ? (
-        <p className="text-muted-foreground text-sm whitespace-pre-line print:hidden">
+        <p className="text-muted-foreground text-sm break-words whitespace-pre-line print:hidden">
           {competition.notes}
         </p>
       ) : null}

@@ -18,16 +18,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   return (
     <div className="flex min-h-svh flex-col">
       <header className="flex h-14 shrink-0 items-center gap-3 border-b bg-muted/40 px-4 md:px-6">
-        <Link href="/admin" className="flex items-center gap-2 font-semibold">
-          <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+        <Link href="/admin" className="flex min-w-0 items-center gap-2 font-semibold">
+          <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <CalendarClock className="size-4" aria-hidden />
           </span>
-          Sport Club Organizer
+          <span className="truncate">Sport Club Organizer</span>
         </Link>
-        <span className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
+        <span className="shrink-0 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700 dark:text-amber-400">
           System
         </span>
-        <div className="ml-auto">
+        <div className="ml-auto shrink-0">
           {user ? (
             <UserMenuStandalone
               user={{

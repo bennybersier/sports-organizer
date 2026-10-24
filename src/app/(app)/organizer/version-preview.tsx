@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { toWallClock } from "@/domain/scheduling/timezone";
+import { MobileCalendar } from "@/components/calendar/mobile-calendar";
 import { WeekGrid } from "@/components/calendar/week-grid";
 import type { TrainingWeek } from "@/server/services/calendar-service";
 import { previewVersionWeekAction } from "@/server/actions/organizer";
@@ -117,7 +118,7 @@ export function VersionPreview({
             onClick={() => load(week.previousWeek)}
           >
             <ChevronLeft aria-hidden />
-            {tCalendar("previous")}
+            <span className="max-sm:sr-only">{tCalendar("previous")}</span>
           </Button>
 
           <p className="text-sm font-medium tabular-nums">
@@ -134,7 +135,7 @@ export function VersionPreview({
             disabled={isPending}
             onClick={() => load(week.nextWeek)}
           >
-            {tCalendar("next")}
+            <span className="max-sm:sr-only">{tCalendar("next")}</span>
             <ChevronRight aria-hidden />
           </Button>
         </div>
@@ -153,24 +154,51 @@ export function VersionPreview({
             isPending && "opacity-60",
           )}
         >
-          <WeekGrid
-            days={week.days.map((entry) => ({
-              date: entry.date,
-              label: day(entry.date),
-              isToday: entry.date === today,
-            }))}
-            items={positioned}
-            dayStartHour={dayStartHour}
-            dayEndHour={dayEndHour}
-            timeZone={timezone}
-            /*
-              Read-only on purpose. Dragging edits the published schedule, and
-              this is a draft nobody has agreed to yet — the way to change it is
-              to adjust the requirements and generate again.
-            */
-            canEdit={false}
-            onSelect={() => {}}
-          />
+          {/* Below lg the hour grid is a 1024px-wide sideways scroll, so phones
+              get the calendar's own touch layout, as on the calendar page. */}
+          <div className="lg:hidden">
+            <MobileCalendar
+              key={week.weekStart}
+              weeks={[
+                week.days.map((entry) => ({
+                  date: entry.date,
+                  day: Number(entry.date.slice(8, 10)),
+                  inMonth: true,
+                  isToday: entry.date === today,
+                  items: entry.items,
+                })),
+              ]}
+              weekdayLabels={week.days.map((entry) =>
+                format.dateTime(new Date(`${entry.date}T12:00:00Z`), {
+                  weekday: "short",
+                  timeZone: "UTC",
+                }),
+              )}
+              timeZone={timezone}
+              onSelect={() => {}}
+            />
+          </div>
+
+          <div className="hidden lg:block">
+            <WeekGrid
+              days={week.days.map((entry) => ({
+                date: entry.date,
+                label: day(entry.date),
+                isToday: entry.date === today,
+              }))}
+              items={positioned}
+              dayStartHour={dayStartHour}
+              dayEndHour={dayEndHour}
+              timeZone={timezone}
+              /*
+                Read-only on purpose. Dragging edits the published schedule, and
+                this is a draft nobody has agreed to yet — the way to change it is
+                to adjust the requirements and generate again.
+              */
+              canEdit={false}
+              onSelect={() => {}}
+            />
+          </div>
         </div>
 
       </DialogContent>

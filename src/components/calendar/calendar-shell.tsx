@@ -69,7 +69,10 @@ export function CalendarShell(props: CalendarShellProps) {
             />
           </div>
           <div className="lg:hidden">
+            {/* Keyed on the range so stepping to another month opens on its
+                own today or first busy day, not the old selection. */}
             <MobileCalendar
+              key={props.monthWeeks[0]?.[0]?.date}
               weeks={props.monthWeeks}
               weekdayLabels={props.weekdayLabels}
               timeZone={props.timeZone}
@@ -105,6 +108,7 @@ export function CalendarShell(props: CalendarShellProps) {
           {/* The same shape as the month, one week wide. */}
           <div className="lg:hidden">
             <MobileCalendar
+              key={props.groups[0]?.date}
               weeks={[
                 props.groups.map((group) => ({
                   date: group.date,

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
-import { ArrowLeft, ClipboardCheck, MapPin, Star } from "lucide-react";
+import { ArrowLeft, MapPin, Star } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -18,10 +18,16 @@ import {
 } from "@/components/ui/table";
 import { AccessDenied } from "@/components/data/access-denied";
 import { PageHeader } from "@/components/data/page-header";
+import { Disclosure } from "@/components/data/disclosure";
 import { isAppError } from "@/lib/errors";
 import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
 import { getMatch, listSquad } from "@/server/services/match-service";
+import { getRegisterSheet } from "@/server/services/attendance-service";
+import { BoxScoreEditor } from "@/components/attendance/box-score-editor";
+import { RegisterSheetEditor } from "@/components/attendance/register-sheet";
+import { RegisterStateActions } from "@/components/attendance/register-state-actions";
+import { SCROLLING_GRID } from "@/components/attendance/scrolling-grid";
 import { listSheets } from "@/server/services/match-sheet-service";
 import { listBoxScores, listSelections } from "@/server/services/performance-service";
 import { getDefaultProvider } from "@/server/services/ai-config-service";
@@ -32,6 +38,8 @@ import { listTrainerOptions } from "@/server/services/trainer-service";
 
 import { EditMatchButton } from "./edit-match-button";
 import { ResultForm } from "./result-form";
+import { OpenSquadCard } from "./open-squad-card";
+import { OpponentCard } from "./opponent-card";
 import { SheetsCard } from "./sheets-card";
 
 export async function generateMetadata({
@@ -70,6 +78,7 @@ export default async function MatchPage({
 
   const { eventId, teamId } = await params;
   const t = await getTranslations("matches");
+  const tAttendance = await getTranslations("attendance");
   const format = await getFormatter();
 
   let match;
@@ -83,8 +92,9 @@ export default async function MatchPage({
   // Everything the shared event dialog needs, loaded only for someone who may
   // actually change the match.
   const canEditEvent = hasPermission(context, "calendar.update");
-  const [squad, sheets, boxScores, selections, provider, seasons, gyms, trainers, teams] =
-    await Promise.all([
+  const [
+    squad, sheets, boxScores, selections, provider, seasons, gyms, trainers, teams, register,
+  ] = await Promise.all([
     listSquad(context, teamId),
     match.registerId ? listSheets(context, match.registerId) : Promise.resolve([]),
     match.registerId && match.tracksBoxScore
@@ -100,6 +110,13 @@ export default async function MatchPage({
     canEditEvent ? listGymOptions(context) : Promise.resolve([]),
     canEditEvent ? listTrainerOptions(context) : Promise.resolve([]),
     canEditEvent ? listTeamOptions(context) : Promise.resolve([]),
+    /*
+      The squad sheet itself — who was called up, who started, who turned up.
+      This used to be its own page under /attendance, which made a match two
+      pages about the same ninety minutes. It is here now, and the register
+      route redirects a match back to this page.
+    */
+    match.registerId ? getRegisterSheet(context, match.registerId) : Promise.resolve(null),
   ]);
 
   const eventOptions = {
@@ -133,6 +150,7 @@ export default async function MatchPage({
       member.jerseyNumber !== null ? `${member.jerseyNumber} ${member.name}` : member.name,
     );
   const canReadAthletes = hasPermission(context, "athletes.read");
+  const canRecord = hasPermission(context, "attendance.record");
   const subtitle = [
     format.dateTime(new Date(match.startsAt), {
       weekday: "long",
@@ -171,17 +189,11 @@ export default async function MatchPage({
         description={subtitle}
         action={
           <div className="flex flex-wrap items-center gap-2">
+            {/*
+              No link to the register any more: it is this page. Following one
+              would redirect straight back here.
+            */}
             {canEditEvent ? <EditMatchButton eventId={eventId} options={eventOptions} /> : null}
-            {match.registerId ? (
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/attendance/${match.registerId}`}>
-                  <ClipboardCheck aria-hidden />
-                  {t("openRegister")}
-                </Link>
-              </Button>
-            ) : (
-              <Badge variant="outline">{t("noRegister")}</Badge>
-            )}
           </div>
         }
       />
@@ -243,7 +255,8 @@ export default async function MatchPage({
             {boxScores.length === 0 ? (
               <p className="text-sm text-muted-foreground">{t("boxScoreEmpty")}</p>
             ) : (
-              <div className="overflow-x-auto">
+              // A grid on a phone too, scrolling sideways: see SCROLLING_GRID.
+              <div className={SCROLLING_GRID}>
                 <Table>
                   <TableHeader>
                     <TableRow>
@@ -322,12 +335,6 @@ export default async function MatchPage({
                 </Table>
               </div>
             )}
-
-            {match.registerId ? (
-              <Button variant="link" size="sm" asChild className="mt-3 h-auto p-0">
-                <Link href={`/attendance/${match.registerId}`}>{t("editInRegister")}</Link>
-              </Button>
-            ) : null}
           </CardContent>
         </Card>
       ) : (
@@ -336,8 +343,82 @@ export default async function MatchPage({
         </Alert>
       )}
 
+      {/*
+        The other side's scorers, directly beneath ours so the two can be read
+        against each other — which is the whole reason to want them. Derived
+        from the same sheet, and only ever from a sheet: a result typed in by
+        hand has no opponent detail to show.
+      */}
+      {(() => {
+        const read = sheets.find((sheet) => sheet.reading !== null);
+        return read ? <OpponentCard sheet={read} opponentName={match.opponent} /> : null;
+      })()}
+
+      {register ? (
+        <>
+          {/*
+            Folded away by default once the sheet is recorded. Picking the
+            squad is Saturday's job and reading the result is Sunday's; after
+            the match this is twelve rows somebody has already finished with,
+            sitting between the score and the game sheet. It opens on its own
+            while there is still work in it.
+          */}
+          <Disclosure
+            title={tAttendance("squadSelection")}
+            meta={tAttendance("calledNoLimit", {
+              called: register.lines.filter((line) => line.calledUp).length,
+            })}
+            defaultOpen={register.register.state !== "RECORDED"}
+          >
+            <div className="space-y-4">
+              <div className="flex justify-end">
+                <RegisterStateActions
+                  registerId={register.register.id}
+                  state={register.register.state}
+                  canRecord={hasPermission(context, "attendance.record")}
+                  canManage={hasPermission(context, "attendance.manage")}
+                />
+              </div>
+              <RegisterSheetEditor sheet={register} />
+            </div>
+          </Disclosure>
+
+          {/*
+            Typing the scoresheet in by hand, folded away. The table above is
+            how it is read; this is how it is entered, and most clubs will let
+            the referto import do it rather than open this at all.
+          */}
+          {match.tracksBoxScore && register.editable ? (
+            <Disclosure title={t("enterByHand")}>
+              <BoxScoreEditor
+                registerId={register.register.id}
+                lines={register.lines.filter((line) => line.calledUp)}
+                existing={boxScores}
+                editable={register.editable}
+              />
+            </Disclosure>
+          ) : null}
+        </>
+      ) : (
+        /*
+          No register yet. Rather than sending somebody to another page to make
+          one, the button makes it here — and uploading a sheet does the same,
+          so a club that works off the photograph never has to think about
+          registers at all.
+        */
+        <OpenSquadCard eventId={eventId} teamId={teamId} canRecord={canRecord} />
+      )}
+
+      {!match.tracksBoxScore ? (
+        <Alert>
+          <AlertDescription>{t("needsBoxScore")}</AlertDescription>
+        </Alert>
+      ) : null}
+
       {match.tracksBoxScore ? (
         <SheetsCard
+          eventId={eventId}
+          teamId={teamId}
           registerId={match.registerId}
           sheets={sheets}
           squad={squad}

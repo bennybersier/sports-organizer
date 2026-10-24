@@ -53,6 +53,8 @@ export type Question =
   | {
       kind: "SIDE";
       id: string;
+      /** The fixture says one side and the club name says the other. */
+      conflict: boolean;
       options: { side: SheetSide; clubName: string | null; players: number; points: number }[];
     }
   | {
@@ -150,22 +152,27 @@ export function askQuestions(
   state: ReviewState,
   reading: TeamReading,
   squad: SquadOption[],
-  options: { needsOpponentScore?: boolean } = {},
+  options: { needsOpponentScore?: boolean; side?: SideEvidence } = {},
 ): Question[] {
   const questions: Question[] = [];
   const { transcription, side, assignments } = state;
   const team = transcription.teams[side];
 
   /*
-    Which block is ours is only worth asking when the club names did not settle
-    it. When one block carries our name there is nothing to ask, and asking
-    anyway trains people to click through the one question that would have
-    mattered.
+    Only worth asking when the fixture did not already settle it. A club that
+    played away is squadra B and there is nothing to ask; asking anyway trains
+    people to click through the one question that would have mattered.
   */
-  if (!sideIsObvious(transcription)) {
+  const confidence = decideSide(
+    options.side ?? { isHome: null, nameSuggests: null },
+  );
+  if (!confidence.certain) {
     questions.push({
       kind: "SIDE",
       id: "side",
+      // True when home/away and the club name point opposite ways, which the
+      // screen says out loud rather than silently preferring one.
+      conflict: confidence.conflict,
       options: (["a", "b"] as const).map((candidate) => {
         const block = transcription.teams[candidate];
         return {
@@ -258,19 +265,106 @@ export function askQuestions(
 }
 
 /**
- * Whether the club names already decide which block is ours.
+ * Which block is ours, and how confidently we know it.
  *
- * Mirrors `chooseSide` in the sheet service, which picks the side in the first
- * place; this only asks whether that pick was a reading of the paper or a
- * fallback. The two must agree, or the screen would ask about a side it had
- * already chosen confidently — or worse, not ask about one it guessed.
+ * **Home and away decides it.** A referto prints squadra A as the home side,
+ * always — so a club that knows it played away knows, without reading a single
+ * name, that it is squadra B. The app already holds that fact on
+ * `calendar_events.is_home`, entered when the fixture was scheduled, long
+ * before anybody photographed anything.
+ *
+ * That is a far better signal than the club name, which is what this used at
+ * first and was wrong to lean on. A name match is fuzzy: it turns on whether
+ * the club is registered here as "Future Basket Lodigiano" or "F.B.
+ * Lodigiano", on whether the scorer wrote a sponsor in the box, and on how
+ * legible the header was. Getting it wrong imports the opponent's twelve
+ * players into our own athletes' seasons.
+ *
+ * So the name is demoted to a cross-check. Where it agrees, nothing is asked.
+ * Where it *disagrees* with home and away, that is worth a human: one of the
+ * two is wrong and neither is safe to act on alone.
  */
-function sideIsObvious(transcription: RefertoTranscription): boolean {
-  const a = (transcription.teams.a.clubName ?? "").trim();
-  const b = (transcription.teams.b.clubName ?? "").trim();
-  // Exactly one name legible is enough to place ourselves; neither, or two that
-  // both could be ours, is not.
-  return (a === "") !== (b === "") || (a !== "" && b !== "");
+export interface SideEvidence {
+  /** `calendar_events.is_home`. Null when the club never recorded it. */
+  isHome: boolean | null;
+  /**
+   * The side whose club name looks like ours, where exactly one does. Null
+   * when neither matched and when both could.
+   */
+  nameSuggests: SheetSide | null;
+}
+
+export type SideConfidence =
+  /** Home and away settled it, and nothing contradicts it. */
+  | { certain: true; side: SheetSide; because: "HOME_AWAY" }
+  /** No home or away on file, but exactly one club name is ours. */
+  | { certain: true; side: SheetSide; because: "NAME" }
+  /** Nothing decides it, or the two signals point opposite ways. */
+  | { certain: false; conflict: boolean };
+
+export function decideSide(evidence: SideEvidence): SideConfidence {
+  const fromFixture: SheetSide | null =
+    evidence.isHome === null ? null : evidence.isHome ? "a" : "b";
+
+  if (fromFixture !== null) {
+    /*
+      A name that contradicts the fixture is not overruled quietly. Either the
+      match is recorded home when it was played away, or this is the wrong
+      sheet for this match — and both are things somebody should look at before
+      twelve players are written into a season.
+    */
+    if (evidence.nameSuggests !== null && evidence.nameSuggests !== fromFixture) {
+      return { certain: false, conflict: true };
+    }
+    return { certain: true, side: fromFixture, because: "HOME_AWAY" };
+  }
+
+  if (evidence.nameSuggests !== null) {
+    return { certain: true, side: evidence.nameSuggests, because: "NAME" };
+  }
+  return { certain: false, conflict: false };
+}
+
+/**
+ * Which side's club name looks like ours, if either.
+ *
+ * Null when neither matches and when both do, because "both could be us" is
+ * not an answer. Shared with the sheet service, so the side it picks and the
+ * question this file asks can never disagree about what the names say.
+ */
+export function matchClubName(
+  transcription: RefertoTranscription,
+  clubName: string,
+): SheetSide | null {
+  const ours = normaliseClubName(clubName);
+  if (ours === "") return null;
+
+  const matches = (name: string | null) => {
+    const candidate = normaliseClubName(name ?? "");
+    return candidate !== "" && (candidate.includes(ours) || ours.includes(candidate));
+  };
+
+  const aMatches = matches(transcription.teams.a.clubName);
+  const bMatches = matches(transcription.teams.b.clubName);
+  if (aMatches === bMatches) return null;
+  return aMatches ? "a" : "b";
+}
+
+/**
+ * Lower-cased, de-punctuated, and without the words every Italian club shares.
+ *
+ * "POL. DIL. LIBERTAS CERNUSCO" and "FUTURE BASKET LODIGIANO" both carry more
+ * boilerplate than name; stripping it is what lets a club registered as
+ * "Future Basket" still match.
+ */
+export function normaliseClubName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(
+      /\b(a\.?\s*s\.?\s*d\.?|s\.?\s*s\.?\s*d\.?|pol\.?\s*dil\.?|polisportiva|dilettantistica|societa|sportiva|basket|pallacanestro|libertas)\b/g,
+      "",
+    )
+    .replace(/[^a-z0-9]/g, "");
 }
 
 /* -------------------------------------------------------------------------- */
@@ -357,7 +451,7 @@ function withTeam(
  * noise.
  */
 export type Certainty =
-  | { kind: "SIDE"; clubName: string }
+  | { kind: "SIDE"; clubName: string; because: "HOME_AWAY" | "NAME"; isHome: boolean | null }
   | { kind: "PLAYERS_MATCHED"; matched: number; total: number }
   | { kind: "POINTS"; points: number }
   | { kind: "QUARTERS"; periods: number[] }
@@ -368,14 +462,20 @@ export type Certainty =
 export function certainties(
   state: ReviewState,
   reading: TeamReading,
-  options: { needsOpponentScore?: boolean } = {},
+  options: { needsOpponentScore?: boolean; side?: SideEvidence } = {},
 ): Certainty[] {
   const { transcription, side, assignments } = state;
   const team = transcription.teams[side];
   const list: Certainty[] = [];
 
-  if (team.clubName && sideIsObvious(transcription)) {
-    list.push({ kind: "SIDE", clubName: team.clubName });
+  const confidence = decideSide(options.side ?? { isHome: null, nameSuggests: null });
+  if (confidence.certain && confidence.side === side) {
+    list.push({
+      kind: "SIDE",
+      clubName: team.clubName ?? "",
+      because: confidence.because,
+      isHome: options.side?.isHome ?? null,
+    });
   }
 
   const relevant = reading.lines.filter((line) => line.played || line.points > 0);
