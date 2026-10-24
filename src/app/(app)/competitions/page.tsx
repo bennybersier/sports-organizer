@@ -99,7 +99,7 @@ export default async function CompetitionsPage({
         />
       ) : (
         <>
-          <Card className="overflow-x-auto p-0">
+          <Card className="overflow-x-auto p-0 max-lg:rounded-none max-lg:bg-transparent max-lg:ring-0">
             <Table>
               <TableHeader>
                 <TableRow>

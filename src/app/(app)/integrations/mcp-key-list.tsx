@@ -123,7 +123,7 @@ export function McpKeyList({
               {keys.map((key) => (
                 <li key={key.id} className="space-y-1 p-3">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-medium">{key.name}</span>
+                    <span className="min-w-0 font-medium wrap-anywhere">{key.name}</span>
                     <code className="rounded bg-muted px-1.5 py-0.5 text-xs">{key.prefix}…</code>
                     {key.revokedAt ? (
                       <Badge variant="destructive">{t("revokedLabel")}</Badge>
@@ -136,7 +136,7 @@ export function McpKeyList({
                     )}
                   </div>
 
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs wrap-anywhere text-muted-foreground">
                     {t("owner")} {key.ownerEmail} ·{" "}
                     {key.lastUsedAt
                       ? t("lastUsed", {
@@ -152,7 +152,7 @@ export function McpKeyList({
                   </p>
 
                   {!key.revokedAt ? (
-                    <div className="flex gap-2 pt-1">
+                    <div className="flex flex-wrap gap-2 pt-1">
                       <Button
                         size="sm"
                         variant="outline"

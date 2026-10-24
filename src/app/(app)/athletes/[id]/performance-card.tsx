@@ -36,8 +36,8 @@ export async function PerformanceCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-center justify-between gap-3 space-y-0">
-        <CardTitle className="flex items-center gap-2 text-base">
+      <CardHeader className="flex flex-row items-center justify-between gap-3 space-y-0">
+        <CardTitle className="flex min-w-0 items-center gap-2 text-base">
           <Activity className="size-4" aria-hidden />
           {t("title")}
         </CardTitle>

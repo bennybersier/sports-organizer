@@ -111,7 +111,7 @@ export default async function AthletesPage({
         />
       ) : (
         <>
-          <Card className="overflow-x-auto p-0">
+          <Card className="overflow-x-auto p-0 max-lg:rounded-none max-lg:bg-transparent max-lg:ring-0">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -133,7 +133,7 @@ export default async function AthletesPage({
                         {athlete.first_name} {athlete.last_name}
                       </Link>
                       {athlete.email ? (
-                        <div className="text-xs text-muted-foreground">{athlete.email}</div>
+                        <div className="text-xs break-words text-muted-foreground">{athlete.email}</div>
                       ) : null}
                     </TableCell>
                     <TableCell data-label={t("teams")}>

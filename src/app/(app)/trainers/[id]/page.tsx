@@ -159,7 +159,7 @@ export default async function TrainerDetailPage({
           {trainer.notes ? (
             <div className="sm:col-span-3">
               <dt className="text-xs text-muted-foreground">{tCommon("notes")}</dt>
-              <dd className="text-sm whitespace-pre-line">{trainer.notes}</dd>
+              <dd className="text-sm break-words whitespace-pre-line">{trainer.notes}</dd>
             </div>
           ) : null}
         </CardContent>

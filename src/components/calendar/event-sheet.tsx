@@ -109,7 +109,10 @@ export function EventSheet({
   return (
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent className="w-full sm:max-w-md">
+        {/* `data-[side=right]:` to outrank the sheet's own side-scoped width and
+            cap; plain `w-full` loses to them. Scrolls, because a flagged
+            session's findings can run past a phone's height. */}
+        <SheetContent className="overflow-y-auto data-[side=right]:w-full data-[side=right]:sm:max-w-md">
           <SheetHeader>
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="outline">{t(item.type as "TRAINING")}</Badge>

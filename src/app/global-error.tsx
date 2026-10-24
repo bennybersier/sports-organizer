@@ -12,7 +12,7 @@
 export default function GlobalError({ reset }: { error: Error; reset: () => void }) {
   return (
     <html lang="en">
-      <body style={{ fontFamily: "system-ui, sans-serif", padding: "3rem", lineHeight: 1.5 }}>
+      <body style={{ fontFamily: "system-ui, sans-serif", padding: "1.5rem", lineHeight: 1.5 }}>
         <h1 style={{ fontSize: "1.25rem", fontWeight: 600 }}>Something went wrong</h1>
         <p style={{ color: "#666", marginTop: "0.5rem" }}>
           The page couldn&apos;t be loaded. Please try again.

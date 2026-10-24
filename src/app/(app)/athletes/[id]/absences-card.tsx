@@ -62,8 +62,8 @@ export function AbsencesCard({
 
   return (
     <Card>
-      <CardHeader className="flex-row items-start justify-between gap-3 space-y-0">
-        <div>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
+        <div className="min-w-0">
           <CardTitle className="flex items-center gap-2 text-base">
             <CalendarOff className="size-4" aria-hidden />
             {t("title")}

@@ -160,7 +160,7 @@ export default async function MatchesPage({
           comparative — which of these has a result, which competition is this
           one, when is the next away game — and comparison wants columns.
         */
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="lg:overflow-x-auto lg:rounded-lg lg:border">
           <Table>
             <TableHeader>
               <TableRow>
@@ -175,7 +175,10 @@ export default async function MatchesPage({
             <TableBody>
               {matches.map((match) => (
                 <TableRow key={`${match.eventId}:${match.teamId}`}>
-                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground tabular-nums">
+                  <TableCell
+                    data-label={t("date")}
+                    className="whitespace-nowrap text-sm text-muted-foreground tabular-nums"
+                  >
                     {format.dateTime(new Date(match.startsAt), {
                       day: "numeric",
                       month: "short",
@@ -183,8 +186,8 @@ export default async function MatchesPage({
                     })}
                   </TableCell>
 
-                  <TableCell>
-                    <span className="flex items-center gap-2">
+                  <TableCell data-label={t("team")}>
+                    <span className="flex min-w-0 items-center gap-2">
                       <span
                         className="size-2.5 shrink-0 rounded-full"
                         style={{ backgroundColor: match.teamColor }}
@@ -194,7 +197,7 @@ export default async function MatchesPage({
                     </span>
                   </TableCell>
 
-                  <TableCell>
+                  <TableCell variant="primary">
                     <Link
                       href={`/matches/${match.eventId}/${match.teamId}`}
                       className="font-medium hover:underline"
@@ -209,11 +212,14 @@ export default async function MatchesPage({
                     ) : null}
                   </TableCell>
 
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell
+                    data-label={t("competitionColumn")}
+                    className="text-sm text-muted-foreground"
+                  >
                     {match.competition ?? "—"}
                   </TableCell>
 
-                  <TableCell className="text-center">
+                  <TableCell data-label={t("venue")} className="text-center">
                     {match.isHome === null ? (
                       <span className="text-xs text-muted-foreground">—</span>
                     ) : (
@@ -223,7 +229,7 @@ export default async function MatchesPage({
                     )}
                   </TableCell>
 
-                  <TableCell className="text-end">
+                  <TableCell data-label={t("result")} className="text-end">
                     <ScoreBadge result={match.result} labels={labels} />
                   </TableCell>
                 </TableRow>

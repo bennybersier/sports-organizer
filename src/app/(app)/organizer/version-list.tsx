@@ -104,7 +104,9 @@ export function VersionList({
 
                 return (
                   <li key={version.id} className="flex flex-wrap items-center gap-3 p-3">
-                    <div className="min-w-0 flex-1">
+                    {/* Its own line on a phone: a zero flex-basis let the
+                        buttons crowd the name down to nothing. */}
+                    <div className="min-w-0 basis-full sm:flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="font-medium">
                           {version.name ?? t("versionNumber", { number: version.number })}

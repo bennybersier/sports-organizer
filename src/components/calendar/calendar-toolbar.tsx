@@ -107,7 +107,9 @@ export function CalendarToolbar({
         </Tabs>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      {/* Two to a row on a phone, so four filters take two lines rather than
+          four ragged ones of whatever width each label happens to be. */}
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
         {filters
           .filter((filter) => filter.options.length > 0)
           .map((filter) => (
@@ -116,7 +118,7 @@ export function CalendarToolbar({
               value={searchParams.get(filter.name) ?? "all"}
               onValueChange={(value) => go({ [filter.name]: value })}
             >
-              <SelectTrigger className="w-auto min-w-36" aria-label={filter.all}>
+              <SelectTrigger className="w-full sm:w-auto sm:min-w-36" aria-label={filter.all}>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

@@ -63,7 +63,10 @@ export async function TeamMatchTable({ matches }: { matches: MatchListItem[] }) 
               const decided = result?.ourScore != null && result.theirScore != null;
               return (
                 <TableRow key={`${match.eventId}:${match.teamId}`}>
-                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground tabular-nums">
+                  <TableCell
+                    data-label={t("date")}
+                    className="whitespace-nowrap text-sm text-muted-foreground tabular-nums"
+                  >
                     {format.dateTime(new Date(match.startsAt), {
                       day: "numeric",
                       month: "short",
@@ -71,7 +74,7 @@ export async function TeamMatchTable({ matches }: { matches: MatchListItem[] }) 
                     })}
                   </TableCell>
 
-                  <TableCell>
+                  <TableCell variant="primary">
                     <Link
                       href={`/matches/${match.eventId}/${match.teamId}`}
                       className="font-medium hover:underline"
@@ -86,11 +89,11 @@ export async function TeamMatchTable({ matches }: { matches: MatchListItem[] }) 
                     ) : null}
                   </TableCell>
 
-                  <TableCell className="text-sm text-muted-foreground">
+                  <TableCell data-label={t("competitionColumn")} className="text-sm text-muted-foreground">
                     {match.competition ?? "—"}
                   </TableCell>
 
-                  <TableCell className="text-center">
+                  <TableCell data-label={t("venue")} className="text-center">
                     {match.isHome === null ? (
                       <span className="text-xs text-muted-foreground">—</span>
                     ) : (
@@ -100,7 +103,7 @@ export async function TeamMatchTable({ matches }: { matches: MatchListItem[] }) 
                     )}
                   </TableCell>
 
-                  <TableCell className="text-end whitespace-nowrap">
+                  <TableCell data-label={t("result")} className="text-end whitespace-nowrap">
                     {/* Not yet played is the normal state for most of a season. */}
                     {!decided ? (
                       <span className="text-sm text-muted-foreground">{t("notPlayedYet")}</span>

@@ -97,12 +97,12 @@ export function AiProviderList({
                     ) : null}
                   </div>
 
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-sm wrap-anywhere text-muted-foreground">
                     {config.model} · {t("keyEnding", { hint: config.keyHint })}
                   </p>
 
                   {config.lastError ? (
-                    <p className="flex items-center gap-1.5 text-sm text-destructive">
+                    <p className="flex items-center gap-1.5 text-sm wrap-anywhere text-destructive">
                       <AlertCircle className="size-4 shrink-0" aria-hidden />
                       {config.lastError}
                     </p>

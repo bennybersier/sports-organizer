@@ -99,7 +99,7 @@ export function EntriesCard({
               value={text}
               onChange={(event) => setText(event.target.value)}
               placeholder={t("clubsPlaceholder")}
-              className="font-mono text-sm"
+              className="font-mono"
             />
             <div className="flex items-center justify-between gap-2">
               <p className="text-muted-foreground text-xs">{t("clubsHint")}</p>

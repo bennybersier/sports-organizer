@@ -69,9 +69,10 @@ export function TenantTable({ tenants }: { tenants: AdminTenant[] }) {
         <TableBody>
           {tenants.map((tenant) => (
             <TableRow key={tenant.id}>
-              <TableCell variant="primary">
-                <div className="font-medium">{tenant.name}</div>
-                <div className="text-xs text-muted-foreground">/{tenant.slug}</div>
+              {/* Wider gutter than the default: the "Enter" button, not an icon, sits in the card's corner. */}
+              <TableCell variant="primary" className="max-lg:pr-24">
+                <div className="font-medium wrap-break-word">{tenant.name}</div>
+                <div className="text-xs wrap-anywhere text-muted-foreground">/{tenant.slug}</div>
               </TableCell>
               <TableCell data-label={t("status")}>
                 <Badge variant={tenant.deleted_at ? "destructive" : "secondary"}>

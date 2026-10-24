@@ -94,7 +94,7 @@ export default async function AuditLogPage({
                   </p>
 
                   {entry.reason ? (
-                    <p className="text-sm">
+                    <p className="text-sm wrap-break-word">
                       <span className="text-muted-foreground">{t("reason")}: </span>
                       {entry.reason}
                     </p>
@@ -103,7 +103,7 @@ export default async function AuditLogPage({
                   {/* The diff is already scrubbed of anything credential-shaped
                       at write time; this only has to render it readably. */}
                   {entry.newValue ? (
-                    <pre className="overflow-x-auto rounded bg-muted/50 p-2 text-xs">
+                    <pre className="overflow-x-auto rounded bg-muted/50 p-2 text-xs max-sm:whitespace-pre-wrap max-sm:break-all">
                       {formatDiff(entry.oldValue, entry.newValue)}
                     </pre>
                   ) : null}

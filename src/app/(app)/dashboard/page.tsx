@@ -109,10 +109,10 @@ export default async function DashboardPage() {
       ) : null}
 
       {stats.length > 0 ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {stats.map((stat) => (
             <Card key={stat.label}>
-              <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardDescription>{stat.label}</CardDescription>
                 <stat.icon className="size-4 text-muted-foreground" aria-hidden />
               </CardHeader>

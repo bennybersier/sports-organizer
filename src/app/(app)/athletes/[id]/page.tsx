@@ -171,7 +171,7 @@ export default async function AthleteDetailPage({
             .join(" · ") || undefined
         }
         action={
-          <>
+          <div className="flex flex-wrap items-center gap-2">
             <Badge variant={athlete.membership_status === "ACTIVE" ? "secondary" : "outline"}>
               {tMembership(athlete.membership_status)}
             </Badge>
@@ -200,7 +200,7 @@ export default async function AthleteDetailPage({
                 }}
               />
             ) : null}
-          </>
+          </div>
         }
       />
 
@@ -242,7 +242,7 @@ export default async function AthleteDetailPage({
           {athlete.notes ? (
             <div className="sm:col-span-3">
               <dt className="text-xs text-muted-foreground">{tCommon("notes")}</dt>
-              <dd className="text-sm whitespace-pre-line">{athlete.notes}</dd>
+              <dd className="text-sm break-words whitespace-pre-line">{athlete.notes}</dd>
             </div>
           ) : null}
         </CardContent>
