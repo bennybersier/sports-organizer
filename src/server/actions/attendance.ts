@@ -34,13 +34,22 @@ import { saveBoxScores, saveEvaluation } from "@/server/services/performance-ser
  * and the fact that the button was only rendered for a coach is not a control.
  */
 
+/**
+ * The page a register is edited on.
+ *
+ * The route pattern rather than a literal path: these actions are handed a
+ * register id, and the match page is keyed by event and team. Passing the
+ * pattern marks every match page stale, which is correct and cheap — they are
+ * invalidated, not re-rendered, and only the next visit pays.
+ */
+const MATCH_PAGE = "/matches/[eventId]/[teamId]";
+
 export async function openTrainingRegisterAction(
   scheduleEntryId: string,
 ): Promise<ActionResult<{ registerId: string }>> {
   return runAction(async () => {
     const context = await requirePermission("attendance.record");
     const registerId = await openTrainingRegister(context, scheduleEntryId);
-    revalidatePath("/attendance");
     return { registerId };
   });
 }
@@ -52,7 +61,6 @@ export async function openMatchRegisterAction(
   return runAction(async () => {
     const context = await requirePermission("attendance.record");
     const registerId = await openMatchRegister(context, eventId, teamId);
-    revalidatePath("/attendance");
     return { registerId };
   });
 }
@@ -63,9 +71,9 @@ export async function saveRegisterAction(
   return runAction(async () => {
     const context = await requirePermission("attendance.record");
     const result = await saveRegister(context, parseInput(saveRegisterSchema, input));
-    revalidatePath("/attendance");
-    revalidatePath(`/attendance/${result.registerId}`);
     return result;
+    revalidatePath(MATCH_PAGE, "page");
+    revalidatePath("/matches");
   });
 }
 
@@ -76,8 +84,8 @@ export async function cancelRegisterAction(
   return runAction(async () => {
     const context = await requirePermission("attendance.record");
     await cancelRegister(context, registerId, reason);
-    revalidatePath("/attendance");
-    revalidatePath(`/attendance/${registerId}`);
+    revalidatePath(MATCH_PAGE, "page");
+    revalidatePath("/matches");
   });
 }
 
@@ -85,8 +93,8 @@ export async function reopenRegisterAction(registerId: string): Promise<ActionRe
   return runAction(async () => {
     const context = await requirePermission("attendance.manage");
     await reopenRegister(context, registerId);
-    revalidatePath("/attendance");
-    revalidatePath(`/attendance/${registerId}`);
+    revalidatePath(MATCH_PAGE, "page");
+    revalidatePath("/matches");
   });
 }
 
@@ -94,7 +102,6 @@ export async function declareAbsenceAction(input: unknown): Promise<ActionResult
   return runAction(async () => {
     const context = await requirePermission("attendance.record");
     const result = await declareAbsence(context, parseInput(declareAbsenceSchema, input));
-    revalidatePath("/attendance");
     revalidatePath("/athletes");
     return result;
   });
@@ -104,7 +111,6 @@ export async function deleteAbsenceAction(id: string): Promise<ActionResult<void
   return runAction(async () => {
     const context = await requirePermission("attendance.record");
     await deleteAbsence(context, id);
-    revalidatePath("/attendance");
     revalidatePath("/athletes");
   });
 }
@@ -116,8 +122,9 @@ export async function saveBoxScoresAction(
     const context = await requirePermission("attendance.record");
     const parsed = parseInput(saveBoxScoresSchema, input);
     const result = await saveBoxScores(context, parsed);
-    revalidatePath(`/attendance/${parsed.registerId}`);
     return result;
+    revalidatePath(MATCH_PAGE, "page");
+    revalidatePath("/athletes");
   });
 }
 

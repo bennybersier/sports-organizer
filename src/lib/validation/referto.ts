@@ -21,12 +21,18 @@ import { optionalText, uuidSchema } from "./common";
 
 const shirtSchema = z.coerce.number().int().min(0).max(999);
 
-/** `P`, `P1`–`P3`, `T`, `U`, `D`, as written. Anything else is not a foul mark. */
-const foulMarkSchema = z
-  .string()
-  .trim()
-  .toUpperCase()
-  .regex(/^[PTUD]\d?$/, "A foul mark is P, P1, P2, P3, T, U or D.");
+/**
+ * A foul mark: `P`, `P1`–`P3`, `T`, `U`, `D`.
+ *
+ * Deliberately *not* rejected when it is something else. A reader looking at
+ * biro on a photocopy will occasionally return a glyph nobody expects, and the
+ * cost of refusing it here is the whole sheet — twelve players and both scores
+ * thrown away over one cell, with a Zod path for a message. The mark is kept
+ * as written instead, and `reading.ts` counts only the ones it recognises, so
+ * an unreadable one shows up as a foul count a human can check against the
+ * paper rather than as a failed import.
+ */
+const foulMarkSchema = z.string().trim().toUpperCase().max(4);
 
 export const transcribedPlayerSchema = z.object({
   shirt: shirtSchema,

@@ -160,7 +160,7 @@ export function BoxScoreEditor({
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-xs text-muted-foreground">
-                <th className="sticky left-0 bg-background py-2 pr-3 text-left font-medium">
+                <th className="sticky left-0 z-10 bg-card py-2 pr-3 text-left font-medium">
                   {t("player")}
                 </th>
                 {COLUMNS.map((column) => (
@@ -178,7 +178,7 @@ export function BoxScoreEditor({
                 const derived = derive(row);
                 return (
                   <tr key={row.athleteId} className="border-b last:border-0">
-                    <td className="sticky left-0 bg-background py-1.5 pr-3 whitespace-nowrap">
+                    <td className="sticky left-0 z-10 bg-card py-1.5 pr-3 whitespace-nowrap">
                       <span className="flex items-center gap-2">
                         {player.jerseyNumber !== null ? (
                           <span className="inline-flex size-5 shrink-0 items-center justify-center rounded bg-muted text-[10px] font-semibold tabular-nums">
@@ -214,7 +214,7 @@ export function BoxScoreEditor({
         </div>
 
         {editable ? (
-          <div className="flex items-center justify-end gap-3">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             {impossible ? (
               <p className="text-sm text-destructive">{t("impossible")}</p>
             ) : null}

@@ -3,6 +3,11 @@ import "server-only";
 import { ConflictError, NotFoundError, ValidationError, fromDatabaseError } from "@/lib/errors";
 import { MAX_IMAGE_BYTES, isReadableImageType, type ReadableImageType } from "@/domain/ai";
 import { readTeam, describeFailures, type TeamReading } from "@/domain/referto/reading";
+import {
+  decideSide,
+  matchClubName,
+  type SideEvidence,
+} from "@/domain/referto/questions";
 import type { RefertoTranscription, SheetSide } from "@/domain/referto/transcription";
 import { refertoTranscriptionSchema } from "@/lib/validation/referto";
 import type { ImportSheetInput, ReviseSheetInput } from "@/lib/validation/referto";
@@ -33,9 +38,16 @@ const BUCKET = "match-sheets";
 /** Long enough to look at a sheet and correct it; short enough not to leak. */
 const SIGNED_URL_SECONDS = 60 * 30;
 
-/** The reading as it is stored on the row, with the side it was read for. */
+/**
+ * The reading as stored, with the side it was read for and why that side.
+ *
+ * The evidence travels with it so the review screen can tell a decision from a
+ * fallback: "squadra B, because this was an away match" is a statement, and
+ * picking A because nothing else was known is a question.
+ */
 export interface StoredReading extends TeamReading {
   side: SheetSide;
+  evidence?: SideEvidence;
 }
 
 export interface SheetView {
@@ -281,8 +293,17 @@ export async function readSheet(context: AuthContext, sheetId: string): Promise<
     throw failure;
   }
 
-  const side = chooseSide(transcription, context.tenant.name);
-  const reading: StoredReading = { side, ...readTeam(transcription.teams[side]) };
+  const { data: register } = await context.db
+    .from("attendance_registers")
+    .select("event_id")
+    .eq("tenant_id", context.tenant.id)
+    .eq("id", row.register_id)
+    .maybeSingle();
+
+  const evidence = await sideEvidenceFor(context, register?.event_id ?? null, transcription);
+  const confidence = decideSide(evidence);
+  const side = confidence.certain ? confidence.side : fallbackSide(transcription);
+  const reading: StoredReading = { side, evidence, ...readTeam(transcription.teams[side]) };
 
   const { data: updated, error: updateError } = await context.db
     .from("match_sheets")
@@ -306,37 +327,48 @@ export async function readSheet(context: AuthContext, sheetId: string): Promise<
 }
 
 /**
- * Which roster block is ours.
+ * Gathers the evidence for which block is ours, and picks a side.
  *
- * Name similarity first, because the club name is printed and usually legible.
- * Failing that, whichever side's arithmetic reconciles — a sheet where only one
- * block was transcribed cleanly is common when the photograph is cropped, and
- * the clean one is far more likely to be the one somebody photographed on
- * purpose. Squadra A when neither test decides, because A is the home side and
- * a club photographs more of its own home games.
+ * Home and away comes first and is nearly always decisive: a referto prints
+ * squadra A as the home side, so a club that played away is squadra B, and the
+ * app knew that when the fixture was scheduled. The club name is only a
+ * cross-check — see `decideSide` for why leaning on it was a mistake.
+ *
+ * When nothing decides, a side still has to be chosen so there is something to
+ * show; the review screen asks about it, and `SideEvidence` travels with the
+ * reading so the screen knows the pick was a fallback rather than a finding.
  */
-function chooseSide(transcription: RefertoTranscription, clubName: string): SheetSide {
-  const ours = normalise(clubName);
-  const a = normalise(transcription.teams.a.clubName ?? "");
-  const b = normalise(transcription.teams.b.clubName ?? "");
+async function sideEvidenceFor(
+  context: AuthContext,
+  eventId: string | null,
+  transcription: RefertoTranscription,
+): Promise<SideEvidence> {
+  const nameSuggests = matchClubName(transcription, context.tenant.name);
+  if (eventId === null) return { isHome: null, nameSuggests };
 
-  const aMatches = a.length > 0 && (a.includes(ours) || ours.includes(a));
-  const bMatches = b.length > 0 && (b.includes(ours) || ours.includes(b));
-  if (aMatches !== bMatches) return aMatches ? "a" : "b";
+  const { data: event } = await context.db
+    .from("calendar_events")
+    .select("is_home")
+    .eq("tenant_id", context.tenant.id)
+    .eq("id", eventId)
+    .maybeSingle();
 
+  return { isHome: event?.is_home ?? null, nameSuggests };
+}
+
+/**
+ * The side to show first.
+ *
+ * Falls back to whichever block reconciles when nothing settles it — a
+ * photograph cropped to one team is common, and the clean one is far more
+ * likely to be the one somebody meant to send. Squadra A last, because it is
+ * the home side and a club photographs more of its own home games.
+ */
+function fallbackSide(transcription: RefertoTranscription): SheetSide {
   const aOk = readTeam(transcription.teams.a).ok;
   const bOk = readTeam(transcription.teams.b).ok;
   if (aOk !== bOk) return aOk ? "a" : "b";
-
   return "a";
-}
-
-/** Lower-cased, de-punctuated, and without the club-form words that never help. */
-function normalise(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/\b(a\.?s\.?d\.?|s\.?s\.?d\.?|a\.?p\.?s\.?|polisportiva|basket|pallacanestro)\b/g, "")
-    .replace(/[^a-z0-9]/g, "");
 }
 
 /**
@@ -355,7 +387,7 @@ export async function reviseSheet(
 
   const { data: row, error } = await context.db
     .from("match_sheets")
-    .select("id, state")
+    .select("id, state, reading")
     .eq("tenant_id", context.tenant.id)
     .eq("id", input.sheetId)
     .maybeSingle();
@@ -367,6 +399,10 @@ export async function reviseSheet(
 
   const reading: StoredReading = {
     side: input.side,
+    // Preserved rather than recomputed: the reviewer may have overridden the
+    // side deliberately, and the evidence is a record of what we knew, not of
+    // what they chose.
+    evidence: toReading(row.reading)?.evidence,
     ...readTeam(input.transcription.teams[input.side]),
   };
 

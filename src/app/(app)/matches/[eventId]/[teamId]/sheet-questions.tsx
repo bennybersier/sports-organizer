@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, ArrowRight, CircleHelp } from "lucide-react";
+import { ArrowLeft, ArrowRight, CircleHelp, Eye } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -136,6 +136,19 @@ export function SheetQuestions({
           ) : null}
         </div>
 
+        {/*
+          No room beside the questions on a phone, so the paper is a tap away
+          instead — opened full size, where it can be pinched to find the 65.
+        */}
+        {imageUrl ? (
+          <Button variant="outline" size="sm" asChild className="sm:hidden">
+            <a href={imageUrl} target="_blank" rel="noreferrer">
+              <Eye aria-hidden />
+              {t("openFullSize")}
+            </a>
+          </Button>
+        ) : null}
+
         <DialogFooter className="sm:justify-between">
           <div className="flex gap-2">
             <Button
@@ -158,11 +171,17 @@ export function SheetQuestions({
             </Button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="hidden text-xs text-muted-foreground sm:inline">
+          {/* The warning shows on a phone too: what skipping costs is the point. */}
+          <div className="flex items-center justify-between gap-2">
+            <span className="min-w-0 text-xs text-muted-foreground">
               {skipWarningOf(question, t)}
             </span>
-            <Button variant="outline" size="sm" onClick={() => answer(skipAnswer(question))}>
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0"
+              onClick={() => answer(skipAnswer(question))}
+            >
               {t("skipQuestion")}
             </Button>
           </div>
@@ -190,7 +209,12 @@ function titleOf(question: Question, t: Translator): string {
 function bodyOf(question: Question, t: Translator): string {
   switch (question.kind) {
     case "SIDE":
-      return t("qSideBody");
+      /*
+        Two different situations behind one question. Nothing known is a blank
+        header; a conflict is the fixture and the paper disagreeing, which is a
+        sharper warning and deserves to say so.
+      */
+      return question.conflict ? t("qSideBody") + " " + t("qSideConflictShort") : t("qSideBody");
     case "SCORER":
       return t("qScorerBody", { worth: question.worth });
     case "PLAYER": {
@@ -320,7 +344,7 @@ function QuestionBody({
                   {option.jerseyNumber}
                 </Badge>
               ) : null}
-              {option.name}
+              <span className="truncate">{option.name}</span>
             </Button>
           ))}
         </div>

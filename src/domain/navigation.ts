@@ -2,7 +2,6 @@ import type { LucideIcon } from "lucide-react";
 import {
   Building2,
   CalendarDays,
-  ClipboardCheck,
   Dumbbell,
   LayoutDashboard,
   MapPin,
@@ -56,17 +55,12 @@ export const NAVIGATION: NavSection[] = [
       { titleKey: "dashboard", href: "/dashboard", icon: LayoutDashboard },
       { titleKey: "calendar", href: "/calendar", icon: CalendarDays, permission: "calendar.read" },
       { titleKey: "organizer", href: "/organizer", icon: Sparkles, permission: "schedule.generate" },
-      {
-        titleKey: "attendance",
-        href: "/attendance",
-        icon: ClipboardCheck,
-        permission: "attendance.read",
-      },
       /*
-        Results, rather than fixtures. Competitions lists the matches a season
-        owes; this lists the ones that happened and what they finished, which is
-        a different question asked by different people at a different time of
-        the week.
+        Matches absorbed the attendance module. Picking a squad, marking who
+        turned up and entering the scoresheet were a separate section when a
+        register was the only place they could live; they are all on a match's
+        own page now, and a second route to half of them was the duplication
+        this replaced.
       */
       { titleKey: "matches", href: "/matches", icon: Trophy, permission: "attendance.read" },
     ],

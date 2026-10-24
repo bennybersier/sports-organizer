@@ -84,7 +84,6 @@
     "auditLog": "Audit log",
     "settings": "Settings",
     "competitions": "Competitions",
-    "attendance": "Attendance",
     "matches": "Matches"
   },
   "roles": {
@@ -1110,7 +1109,11 @@
       "sheetSome": "{sheetGames} of {games} matches came from a game sheet, which records no attempts, rebounds, assists or minutes. Those figures are averaged over the rest.",
       "matchLog": "Match by match",
       "matchLogEmpty": "No match statistics yet.",
-      "notRecorded": "not recorded"
+      "notRecorded": "not recorded",
+      "pointsPerMatch": "Points per match",
+      "averagePoints": "Average {value}",
+      "pointsValue": "{points} points",
+      "pointsChartLabel": "Points scored in each of the last {matches} matches, averaging {average} per match."
     },
     "findings": {
       "title": "Worth a word",
@@ -1219,7 +1222,6 @@
     "versus": "vs {opponent}",
     "openRegister": "Open the register",
     "noRegister": "No register yet",
-    "openRegisterHint": "Open a register for this match to pick a squad and upload the sheet.",
     "backToMatches": "Matches",
     "result": "Result",
     "resultHint": "Our score and theirs. The quarters are optional, and must add up to the score.",
@@ -1260,7 +1262,6 @@
     "boxScoreEmpty": "Nothing recorded yet.",
     "fromSheet": "From the game sheet",
     "fromSheetCaveat": "A game sheet records baskets made but never shots attempted, so shooting percentages and valutazione are not meaningful for these rows.",
-    "editInRegister": "Edit in the register",
     "sheets": "Game sheet",
     "sheetsHint": "Photograph the referto and have it read. Nothing is written to a player's record until you accept what it says.",
     "upload": "Upload a photograph",
@@ -1383,6 +1384,18 @@
     "date": "Date",
     "startingFive": "Starting five",
     "started": "Started",
-    "startingFiveAre": "Starting five: {players}"
+    "startingFiveAre": "Starting five: {players}",
+    "certainSideHome": "Our side of the sheet: {club} — squadra A, because this was a home match",
+    "certainSideAway": "Our side of the sheet: {club} — squadra B, because we played away",
+    "qSideConflictBody": "The fixture says we played {fixture}, which makes us squadra {expected} — but the club name on the other side looks like ours. One of the two is wrong, so neither is safe to act on.",
+    "qSideHomeWord": "at home",
+    "qSideAwayWord": "away",
+    "qSideConflictShort": "The fixture and the club name on the sheet disagree about which side we were.",
+    "noRegisterBody": "Nobody has picked a squad for this match yet. Open one to mark who was called up, who started and who turned up — or just upload the game sheet and it will be filled in from that.",
+    "pickSquad": "Pick the squad",
+    "enterByHand": "Enter the scoresheet by hand",
+    "opponentSheet": "{club} — from the game sheet",
+    "opponentUnreadable": "Their half of the sheet doesn't reconcile, so their players' figures aren't shown.",
+    "opponentNotKept": "Read from the sheet and not stored: the opposing club's players are not records of ours."
   }
 }

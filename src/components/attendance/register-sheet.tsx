@@ -252,9 +252,11 @@ export function RegisterSheetEditor({ sheet }: { sheet: RegisterSheet }) {
 
                 {isMatch ? (
                   <div className="flex items-center gap-2">
+                    {/* Thumb-sized on a phone, like the turnout buttons below. */}
                     <Button
                       type="button"
                       size="sm"
+                      className="h-11 px-3 sm:h-7 sm:px-2.5"
                       variant={line.calledUp ? "default" : "outline"}
                       disabled={!sheet.editable}
                       aria-pressed={Boolean(line.calledUp)}
@@ -273,6 +275,7 @@ export function RegisterSheetEditor({ sheet }: { sheet: RegisterSheet }) {
                     <Button
                       type="button"
                       size="icon"
+                      className="size-11 sm:size-8"
                       variant={line.started ? "default" : "outline"}
                       disabled={!sheet.editable || !line.calledUp}
                       aria-label={t("starter")}
@@ -296,7 +299,9 @@ export function RegisterSheetEditor({ sheet }: { sheet: RegisterSheet }) {
                       variant={line.state === value ? "default" : "outline"}
                       disabled={!sheet.editable}
                       aria-pressed={line.state === value}
-                      className="h-11 flex-col gap-0.5 px-1 text-[11px] sm:h-9 sm:flex-row sm:text-xs"
+                      // Allowed to wrap: "Assente giustificato" is wider than a
+                      // quarter of a phone, and clipped it reads as "Assente".
+                      className="h-auto min-h-11 min-w-0 flex-col gap-0.5 px-1 py-1 text-center text-[11px] leading-tight whitespace-normal sm:min-h-9 sm:flex-row sm:text-xs"
                       onClick={() =>
                         update(line.athleteId, {
                           state: value,
@@ -374,11 +379,20 @@ export function RegisterSheetEditor({ sheet }: { sheet: RegisterSheet }) {
             <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
               {dirty ? t("unsaved") : t("upToDate")}
             </p>
-            <Button variant="outline" onClick={() => save("OPEN")} disabled={isPending || blocked}>
+            <Button
+              variant="outline"
+              className="h-11 sm:h-8"
+              onClick={() => save("OPEN")}
+              disabled={isPending || blocked}
+            >
               {isPending ? <Loader2 className="animate-spin" aria-hidden /> : <Save aria-hidden />}
               {t("saveDraft")}
             </Button>
-            <Button onClick={() => save("RECORDED")} disabled={isPending || blocked}>
+            <Button
+              className="h-11 sm:h-8"
+              onClick={() => save("RECORDED")}
+              disabled={isPending || blocked}
+            >
               <Lock aria-hidden />
               {t("saveAndClose")}
             </Button>

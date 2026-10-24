@@ -4,8 +4,11 @@ import {
   applyAnswer,
   askQuestions,
   certainties,
+  decideSide,
+  matchClubName,
   suggestAssignments,
   type ReviewState,
+  type SideEvidence,
   type SquadOption,
 } from "./questions";
 import { readTeam } from "./reading";
@@ -106,9 +109,18 @@ function stateFor(
   };
 }
 
-const ask = (state: ReviewState, squad = SQUAD, needsOpponentScore = true) =>
+/** Played at home, so we are squadra A — the usual case for these fixtures. */
+const AT_HOME: SideEvidence = { isHome: true, nameSuggests: "a" };
+
+const ask = (
+  state: ReviewState,
+  squad = SQUAD,
+  needsOpponentScore = true,
+  side: SideEvidence = AT_HOME,
+) =>
   askQuestions(state, readTeam(state.transcription.teams[state.side]), squad, {
     needsOpponentScore,
+    side,
   });
 
 describe("suggestAssignments", () => {
@@ -152,14 +164,32 @@ describe("askQuestions", () => {
     expect(ask(stateFor())).toEqual([]);
   });
 
-  it("asks which side is ours only when the names do not settle it", () => {
-    expect(ask(stateFor()).filter((question) => question.kind === "SIDE")).toHaveLength(0);
-
+  it("asks nothing about sides when the fixture already says where we played", () => {
+    // Even with both club names unreadable: home and away is enough on its own.
     const unreadable = stateFor({ a: { clubName: null }, b: { clubName: null } });
-    const sideQuestion = ask(unreadable).find((question) => question.kind === "SIDE");
+    const evidence: SideEvidence = { isHome: true, nameSuggests: null };
+    expect(ask(unreadable, SQUAD, true, evidence).filter((q) => q.kind === "SIDE")).toHaveLength(0);
+  });
+
+  it("asks which side is ours when nothing settles it", () => {
+    const unreadable = stateFor({ a: { clubName: null }, b: { clubName: null } });
+    const nothing: SideEvidence = { isHome: null, nameSuggests: null };
+
+    const sideQuestion = ask(unreadable, SQUAD, true, nothing).find((q) => q.kind === "SIDE");
     expect(sideQuestion).toBeDefined();
     if (sideQuestion?.kind !== "SIDE") throw new Error("wrong kind");
     expect(sideQuestion.options.map((option) => option.side)).toEqual(["a", "b"]);
+    expect(sideQuestion.conflict).toBe(false);
+  });
+
+  it("asks when the fixture and the club name point opposite ways", () => {
+    const state = stateFor();
+    const conflicting: SideEvidence = { isHome: true, nameSuggests: "b" };
+
+    const sideQuestion = ask(state, SQUAD, true, conflicting).find((q) => q.kind === "SIDE");
+    expect(sideQuestion).toBeDefined();
+    if (sideQuestion?.kind !== "SIDE") throw new Error("wrong kind");
+    expect(sideQuestion.conflict).toBe(true);
   });
 
   it("asks who scored a basket whose shirt could not be read", () => {
@@ -372,6 +402,7 @@ describe("certainties", () => {
     const state = stateFor();
     const list = certainties(state, readTeam(state.transcription.teams.a), {
       needsOpponentScore: true,
+      side: AT_HOME,
     });
     const kinds = list.map((entry) => entry.kind);
 
@@ -410,5 +441,92 @@ describe("certainties", () => {
       matched: 11,
       total: 12,
     });
+  });
+});
+
+describe("deciding which block is ours", () => {
+  /*
+    Gara 9721, the sheet that prompted this. Lodigiano played at Cernusco, so
+    they are squadra B — the week before, at home, they were squadra A. Nothing
+    about the paper changed; what changed is where the match was played, and
+    the app knew that when the fixture was scheduled.
+  */
+  const CERNUSCO = "POL. DIL. LIBERTAS CERNUSCO";
+  const LODIGIANO = "FUTURE BASKET LODIGIANO";
+
+  const sheet = {
+    gameNumber: "9721",
+    date: null,
+    time: null,
+    venue: null,
+    competition: null,
+    teams: {
+      a: { ...team(), clubName: CERNUSCO },
+      b: { ...opponent(), clubName: LODIGIANO },
+    },
+  };
+
+  it("makes us squadra B when we played away", () => {
+    expect(decideSide({ isHome: false, nameSuggests: null })).toEqual({
+      certain: true,
+      side: "b",
+      because: "HOME_AWAY",
+    });
+  });
+
+  it("makes us squadra A when we were at home", () => {
+    expect(decideSide({ isHome: true, nameSuggests: null })).toEqual({
+      certain: true,
+      side: "a",
+      because: "HOME_AWAY",
+    });
+  });
+
+  it("falls back to the club name when the fixture never said", () => {
+    expect(decideSide({ isHome: null, nameSuggests: "b" })).toEqual({
+      certain: true,
+      side: "b",
+      because: "NAME",
+    });
+  });
+
+  it("refuses to choose when the fixture and the name disagree", () => {
+    // Recorded as home, but the away block carries our name. One of the two is
+    // wrong, and quietly preferring either is how the opponent's twelve
+    // players end up in our athletes' seasons.
+    expect(decideSide({ isHome: true, nameSuggests: "b" })).toEqual({
+      certain: false,
+      conflict: true,
+    });
+  });
+
+  it("refuses to choose when nothing is known", () => {
+    expect(decideSide({ isHome: null, nameSuggests: null })).toEqual({
+      certain: false,
+      conflict: false,
+    });
+  });
+
+  it("reads our club out of the header despite the boilerplate", () => {
+    expect(matchClubName(sheet as never, "Future Basket Lodigiano")).toBe("b");
+    // Registered short, as a club often is.
+    expect(matchClubName(sheet as never, "Future Basket")).toBe("b");
+    expect(matchClubName(sheet as never, "Pol. Dil. Libertas Cernusco")).toBe("a");
+  });
+
+  it("says nothing rather than guessing when the name matches neither", () => {
+    // The old code picked squadra A here and the screen never asked. On this
+    // sheet squadra A is the opponent.
+    expect(matchClubName(sheet as never, "ASD Pallacanestro Milano")).toBeNull();
+    expect(decideSide({ isHome: null, nameSuggests: null }).certain).toBe(false);
+  });
+
+  it("still knows the side when the name is useless, because the fixture is not", () => {
+    const evidence = {
+      isHome: false,
+      nameSuggests: matchClubName(sheet as never, "FBL"),
+    };
+    expect(evidence.nameSuggests).toBeNull();
+    expect(decideSide(evidence)).toMatchObject({ certain: true, side: "b" });
   });
 });

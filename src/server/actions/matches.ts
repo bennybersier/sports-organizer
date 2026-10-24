@@ -12,6 +12,7 @@ import {
   reviseSheetSchema,
 } from "@/lib/validation/referto";
 import { saveResult, type MatchResultSummary } from "@/server/services/match-service";
+import { openMatchRegister } from "@/server/services/attendance-service";
 import {
   deleteSheet,
   importSheet,
@@ -35,7 +36,6 @@ function revalidateMatch(eventId: string, teamId: string) {
   revalidatePath(`/matches/${eventId}/${teamId}`);
   revalidatePath("/competitions");
   revalidatePath("/teams");
-  revalidatePath("/attendance");
 }
 
 export async function saveResultAction(
@@ -62,13 +62,35 @@ export async function uploadSheetAction(formData: FormData): Promise<ActionResul
   return runAction(async () => {
     const context = await requirePermission("attendance.record");
 
-    const registerId = formData.get("registerId");
     const file = formData.get("file");
-
-    if (typeof registerId !== "string" || !(file instanceof File) || file.size === 0) {
+    if (!(file instanceof File) || file.size === 0) {
       throw new ValidationError("Choose a photograph of the game sheet.", {
         fieldErrors: { file: ["Choose a photograph of the game sheet."] },
       });
+    }
+
+    /*
+      A sheet belongs to a register, but a club that photographs the referto
+      rather than picking a squad in the app has not opened one — and being
+      told to go and do that first, on the page where the photograph is in
+      your hand, is how a feature stops being used. So the register is opened
+      here when it is missing.
+
+      `openMatchRegister` is idempotent, so this is safe against two people
+      uploading from two phones at the same time, and it is the same call the
+      attendance page makes.
+    */
+    const given = formData.get("registerId");
+    const eventId = formData.get("eventId");
+    const teamId = formData.get("teamId");
+
+    let registerId: string;
+    if (typeof given === "string" && given !== "") {
+      registerId = given;
+    } else if (typeof eventId === "string" && typeof teamId === "string") {
+      registerId = await openMatchRegister(context, eventId, teamId);
+    } else {
+      throw new ValidationError("That sheet has no match to belong to.");
     }
 
     const sheet = await uploadSheet(context, {
@@ -78,8 +100,11 @@ export async function uploadSheetAction(formData: FormData): Promise<ActionResul
       bytes: await file.arrayBuffer(),
     });
 
-    revalidatePath(`/attendance/${registerId}`);
     revalidatePath("/matches");
+    if (typeof eventId === "string" && typeof teamId === "string") {
+      // The match page shows the register it now has.
+      revalidatePath(`/matches/${eventId}/${teamId}`);
+    }
     return sheet;
   });
 }
@@ -96,7 +121,7 @@ export async function readSheetAction(input: unknown): Promise<ActionResult<Shee
     const context = await requirePermission("ai.read");
     const values = parseInput(readSheetSchema, input);
     const sheet = await readSheet(context, values.sheetId);
-    revalidatePath(`/attendance/${sheet.registerId}`);
+    revalidatePath("/matches/[eventId]/[teamId]", "page");
     return sheet;
   });
 }
@@ -107,7 +132,7 @@ export async function reviseSheetAction(input: unknown): Promise<ActionResult<Sh
     const context = await requirePermission("attendance.record");
     const values = parseInput(reviseSheetSchema, input);
     const sheet = await reviseSheet(context, values);
-    revalidatePath(`/attendance/${sheet.registerId}`);
+    revalidatePath("/matches/[eventId]/[teamId]", "page");
     return sheet;
   });
 }
@@ -120,7 +145,6 @@ export async function importSheetAction(input: unknown): Promise<ActionResult<Im
     // An import writes attendance, a box score and a result at once, so
     // everything that reads any of them is now stale.
     revalidatePath("/matches");
-    revalidatePath("/attendance");
     revalidatePath("/athletes");
     revalidatePath("/competitions");
     revalidatePath("/teams");
@@ -132,7 +156,6 @@ export async function deleteSheetAction(sheetId: string): Promise<ActionResult<v
   return runAction(async () => {
     const context = await requirePermission("attendance.manage");
     await deleteSheet(context, sheetId);
-    revalidatePath("/attendance");
     revalidatePath("/matches");
   });
 }

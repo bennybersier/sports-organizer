@@ -31,6 +31,8 @@ import { SheetReview } from "./sheet-review";
  * neither should happen as a side effect of choosing a file.
  */
 export function SheetsCard({
+  eventId,
+  teamId,
   registerId,
   sheets,
   squad,
@@ -40,6 +42,9 @@ export function SheetsCard({
   hasProvider,
   needsResult,
 }: {
+  eventId: string;
+  teamId: string;
+  /** Null until somebody opens one; uploading opens it. */
   registerId: string | null;
   sheets: SheetView[];
   squad: SquadMember[];
@@ -64,9 +69,12 @@ export function SheetsCard({
   const [confirming, setConfirming] = useState<string | null>(null);
 
   function upload(file: File) {
-    if (!registerId) return;
     const formData = new FormData();
-    formData.set("registerId", registerId);
+    // Either is enough: the action opens a register for the match when there
+    // is none, so a photograph never waits on a squad being picked first.
+    if (registerId) formData.set("registerId", registerId);
+    formData.set("eventId", eventId);
+    formData.set("teamId", teamId);
     formData.set("file", file);
 
     run(() => uploadSheetAction(formData), {
@@ -90,13 +98,7 @@ export function SheetsCard({
       </CardHeader>
 
       <CardContent className="space-y-6">
-        {registerId === null ? (
-          <Alert>
-            <AlertDescription>{t("openRegisterHint")}</AlertDescription>
-          </Alert>
-        ) : null}
-
-        {canRecord && registerId !== null ? (
+        {canRecord ? (
           <div className="space-y-1.5">
             <Input
               ref={fileInput}
