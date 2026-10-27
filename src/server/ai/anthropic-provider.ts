@@ -8,6 +8,7 @@ import {
   type AiProvider,
   type GenerateOptions,
   type GenerateResult,
+  VERIFY_TIMEOUT_MS,
 } from "./provider";
 
 /**
@@ -102,12 +103,17 @@ export class AnthropicProvider implements AiProvider {
 
   async verify() {
     try {
-      // One token is enough to prove the key and model are usable.
-      await this.client.messages.create({
-        model: this.model,
-        max_tokens: 1,
-        messages: [{ role: "user", content: "ok" }],
-      });
+      // One token is enough to prove the key and model are usable. The
+      // deadline matters more than the token: somebody is watching a spinner,
+      // and the SDK's own timeout is measured in minutes.
+      await this.client.messages.create(
+        {
+          model: this.model,
+          max_tokens: 1,
+          messages: [{ role: "user", content: "ok" }],
+        },
+        { signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS) },
+      );
       return { ok: true as const };
     } catch (error) {
       return { ok: false as const, message: describeProviderError(error) };

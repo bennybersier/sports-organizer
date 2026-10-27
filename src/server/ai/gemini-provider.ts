@@ -7,6 +7,7 @@ import {
   type AiProvider,
   type GenerateOptions,
   type GenerateResult,
+  VERIFY_TIMEOUT_MS,
 } from "./provider";
 
 /** Google Gemini adapter, via the official SDK. */
@@ -78,12 +79,26 @@ export class GeminiProvider implements AiProvider {
     }
   }
 
+  /**
+   * Counts the tokens in one word, rather than generating anything.
+   *
+   * It proves the same two things a generation would — the key is accepted and
+   * the model name exists — and it proves them in a round trip instead of a
+   * wait. The previous version asked `gemini-2.5-pro` to generate with
+   * `maxOutputTokens: 1`, which is close to the worst request you can make of
+   * a model that thinks before it answers: the cap applies to the reply, the
+   * thinking happens first regardless, and the caller sits through all of it to
+   * be told a key works. That is the spinner nobody could explain.
+   *
+   * The deadline is still here, because a slow provider must fail as a slow
+   * provider rather than as a hang.
+   */
   async verify() {
     try {
-      await this.client.models.generateContent({
+      await this.client.models.countTokens({
         model: this.model,
         contents: [{ role: "user", parts: [{ text: "ok" }] }],
-        config: { maxOutputTokens: 1 },
+        config: { abortSignal: AbortSignal.timeout(VERIFY_TIMEOUT_MS) },
       });
       return { ok: true as const };
     } catch (error) {
