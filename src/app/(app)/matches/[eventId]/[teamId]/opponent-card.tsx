@@ -10,6 +10,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Disclosure } from "@/components/data/disclosure";
+import { SCROLLING_GRID } from "@/components/attendance/scrolling-grid";
 import { readTeam } from "@/domain/referto/reading";
 import type { SheetView } from "@/server/services/match-sheet-service";
 
@@ -79,50 +80,59 @@ export async function OpponentCard({
         </div>
       ) : (
         <div className="space-y-3">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12 text-end">{t("shirt")}</TableHead>
-                <TableHead>{t("onSheet")}</TableHead>
-                <TableHead className="text-end">{t("twos")}</TableHead>
-                <TableHead className="text-end">{t("threes")}</TableHead>
-                <TableHead className="text-end">{t("freeThrows")}</TableHead>
-                <TableHead className="text-end">{t("points")}</TableHead>
-                <TableHead className="text-end">{t("fouls")}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {scorers.map((line) => {
-                const player = block.players.find((p) => p.shirt === line.shirt);
-                return (
-                  <TableRow key={line.shirt}>
-                    <TableCell className="text-end font-medium tabular-nums">
-                      {line.shirt}
-                    </TableCell>
-                    <TableCell className="whitespace-nowrap">
-                      {player
-                        ? [player.surname, player.givenName].filter(Boolean).join(" ")
-                        : "—"}
-                      {line.starter ? (
-                        <Badge variant="outline" className="ms-1.5 font-normal">
-                          {t("starter")}
-                        </Badge>
-                      ) : null}
-                    </TableCell>
-                    <TableCell className="text-end tabular-nums">{line.twoPointMade}</TableCell>
-                    <TableCell className="text-end tabular-nums">{line.threePointMade}</TableCell>
-                    <TableCell className="text-end tabular-nums">{line.freeThrowMade}</TableCell>
-                    <TableCell className="text-end font-semibold tabular-nums">
-                      {line.points}
-                    </TableCell>
-                    <TableCell className="text-end tabular-nums">
-                      {line.foulsCommitted}
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          {/*
+            A grid on a phone too, scrolling sideways, exactly as our own box
+            score is: see SCROLLING_GRID. The shared Table turns into a stack of
+            cards below lg, which is right for a list of records and wrong for
+            this — a box score is read across a row and down a column at once,
+            and twelve cards of six labelled numbers cannot be compared.
+          */}
+          <div className={SCROLLING_GRID}>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12 text-end">{t("shirt")}</TableHead>
+                  <TableHead>{t("onSheet")}</TableHead>
+                  <TableHead className="text-end">{t("twos")}</TableHead>
+                  <TableHead className="text-end">{t("threes")}</TableHead>
+                  <TableHead className="text-end">{t("freeThrows")}</TableHead>
+                  <TableHead className="text-end">{t("points")}</TableHead>
+                  <TableHead className="text-end">{t("fouls")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {scorers.map((line) => {
+                  const player = block.players.find((p) => p.shirt === line.shirt);
+                  return (
+                    <TableRow key={line.shirt}>
+                      <TableCell className="text-end font-medium tabular-nums">
+                        {line.shirt}
+                      </TableCell>
+                      <TableCell className="whitespace-nowrap">
+                        {player
+                          ? [player.surname, player.givenName].filter(Boolean).join(" ")
+                          : "—"}
+                        {line.starter ? (
+                          <Badge variant="outline" className="ms-1.5 font-normal">
+                            {t("starter")}
+                          </Badge>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="text-end tabular-nums">{line.twoPointMade}</TableCell>
+                      <TableCell className="text-end tabular-nums">{line.threePointMade}</TableCell>
+                      <TableCell className="text-end tabular-nums">{line.freeThrowMade}</TableCell>
+                      <TableCell className="text-end font-semibold tabular-nums">
+                        {line.points}
+                      </TableCell>
+                      <TableCell className="text-end tabular-nums">
+                        {line.foulsCommitted}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
 
           <p className="text-xs text-muted-foreground">
             {t("opponentNotKept")}
