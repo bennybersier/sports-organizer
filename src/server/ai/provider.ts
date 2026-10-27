@@ -60,6 +60,16 @@ export interface GenerateResult {
   usage?: { inputTokens?: number; outputTokens?: number };
 }
 
+/**
+ * How long a key test may take before it is called a failure.
+ *
+ * A verify runs while somebody watches a spinner, so it needs a deadline that
+ * a person would accept — not the SDK's default, which is minutes. Without one
+ * a provider having a slow afternoon is indistinguishable from a wrong key,
+ * and the button spins until the tab is closed.
+ */
+export const VERIFY_TIMEOUT_MS = 15_000;
+
 export interface AiProvider {
   readonly id: AiProviderId;
   readonly model: string;
@@ -83,6 +93,11 @@ export function describeProviderError(error: unknown): string {
       ? Number((error as { status?: unknown }).status)
       : undefined;
 
+  // A deadline we imposed, not a vendor status. Worth its own sentence: the
+  // key may be perfectly good and the provider merely slow.
+  if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
+    return "The provider did not answer within 15 seconds. The key may still be valid — try again.";
+  }
   if (status === 401 || status === 403) return "The API key was rejected.";
   if (status === 404) return "That model isn't available to this key.";
   if (status === 429) return "The provider is rate-limiting this key.";

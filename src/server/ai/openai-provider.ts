@@ -8,6 +8,7 @@ import {
   type AiProvider,
   type GenerateOptions,
   type GenerateResult,
+  VERIFY_TIMEOUT_MS,
 } from "./provider";
 
 /**
@@ -91,11 +92,10 @@ export class OpenAiProvider implements AiProvider {
 
   async verify() {
     try {
-      await this.client.responses.create({
-        model: this.model,
-        input: "ok",
-        max_output_tokens: 16,
-      });
+      await this.client.responses.create(
+        { model: this.model, input: "ok", max_output_tokens: 16 },
+        { signal: AbortSignal.timeout(VERIFY_TIMEOUT_MS) },
+      );
       return { ok: true as const };
     } catch (error) {
       return { ok: false as const, message: describeProviderError(error) };
