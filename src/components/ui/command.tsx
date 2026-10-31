@@ -75,7 +75,10 @@ function CommandInput({
         <CommandPrimitive.Input
           data-slot="command-input"
           className={cn(
-            "w-full text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+            // 16px on a phone, like Input and Textarea: iOS Safari zooms the
+            // page whenever a focused field computes below 16px, and the search
+            // box opening inside a popover is exactly where that is worst.
+            "w-full text-base outline-hidden disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
             className
           )}
           {...props}

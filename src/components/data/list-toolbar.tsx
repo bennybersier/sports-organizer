@@ -7,13 +7,7 @@ import { Loader2, Search, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { FilterCombobox } from "@/components/data/filter-combobox";
 
 /**
  * How long to wait after the last keystroke before searching.
@@ -138,23 +132,21 @@ export function ListToolbar({
       </div>
 
       {filters.map((filter) => (
-        <Select
+        /*
+          A combobox rather than a Select: a filter list is as long as the club
+          is, and on a phone Radix's Select scrolls through step buttons that a
+          finger does not drive. See FilterCombobox.
+        */
+        <FilterCombobox
           key={filter.name}
-          value={searchParams.get(filter.name) ?? "all"}
-          onValueChange={(value) => apply({ [filter.name]: value })}
-        >
-          <SelectTrigger className="w-auto min-w-36" aria-label={filter.label}>
-            <SelectValue placeholder={filter.label} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{filter.allLabel}</SelectItem>
-            {filter.options.map((option) => (
-              <SelectItem key={option.value} value={option.value}>
-                {option.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          value={searchParams.get(filter.name)}
+          options={filter.options}
+          onChange={(value) => apply({ [filter.name]: value ?? "all" })}
+          placeholder={filter.label}
+          ariaLabel={filter.label}
+          allOption={{ value: "all", label: filter.allLabel }}
+          className="w-full min-w-36 sm:w-auto"
+        />
       ))}
 
       {hasFilters ? (
