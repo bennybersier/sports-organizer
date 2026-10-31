@@ -238,7 +238,9 @@
     "next": "Successivo",
     "pageOf": "Pagina {page} di {pageCount}",
     "noResults": "Nessun risultato",
-    "noResultsBody": "Nessun elemento corrisponde alla ricerca. Prova un altro termine o azzera i filtri."
+    "noResultsBody": "Nessun elemento corrisponde alla ricerca. Prova un altro termine o azzera i filtri.",
+    "searchPlaceholder": "Cerca…",
+    "noMatches": "Nessun risultato."
   },
   "related": {
     "teams": "Squadre",

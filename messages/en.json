@@ -238,7 +238,9 @@
     "next": "Next",
     "pageOf": "Page {page} of {pageCount}",
     "noResults": "No matches",
-    "noResultsBody": "Nothing matched your search. Try a different term or clear the filters."
+    "noResultsBody": "Nothing matched your search. Try a different term or clear the filters.",
+    "searchPlaceholder": "Search…",
+    "noMatches": "Nothing matches that."
   },
   "related": {
     "teams": "Teams",
