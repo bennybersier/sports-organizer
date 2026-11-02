@@ -47,6 +47,21 @@ export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
  */
 export const DEFAULT_MODELS: Record<AiProviderId, string> = {
   ANTHROPIC: "claude-opus-5",
-  GEMINI: "gemini-2.5-pro",
+  /*
+    Argon rather than a flash or a pro, chosen by measurement on a real
+    referto rather than by tier.
+
+    The hard job here is reading a photographed score sheet, and it is
+    perception, not reasoning — which is why the expensive pro model was the
+    worst of the four tried, inventing a basket in our column that belonged to
+    the opponent's and getting both final scores wrong, while taking five
+    times as long. Argon read the same photograph with every hard check
+    passing on three runs out of four, in twenty seconds.
+
+    `gemini-2.5-pro` was here before and is not merely weaker: it answers 404
+    on a current API key, so the default a club starts with did not work at
+    all.
+  */
+  GEMINI: "gemini-4-argon",
   OPENAI: "gpt-5",
 };
