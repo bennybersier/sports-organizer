@@ -80,7 +80,7 @@ export interface ListMatchesOptions {
 }
 
 /**
- * Every match of ours, most recent first.
+ * Every match of ours, nearest to today first.
  *
  * Six queries regardless of how many matches there are. The shape is dictated
  * by `opponent` living on the event while the team lives on a join table: there
@@ -216,7 +216,25 @@ export async function listMatches(
     });
   }
 
-  return matches.sort((a, b) => b.startsAt.localeCompare(a.startsAt));
+  /*
+    Nearest to today first, in either direction.
+
+    Plain reverse-chronological put next June's fixture above tonight's game,
+    which is never what the list is being opened for: the interesting match is
+    the one just played or the one about to be, and both sit next to today.
+    Ties — the two halves of a double-header — fall back to the later start,
+    so the order is stable rather than whatever the join happened to produce.
+
+    Sorted here rather than in Postgres because the key is a distance from
+    now, which PostgREST cannot express as a column order, and because this
+    list is already assembled in memory from six queries.
+  */
+  const now = Date.now();
+  const fromToday = (match: MatchListItem) => Math.abs(Date.parse(match.startsAt) - now);
+
+  return matches.sort(
+    (a, b) => fromToday(a) - fromToday(b) || b.startsAt.localeCompare(a.startsAt),
+  );
 }
 
 /* -------------------------------------------------------------------------- */

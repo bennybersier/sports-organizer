@@ -143,6 +143,15 @@ export async function readReferto(
       // A decoder constraint, not a polite request. The prompt has always
       // asked for bare JSON; this is what makes it so on providers that can.
       json: true,
+      /*
+        Transcription is perception, not deduction, and the model's own
+        reasoning is where the time went: on this sheet the default spent
+        16,573 thinking tokens over 138 seconds — longer than any serverless
+        platform will hold a request open — against 3,327 tokens of actual
+        answer. At "low" it produced the same two ladders, the same rosters
+        and the same period ends in 20 seconds and thought nothing at all.
+      */
+      thinking: "low",
       // Without a deadline a slow read runs until the platform kills the
       // request, which tells the person nothing. See READ_TIMEOUT_MS.
       signal: deadline,
@@ -156,8 +165,16 @@ export async function readReferto(
   return { transcription: parseTranscription(text), model };
 }
 
-/** Statuses worth trying again: the provider is busy, not wrong. */
-const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+/**
+ * Statuses worth trying again: the provider is busy, not wrong.
+ *
+ * 429 is deliberately not here. On a free-tier key it means the day's
+ * allowance is gone — Google's own answer was "please retry in 11h22m" — and
+ * retrying spends two more of the twenty requests the club gets, which cannot
+ * succeed and are taken from tomorrow's reads. A burst limit does clear in a
+ * minute, but that minute is not ours to wait inside a request.
+ */
+const RETRYABLE = new Set([500, 502, 503, 504]);
 
 /**
  * Retries a provider call while it is merely overloaded.

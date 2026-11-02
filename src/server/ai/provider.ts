@@ -53,6 +53,15 @@ export interface GenerateOptions {
   model?: string;
   signal?: AbortSignal;
   /**
+   * How much the model should reason before answering.
+   *
+   * "low" for work that is perception rather than deduction — reading marks
+   * off a photograph is the example. Measured on one referto: the default
+   * spent 16,573 thinking tokens and 138 seconds; "low" spent none and took
+   * 20, for the same transcription. Providers without the notion ignore it.
+   */
+  thinking?: "low";
+  /**
    * Ask the provider to emit JSON and nothing else.
    *
    * A prompt that says "reply with JSON only" is a request; this is a
@@ -101,6 +110,57 @@ export interface AiProvider {
 }
 
 /**
+ * Pulls the quota numbers out of a 429, and nothing else.
+ *
+ * "The provider is rate-limiting this key" is true of both a burst that will
+ * clear in a minute and an allowance that is gone until tomorrow, and those
+ * ask opposite things of whoever reads it. Google says which in the error
+ * body — but that body is vendor text, so only the two numbers are taken from
+ * it and the sentence around them is ours. Returns null for any shape that
+ * isn't recognised, which includes every other provider.
+ */
+function quotaFailure(error: unknown): { perDay: number; resetsInHours: number | null } | null {
+  if (!(error instanceof Error)) return null;
+
+  let body: unknown;
+  try {
+    body = JSON.parse(error.message);
+  } catch {
+    return null;
+  }
+
+  const details = (body as { error?: { details?: unknown } })?.error?.details;
+  if (!Array.isArray(details)) return null;
+
+  let perDay: number | null = null;
+  let retrySeconds: number | null = null;
+
+  for (const detail of details as Record<string, unknown>[]) {
+    const violations = detail.violations;
+    if (Array.isArray(violations)) {
+      for (const violation of violations as Record<string, unknown>[]) {
+        // Only the per-day quota earns the different sentence; a per-minute
+        // one really does clear in a minute.
+        if (typeof violation.quotaId === "string" && violation.quotaId.includes("PerDay")) {
+          const value = Number(violation.quotaValue);
+          if (Number.isFinite(value)) perDay = value;
+        }
+      }
+    }
+    if (typeof detail.retryDelay === "string") {
+      const seconds = Number.parseInt(detail.retryDelay, 10);
+      if (Number.isFinite(seconds)) retrySeconds = seconds;
+    }
+  }
+
+  if (perDay === null) return null;
+  return {
+    perDay,
+    resetsInHours: retrySeconds === null ? null : Math.max(1, Math.round(retrySeconds / 3600)),
+  };
+}
+
+/**
  * Normalises a provider failure into something safe to show a user.
  *
  * Vendor errors routinely echo the request back, and a request may contain club
@@ -120,7 +180,15 @@ export function describeProviderError(error: unknown): string {
   }
   if (status === 401 || status === 403) return "The API key was rejected.";
   if (status === 404) return "That model isn't available to this key.";
-  if (status === 429) return "The provider is rate-limiting this key.";
+  if (status === 429) {
+    const quota = quotaFailure(error);
+    if (quota?.perDay) {
+      return quota.resetsInHours
+        ? `This key has used its daily allowance for this model — ${quota.perDay} requests a day on the free tier. It resets in about ${quota.resetsInHours} hours. Adding billing to the Google project, or choosing a smaller model, lifts the limit.`
+        : `This key has used its daily allowance for this model — ${quota.perDay} requests a day on the free tier. Adding billing to the Google project, or choosing a smaller model, lifts the limit.`;
+    }
+    return "The provider is rate-limiting this key. Wait a minute and try again.";
+  }
   if (status && status >= 500) return "The provider is unavailable right now.";
   return "The request to the AI provider failed.";
 }
