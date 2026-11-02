@@ -156,8 +156,16 @@ export async function readReferto(
   return { transcription: parseTranscription(text), model };
 }
 
-/** Statuses worth trying again: the provider is busy, not wrong. */
-const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+/**
+ * Statuses worth trying again: the provider is busy, not wrong.
+ *
+ * 429 is deliberately not here. On a free-tier key it means the day's
+ * allowance is gone — Google's own answer was "please retry in 11h22m" — and
+ * retrying spends two more of the twenty requests the club gets, which cannot
+ * succeed and are taken from tomorrow's reads. A burst limit does clear in a
+ * minute, but that minute is not ours to wait inside a request.
+ */
+const RETRYABLE = new Set([500, 502, 503, 504]);
 
 /**
  * Retries a provider call while it is merely overloaded.
