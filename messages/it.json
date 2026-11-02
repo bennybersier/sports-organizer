@@ -1412,8 +1412,9 @@
     "askSend": "Chiedi",
     "askFailed": "Non è stato possibile rispondere.",
     "askDisclaimer": "È un parere sulla foto. Non viene salvato nulla — alla domanda qui sopra rispondi tu.",
-    "cropNoRegion": "Questa lettura non sa dove si trovano le cose sul foglio. Rileggi il referto perché le domande indichino il punto esatto.",
+    "cropNoRegion": "Questa lettura è precedente alla funzione che indica il punto sul foglio, quindi si può mostrare solo il referto intero. Rileggilo e ogni domanda inquadrerà il punto esatto.",
     "qScorerTitleMisread": "Colonna {side}: chi ha segnato davvero arrivando a {total}?",
-    "qScorerBodyMisread": "Nel punteggio progressivo, nella colonna {side} — la nostra metà del referto — il {total} è barrato e il numero accanto è stato letto come {readAs}. Nessun {readAs} ha giocato con noi, quindi una cifra o l'altra è sbagliata. Dai totali vicini il canestro vale {worth}."
+    "qScorerBodyMisread": "Nel punteggio progressivo, nella colonna {side} — la nostra metà del referto — il {total} è barrato e il numero accanto è stato letto come {readAs}. Nessun {readAs} ha giocato con noi, quindi una cifra o l'altra è sbagliata. Dai totali vicini il canestro vale {worth}.",
+    "rereadNow": "Rileggi il referto"
   }
 }
