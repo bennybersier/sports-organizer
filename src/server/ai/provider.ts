@@ -70,6 +70,18 @@ export interface GenerateResult {
  */
 export const VERIFY_TIMEOUT_MS = 15_000;
 
+/**
+ * How long reading a game sheet may take.
+ *
+ * Transcribing a referto is a much bigger job than a key test — a full
+ * photograph, a hundred ladder rungs, two rosters — so it gets a deadline of
+ * its own. It sits below the route's `maxDuration` on purpose: whichever limit
+ * fires first decides what the person is told, and ours can say the sheet
+ * could not be read and mark it FAILED, where the platform's just kills the
+ * request and explains nothing.
+ */
+export const READ_TIMEOUT_MS = 50_000;
+
 export interface AiProvider {
   readonly id: AiProviderId;
   readonly model: string;
@@ -96,7 +108,7 @@ export function describeProviderError(error: unknown): string {
   // A deadline we imposed, not a vendor status. Worth its own sentence: the
   // key may be perfectly good and the provider merely slow.
   if (error instanceof Error && (error.name === "AbortError" || error.name === "TimeoutError")) {
-    return "The provider did not answer within 15 seconds. The key may still be valid — try again.";
+    return "The provider did not answer in time. The key may still be valid — try again.";
   }
   if (status === 401 || status === 403) return "The API key was rejected.";
   if (status === 404) return "That model isn't available to this key.";

@@ -42,6 +42,20 @@ import { OpenSquadCard } from "./open-squad-card";
 import { OpponentCard } from "./opponent-card";
 import { SheetsCard } from "./sheets-card";
 
+/**
+ * How long this page's Server Actions may run, in seconds.
+ *
+ * Reading a game sheet is a vision-model call on a photograph, and those take
+ * tens of seconds, not the handful a platform allows by default. When the
+ * platform kills the request instead, the action never returns an error — the
+ * browser is left with a dead request, the sheet stays UPLOADED and the person
+ * sees nothing happen at all. Per the Next docs, the page-level value is what
+ * governs every action invoked from it.
+ *
+ * 60s is the ceiling on Vercel's Hobby plan; a paid plan allows 300.
+ */
+export const maxDuration = 60;
+
 export async function generateMetadata({
   params,
 }: {

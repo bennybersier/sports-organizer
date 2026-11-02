@@ -222,6 +222,7 @@
     "SCHEDULING_ERROR": "Questa modifica al calendario non è valida.",
     "EXTERNAL_SERVICE_ERROR": "Un servizio esterno non è disponibile. Riprova.",
     "INTERNAL_ERROR": "Si è verificato un errore da parte nostra. Riprova.",
+    "REQUEST_FAILED": "La richiesta non è arrivata al server oppure ha richiesto troppo tempo. Controlla la connessione e riprova.",
     "pageTitle": "Si è verificato un errore",
     "pageBody": "Non è stato possibile caricare questa pagina. Riprova — se il problema persiste, avvisa l'amministratore della società.",
     "reference": "Riferimento: {digest}",
