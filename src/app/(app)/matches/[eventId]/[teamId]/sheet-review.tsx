@@ -458,6 +458,7 @@ export function SheetReview({
         onOpenChange={setAsking}
         questions={questions}
         imageUrl={sheet.imageUrl}
+        sheetId={sheet.id}
         regions={state.transcription.regions ?? null}
         side={state.side}
         onAnswer={answer}

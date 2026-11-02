@@ -8,6 +8,7 @@ import { requirePermission } from "@/server/auth/authorization";
 import { saveResultSchema } from "@/lib/validation/match";
 import {
   importSheetSchema,
+  askSheetSchema,
   readSheetSchema,
   reviseSheetSchema,
 } from "@/lib/validation/referto";
@@ -16,6 +17,7 @@ import { openMatchRegister } from "@/server/services/attendance-service";
 import {
   deleteSheet,
   importSheet,
+  askAboutSheet,
   readSheet,
   reviseSheet,
   uploadSheet,
@@ -123,6 +125,20 @@ export async function readSheetAction(input: unknown): Promise<ActionResult<Shee
     const sheet = await readSheet(context, values.sheetId);
     revalidatePath("/matches/[eventId]/[teamId]", "page");
     return sheet;
+  });
+}
+
+/**
+ * Asks the model about a sheet's photograph. Reads nothing, writes nothing.
+ *
+ * No `revalidatePath`: this changes no server state, so refreshing the page
+ * would throw away the answer the reader just asked for.
+ */
+export async function askSheetAction(input: unknown): Promise<ActionResult<{ answer: string }>> {
+  return runAction(async () => {
+    const context = await requirePermission("ai.read");
+    const values = parseInput(askSheetSchema, input);
+    return askAboutSheet(context, values);
   });
 }
 

@@ -294,6 +294,27 @@ describe("askQuestions", () => {
   });
 });
 
+describe("a scorer who cannot be on the roster", () => {
+  it("is asked about rather than left to fail a hard check", () => {
+    const ladder = parseLadder(LADDER).map((entry, index) =>
+      index === 0 ? { ...entry, shirt: 99 } : entry,
+    );
+    const state = stateFor({ a: { ladder } });
+
+    // 99 is nobody's shirt, so the reading stops on KNOWN_SHIRTS.
+    const reading = readTeam(state.transcription.teams.a);
+    expect(reading.checks.find((check) => check.id === "KNOWN_SHIRTS")?.passed).toBe(false);
+
+    const asked = askQuestions(state, reading, SQUAD);
+    const question = asked.find((item) => item.kind === "SCORER");
+
+    expect(question).toBeDefined();
+    // The number it read comes with the question: knowing it was a 99 is what
+    // tells the reader which digit to doubt.
+    expect(question?.kind === "SCORER" && question.readAs).toBe(99);
+  });
+});
+
 describe("applyAnswer", () => {
   it("writes a scorer back onto the ladder and re-derives the points", () => {
     const state = stateFor({

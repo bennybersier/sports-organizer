@@ -74,6 +74,16 @@ export type Question =
       total: number;
       /** What the difference says it was worth: 1, 2 or 3. */
       worth: number;
+      /**
+       * The shirt number the reading claims, when the problem is not that it
+       * is missing but that it is impossible — no such player is on the roster
+       * block, or they are marked as not having played.
+       *
+       * Null when nothing could be read at all. The two need different
+       * sentences: "I could not read this" invites you to read it, while
+       * "I read a 31 and there is no 31" tells you which digit to doubt.
+       */
+      readAs: number | null;
       /** Shirts the roster says took part — the only numbers this can be. */
       options: number[];
     }
@@ -210,8 +220,21 @@ export function askQuestions(
     .map((player) => player.shirt)
     .sort((a, b) => a - b);
 
+  /*
+    Two ways a basket has no owner, and both have to be asked about.
+
+    Unreadable is the obvious one. The other is a shirt that was read
+    confidently and cannot be right — a 31 where the roster has a 34, a 3 for a
+    30. That fails KNOWN_SHIRTS, which is a hard check, so the import stops;
+    before this it stopped with no way forward but the manual ladder editor,
+    which is a wall of text where a question would do.
+  */
+  const playable = new Set(playedShirts);
+
   team.ladder.forEach((entry, index) => {
-    if (entry.shirt !== null) return;
+    const impossible = entry.shirt !== null && !playable.has(entry.shirt);
+    if (entry.shirt !== null && !impossible) return;
+
     const previous = index === 0 ? 0 : team.ladder[index - 1].total;
     questions.push({
       kind: "SCORER",
@@ -220,6 +243,7 @@ export function askQuestions(
       ladderIndex: index,
       total: entry.total,
       worth: entry.total - previous,
+      readAs: entry.shirt,
       options: playedShirts,
     });
   });
