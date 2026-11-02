@@ -1,7 +1,7 @@
 import "server-only";
 
 import { ConflictError } from "@/lib/errors";
-import type { ReadableImageType } from "@/domain/ai";
+import type { ReadableFileType } from "@/domain/ai";
 import type { RefertoTranscription } from "@/domain/referto/transcription";
 import { refertoTranscriptionSchema } from "@/lib/validation/referto";
 import { assertPermission } from "@/server/auth/authorization";
@@ -141,7 +141,7 @@ export interface RefertoReadResult {
  */
 export async function readReferto(
   context: AuthContext,
-  image: { data: string; mediaType: ReadableImageType },
+  image: { data: string; mediaType: ReadableFileType },
 ): Promise<RefertoReadResult> {
   assertPermission(context, "ai.read");
 
@@ -304,7 +304,7 @@ export function parseTranscription(text: string): RefertoTranscription {
  */
 export async function askAboutReferto(
   context: AuthContext,
-  image: { data: string; mediaType: ReadableImageType },
+  image: { data: string; mediaType: ReadableFileType },
   input: { situation: string; question: string },
 ): Promise<{ answer: string; model: string }> {
   assertPermission(context, "ai.read");

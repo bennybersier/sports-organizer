@@ -22,9 +22,7 @@ export const PROVIDER_LABELS: Record<AiProviderId, string> = {
  *
  * Deliberately short. HEIC is what an iPhone stores and no vendor accepts it;
  * naming these three on the file input is what makes iOS hand over a JPEG
- * instead. PDF is absent because reading one differs per vendor, and a format
- * that works on one provider's key and not another's is worse than one that is
- * refused up front.
+ * instead.
  */
 export const READABLE_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
@@ -32,6 +30,30 @@ export type ReadableImageType = (typeof READABLE_IMAGE_TYPES)[number];
 
 export function isReadableImageType(value: string): value is ReadableImageType {
   return (READABLE_IMAGE_TYPES as readonly string[]).includes(value);
+}
+
+/**
+ * Everything a sheet may be uploaded as.
+ *
+ * PDF was left out at first because each vendor takes one differently — an
+ * inline part for Gemini, a document block for Anthropic, a file input for
+ * OpenAI — and a format that works on one club's key and not another's is
+ * worse than one refused up front. All three adapters now carry that
+ * difference, so the club can hand over what it actually has: a referto is
+ * routinely circulated as a PDF, and asking somebody to convert one back to
+ * a photograph is asking them to degrade it first.
+ */
+export const READABLE_FILE_TYPES = [...READABLE_IMAGE_TYPES, "application/pdf"] as const;
+
+export type ReadableFileType = (typeof READABLE_FILE_TYPES)[number];
+
+export function isReadableFileType(value: string): value is ReadableFileType {
+  return (READABLE_FILE_TYPES as readonly string[]).includes(value);
+}
+
+/** Whether a stored sheet is a page to be rendered rather than a picture. */
+export function isPdf(mimeType: string): boolean {
+  return mimeType === "application/pdf";
 }
 
 /**

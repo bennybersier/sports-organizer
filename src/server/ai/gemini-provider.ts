@@ -27,7 +27,9 @@ export class GeminiProvider implements AiProvider {
    * Gemini takes a single content list; roles are `user` and `model`.
    *
    * Pictures are `inlineData` parts and come before the text, so the model has
-   * the thing in front of it before being told what to do with it.
+   * the thing in front of it before being told what to do with it. A PDF is
+   * the same kind of part with its own media type — the one vendor of the
+   * three that needs no separate case.
    */
   private toContents(options: GenerateOptions) {
     return options.messages.map((message) => ({

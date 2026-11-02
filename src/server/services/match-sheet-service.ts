@@ -1,7 +1,7 @@
 import "server-only";
 
 import { ConflictError, NotFoundError, ValidationError, fromDatabaseError } from "@/lib/errors";
-import { MAX_IMAGE_BYTES, isReadableImageType, type ReadableImageType } from "@/domain/ai";
+import { MAX_IMAGE_BYTES, isReadableFileType, type ReadableFileType } from "@/domain/ai";
 import { readTeam, describeFailures, type TeamReading } from "@/domain/referto/reading";
 import {
   decideSide,
@@ -130,10 +130,12 @@ export async function uploadSheet(
 ): Promise<SheetView> {
   assertPermission(context, "attendance.record");
 
-  if (!isReadableImageType(input.mimeType)) {
+  if (!isReadableFileType(input.mimeType)) {
     throw new ValidationError("That file type can't be read.", {
       fieldErrors: {
-        file: ["Upload a JPEG, PNG or WebP photograph. An iPhone HEIC must be converted first."],
+        file: [
+          "Upload a PDF, or a JPEG, PNG or WebP photograph. An iPhone HEIC must be converted first.",
+        ],
       },
     });
   }
@@ -161,7 +163,14 @@ export async function uploadSheet(
     type rather than the uploaded name, so a file called `sheet.jpg.exe` is
     stored as the JPEG it actually is.
   */
-  const extension = input.mimeType === "image/png" ? "png" : input.mimeType === "image/webp" ? "webp" : "jpg";
+  const extension =
+    input.mimeType === "application/pdf"
+      ? "pdf"
+      : input.mimeType === "image/png"
+        ? "png"
+        : input.mimeType === "image/webp"
+          ? "webp"
+          : "jpg";
   const id = crypto.randomUUID();
   const path = `${context.tenant.id}/${input.registerId}/${id}.${extension}`;
 
@@ -284,7 +293,7 @@ export async function askAboutSheet(
     context,
     {
       data: Buffer.from(await file.arrayBuffer()).toString("base64"),
-      mediaType: row.mime_type as ReadableImageType,
+      mediaType: row.mime_type as ReadableFileType,
     },
     { situation: input.situation, question: input.question },
   );
@@ -316,7 +325,7 @@ export async function readSheet(context: AuthContext, sheetId: string): Promise<
   }
 
   const data = Buffer.from(await file.arrayBuffer()).toString("base64");
-  const mediaType = row.mime_type as ReadableImageType;
+  const mediaType = row.mime_type as ReadableFileType;
 
   let transcription: RefertoTranscription;
   let model: string;

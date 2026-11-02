@@ -1266,11 +1266,11 @@
     "fromSheet": "Dal referto",
     "fromSheetCaveat": "Un referto registra i canestri realizzati ma non i tiri tentati: per queste righe le percentuali e la valutazione non hanno senso.",
     "sheets": "Referto",
-    "sheetsHint": "Fotografa il referto e fallo leggere. Niente finisce nei dati di un atleta prima che tu accetti quello che dice.",
+    "sheetsHint": "Carica il referto — il PDF o una foto — e fallo leggere. Niente finisce nei dati di un atleta prima che tu accetti quello che dice.",
     "upload": "Carica una foto",
     "uploading": "Caricamento…",
     "uploaded": "Foto caricata",
-    "fileHint": "JPEG, PNG o WebP, fino a 10 MB. Dritta e ben illuminata si legge meglio.",
+    "fileHint": "PDF, JPEG, PNG o WebP, fino a 10 MB. Il PDF del referto si legge meglio; una foto deve essere dritta e ben illuminata.",
     "read": "Leggi il referto",
     "reading": "Lettura…",
     "wasRead": "Letto con {model}",
@@ -1415,6 +1415,7 @@
     "cropNoRegion": "Questa lettura è precedente alla funzione che indica il punto sul foglio, quindi si può mostrare solo il referto intero. Rileggilo e ogni domanda inquadrerà il punto esatto.",
     "qScorerTitleMisread": "Colonna {side}: chi ha segnato davvero arrivando a {total}?",
     "qScorerBodyMisread": "Nel punteggio progressivo, nella colonna {side} — la nostra metà del referto — il {total} è barrato e il numero accanto è stato letto come {readAs}. Nessun {readAs} ha giocato con noi, quindi una cifra o l'altra è sbagliata. Dai totali vicini il canestro vale {worth}.",
-    "rereadNow": "Rileggi il referto"
+    "rereadNow": "Rileggi il referto",
+    "openPdf": "Apri il PDF"
   }
 }

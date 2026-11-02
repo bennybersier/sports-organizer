@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import type { Answer, Question } from "@/domain/referto/questions";
 import type { Region, SheetRegions, SheetSide } from "@/domain/referto/transcription";
 
+import { isPdf } from "@/domain/ai";
 import { useAction } from "@/hooks/use-action";
 import { readSheetAction } from "@/server/actions/matches";
 
@@ -55,6 +56,7 @@ export function SheetQuestions({
   questions,
   imageUrl,
   sheetId,
+  mimeType,
   regions,
   side,
   onAnswer,
@@ -65,6 +67,8 @@ export function SheetQuestions({
   imageUrl: string | null;
   /** Which sheet this is, so a question about it can be asked of the model. */
   sheetId: string;
+  /** How the sheet was uploaded — a PDF is shown rather than cropped. */
+  mimeType: string;
   /** Where the blocks are on the photograph, so a question can point at one. */
   regions: SheetRegions | null;
   /** Which block is ours — picks the roster a player question is about. */
@@ -138,6 +142,7 @@ export function SheetQuestions({
           */}
           <SheetCrop
             imageUrl={imageUrl}
+            mimeType={mimeType}
             region={regionFor(question, regions, side)}
             highlight={highlightFor(question, regions)}
             className="h-36 w-full sm:h-44"
@@ -150,7 +155,7 @@ export function SheetQuestions({
             not enough on its own: the fix is a re-read, and a re-read was two
             screens away behind a closed dialog. So the button is here.
           */}
-          {regions === null ? (
+          {regions === null && !isPdf(mimeType) ? (
             <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed p-2.5">
               <p className="min-w-40 flex-1 text-xs text-muted-foreground">
                 {t("cropNoRegion")}
