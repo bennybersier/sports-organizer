@@ -52,6 +52,14 @@ export interface GenerateOptions {
   /** Model override; otherwise the tenant's configured model is used. */
   model?: string;
   signal?: AbortSignal;
+  /**
+   * Ask the provider to emit JSON and nothing else.
+   *
+   * A prompt that says "reply with JSON only" is a request; this is a
+   * constraint the decoder enforces. Providers that have no such mode ignore
+   * it, which is safe — the caller still has to parse defensively.
+   */
+  json?: boolean;
 }
 
 export interface GenerateResult {

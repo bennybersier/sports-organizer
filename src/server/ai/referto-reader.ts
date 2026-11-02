@@ -140,6 +140,9 @@ export async function readReferto(
         and none of the scores".
       */
       maxTokens: 32_768,
+      // A decoder constraint, not a polite request. The prompt has always
+      // asked for bare JSON; this is what makes it so on providers that can.
+      json: true,
       // Without a deadline a slow read runs until the platform kills the
       // request, which tells the person nothing. See READ_TIMEOUT_MS.
       signal: deadline,
@@ -207,7 +210,18 @@ export function parseTranscription(text: string): RefertoTranscription {
   try {
     raw = JSON.parse(text.slice(start, end + 1));
   } catch {
-    throw new ConflictError("The sheet could not be read: the transcription was not valid JSON.");
+    /*
+      Say which kind of broken it is. A reply that stops mid-object means the
+      model ran out of output budget — the club can do nothing about that, and
+      telling them the JSON was invalid sends them off photographing the sheet
+      again. A reply that is malformed in the middle is a different fault and
+      a re-read may well fix it.
+    */
+    throw new ConflictError(
+      text.trimEnd().endsWith("}")
+        ? "The sheet could not be read: the transcription came back malformed. Try reading it again."
+        : "The sheet could not be read: the transcription was cut off before it finished.",
+    );
   }
 
   const parsed = refertoTranscriptionSchema.safeParse(raw);

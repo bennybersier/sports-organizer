@@ -59,6 +59,7 @@ export class OpenAiProvider implements AiProvider {
         ...(options.system ? { instructions: options.system } : {}),
         input: options.messages.map((message) => this.toInput(message)),
         max_output_tokens: options.maxTokens ?? 4096,
+        ...(options.json ? { text: { format: { type: "json_object" as const } } } : {}),
       },
       { signal: options.signal },
     );
