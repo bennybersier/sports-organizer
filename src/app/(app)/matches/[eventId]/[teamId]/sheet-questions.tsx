@@ -19,7 +19,6 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Answer, Question } from "@/domain/referto/questions";
 import type { Region, SheetRegions, SheetSide } from "@/domain/referto/transcription";
 
@@ -174,12 +173,8 @@ export function SheetQuestions({
             </div>
           ) : null}
 
-          <ScrollArea className="max-h-64 pe-3">
-            <div className="space-y-4">
-              <QuestionBody question={question} onAnswer={answer} />
-              <SheetAsk sheetId={sheetId} situation={situationOf(question, t)} />
-            </div>
-          </ScrollArea>
+          <QuestionBody question={question} onAnswer={answer} />
+          <SheetAsk sheetId={sheetId} situation={situationOf(question, t)} />
         </div>
 
         <DialogFooter className="sm:justify-between">
@@ -563,10 +558,16 @@ function QuestionBody({
             reconciling for good.
           */}
           <div className="space-y-1 border-t pt-3">
+            {/*
+              An outline button, not a ghost one. As quiet text under a row of
+              numbered buttons it read as a caption, and the one question where
+              it is the right answer is the one where nothing else can be — so
+              it has to look like something you can press.
+            */}
             <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className="h-auto px-0 text-left font-normal text-muted-foreground hover:text-foreground"
+              className="h-auto py-2 text-left font-normal"
               onClick={() =>
                 onAnswer({
                   kind: "SCORER",
