@@ -25,17 +25,28 @@ import type { Region } from "@/domain/referto/transcription";
 export function SheetCrop({
   imageUrl,
   region,
+  highlight,
   className,
 }: {
   imageUrl: string | null;
   /** `[yMin, xMin, yMax, xMax]` in thousandths. Null shows the whole sheet. */
   region: Region | null;
+  /**
+   * A smaller box inside `region` to draw a frame around — the one row, the
+   * one line, the thing actually in doubt.
+   *
+   * The crop gets you to the right part of the page; the frame says which of
+   * the nine rows you are looking at is the one being asked about. Without
+   * it a reader has to count rows from the edge of a crop, which is the same
+   * work the crop was supposed to remove.
+   */
+  highlight?: Region | null;
   className?: string;
 }) {
   const t = useTranslations("matches");
   if (!imageUrl) return null;
 
-  const crop = region ? cropStyle(region) : { backgroundSize: "contain" as const };
+  const view = region ? padded(region) : null;
 
   return (
     <a
@@ -50,18 +61,51 @@ export function SheetCrop({
     >
       <span
         aria-hidden
-        className="block size-full bg-no-repeat transition-transform duration-200 group-hover:scale-105"
+        className="block size-full bg-no-repeat"
         style={{
           backgroundImage: `url(${imageUrl})`,
           backgroundPosition: "center",
-          ...crop,
+          ...(view ? cropStyle(view) : { backgroundSize: "contain" as const }),
         }}
       />
+
+      {view && highlight ? (
+        <span
+          aria-hidden
+          className="pointer-events-none absolute rounded-xs ring-2 ring-primary ring-offset-1 ring-offset-background/40"
+          style={frameStyle(view, highlight)}
+        />
+      ) : null}
+
       <span className="absolute right-1 bottom-1 rounded bg-background/80 p-1 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100">
         <Maximize2 className="size-3" aria-hidden />
       </span>
     </a>
   );
+}
+
+/**
+ * Places the frame over the crop.
+ *
+ * Both boxes are in thousandths of the whole image, so the frame's position
+ * inside the element is just where it falls within the visible window — and
+ * percentages mean it holds however the element is sized.
+ */
+function frameStyle(view: Region, highlight: Region): React.CSSProperties {
+  const [top, left, bottom, right] = view;
+  const height = bottom - top;
+  const width = right - left;
+  if (height <= 0 || width <= 0) return { display: "none" };
+
+  const h = padded(highlight, 2);
+  const clampBox = (value: number) => Math.min(100, Math.max(0, value));
+
+  return {
+    top: `${clampBox(((h[0] - top) / height) * 100)}%`,
+    left: `${clampBox(((h[1] - left) / width) * 100)}%`,
+    height: `${clampBox(((h[2] - h[0]) / height) * 100)}%`,
+    width: `${clampBox(((h[3] - h[1]) / width) * 100)}%`,
+  };
 }
 
 /**
@@ -74,13 +118,19 @@ export function SheetCrop({
  */
 const PADDING = 12;
 
-function cropStyle(region: Region): React.CSSProperties {
+/** Normalises a box to `[top, left, bottom, right]` and adds the air. */
+function padded(region: Region, padding = PADDING): Region {
   const [yMin, xMin, yMax, xMax] = region;
+  return [
+    clamp(Math.min(yMin, yMax) - padding),
+    clamp(Math.min(xMin, xMax) - padding),
+    clamp(Math.max(yMin, yMax) + padding),
+    clamp(Math.max(xMin, xMax) + padding),
+  ];
+}
 
-  const top = clamp(Math.min(yMin, yMax) - PADDING);
-  const left = clamp(Math.min(xMin, xMax) - PADDING);
-  const bottom = clamp(Math.max(yMin, yMax) + PADDING);
-  const right = clamp(Math.max(xMin, xMax) + PADDING);
+function cropStyle(view: Region): React.CSSProperties {
+  const [top, left, bottom, right] = view;
 
   /*
     A degenerate box — the two corners equal, or the model returning the whole
@@ -130,14 +180,17 @@ export function ladderRowRegion(
   if (height <= 0) return region;
 
   /*
-    The block's box includes the printed A/B heading above the first row, so
-    the rows occupy the part below it. The fraction is the heading's share of
-    one of these blocks on a FIP sheet; being a little out costs a row of
-    context at the edge of the crop and nothing else.
+    Forty-one slots, not forty: the printed A/B heading is a row of the same
+    table and the same height as the rows under it, so the block divides
+    evenly and the heading is slot zero.
+
+    Measured, not assumed. Treating the heading as a 6% band put every frame
+    exactly one row low, on two different blocks — which is the signature of a
+    miscounted slot rather than a mis-estimated fraction. Dividing by 41 lands
+    both within a pixel or two.
   */
-  const headingShare = 0.06;
-  const rowsTop = top + height * headingShare;
-  const rowHeight = (height * (1 - headingShare)) / 40;
+  const rowHeight = height / 41;
+  const rowsTop = top + rowHeight;
 
   const row = (total - 1) % 40;
   const from = rowsTop + rowHeight * Math.max(0, row - rowsEitherSide);

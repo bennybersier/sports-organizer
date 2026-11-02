@@ -1412,8 +1412,9 @@
     "askSend": "Ask",
     "askFailed": "The question could not be answered.",
     "askDisclaimer": "An opinion about the photograph. Nothing is saved — you still answer the question above.",
-    "cropNoRegion": "This reading doesn't know where things are on the paper. Read the sheet again to have questions point at the exact spot.",
+    "cropNoRegion": "This reading is from before the app could point at the paper, so only the whole sheet can be shown. Read it again and every question will frame the exact spot.",
     "qScorerTitleMisread": "Column {side}: who really scored to reach {total}?",
-    "qScorerBodyMisread": "On the progressive score ladder, {total} is struck through in column {side} — our half of the sheet — and the number beside it was read as {readAs}. No {readAs} played for us, so one or both digits are wrong. The totals either side make it worth {worth}."
+    "qScorerBodyMisread": "On the progressive score ladder, {total} is struck through in column {side} — our half of the sheet — and the number beside it was read as {readAs}. No {readAs} played for us, so one or both digits are wrong. The totals either side make it worth {worth}.",
+    "rereadNow": "Read the sheet again"
   }
 }

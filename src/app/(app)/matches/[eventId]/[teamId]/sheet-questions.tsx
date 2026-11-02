@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, ArrowRight, Check, CircleHelp, Search } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CircleHelp, Loader2, ScanLine, Search } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +22,9 @@ import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Answer, Question } from "@/domain/referto/questions";
 import type { Region, SheetRegions, SheetSide } from "@/domain/referto/transcription";
+
+import { useAction } from "@/hooks/use-action";
+import { readSheetAction } from "@/server/actions/matches";
 
 import { SheetAsk } from "./sheet-ask";
 import { SheetCrop, ladderRowRegion } from "./sheet-crop";
@@ -72,6 +75,10 @@ export function SheetQuestions({
 }) {
   const t = useTranslations("matches");
   const [index, setIndex] = useState(0);
+  // Re-reading replaces the whole reading, so this is an ordinary action with
+  // a refresh behind it — the dialog's own answers are discarded with it,
+  // which is correct: they were answers about a different transcription.
+  const { run: reread, isPending: isRereading } = useAction();
 
   /*
     Answering removes a question from the list the parent hands back, so the
@@ -133,17 +140,38 @@ export function SheetQuestions({
           <SheetCrop
             imageUrl={imageUrl}
             region={regionFor(question, regions, side)}
+            highlight={highlightFor(question, regions)}
             className="h-36 w-full sm:h-44"
           />
 
           {/*
-            Said out loud rather than left as a mystery. A reading taken before
-            the model was asked where anything was can only show the whole
-            page, and at this size that is a grey rectangle — which looks like
-            a broken feature unless it says why.
+            A reading taken before the model was asked where anything was can
+            only show the whole page, and at this size that is a grey
+            rectangle — indistinguishable from a broken feature. Saying so was
+            not enough on its own: the fix is a re-read, and a re-read was two
+            screens away behind a closed dialog. So the button is here.
           */}
           {regions === null ? (
-            <p className="text-xs text-muted-foreground">{t("cropNoRegion")}</p>
+            <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed p-2.5">
+              <p className="min-w-40 flex-1 text-xs text-muted-foreground">
+                {t("cropNoRegion")}
+              </p>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={isRereading}
+                onClick={() =>
+                  reread(() => readSheetAction({ sheetId }), { success: () => t("checks") })
+                }
+              >
+                {isRereading ? (
+                  <Loader2 className="animate-spin" aria-hidden />
+                ) : (
+                  <ScanLine aria-hidden />
+                )}
+                {t("rereadNow")}
+              </Button>
+            </div>
           ) : null}
 
           <ScrollArea className="max-h-64 pe-3">
@@ -225,6 +253,22 @@ function regionFor(
     case "OPPONENT_SCORE":
       return null;
   }
+}
+
+/**
+ * The box to draw a frame around, inside the crop.
+ *
+ * Only the ladder has one: a rung is a single row among the nine the crop
+ * shows, and pointing at it is the difference between "somewhere here" and
+ * "this one". A roster block has no such sub-row worth framing — the crop is
+ * already twelve lines of names.
+ */
+function highlightFor(
+  question: Question,
+  regions: SheetRegions | null,
+): Region | null {
+  if (!regions || question.kind !== "SCORER") return null;
+  return ladderRowRegion(regions.ladder, question.total, 0);
 }
 
 /**
