@@ -7,7 +7,7 @@ import { refertoTranscriptionSchema } from "@/lib/validation/referto";
 import { assertPermission } from "@/server/auth/authorization";
 import type { AuthContext } from "@/server/auth/context";
 import { getProvider } from "@/server/ai/registry";
-import { describeProviderError } from "@/server/ai/provider";
+import { READ_TIMEOUT_MS, describeProviderError } from "@/server/ai/provider";
 import { log } from "@/lib/observability";
 
 /**
@@ -116,20 +116,34 @@ export async function readReferto(
 ): Promise<RefertoReadResult> {
   assertPermission(context, "ai.read");
 
+  /*
+    One deadline for the whole read, shared by every attempt. A per-attempt
+    timeout would let three slow tries add up past the route's own limit, and
+    then the platform decides how this ends instead of us.
+  */
+  const deadline = AbortSignal.timeout(READ_TIMEOUT_MS);
+
   let text: string;
   let model: string;
   try {
     const provider = await getProvider(context);
-    const response = await provider.generate({
+    const response = await withRetry(() => provider.generate({
       system: SYSTEM,
       messages: [{ role: "user", content: INSTRUCTION, images: [image] }],
       /*
-        A full ladder is around 120 rungs plus two rosters, and every rung is
-        its own object. 8k leaves room for a high-scoring senior game; a
-        truncated reply fails the parse below rather than importing half a sheet.
+        A full sheet is two ladders of up to 160 rungs each plus two rosters,
+        and every rung is its own object — several hundred tokens per ten
+        rungs. 8k did not cover one side of a junior game, let alone both, and
+        on a model that thinks before it answers the thinking is spent from
+        this same budget: the reply came back empty or cut off mid-object, and
+        a truncated reply is a failed parse, which reads as "it got the players
+        and none of the scores".
       */
-      maxTokens: 8192,
-    });
+      maxTokens: 32_768,
+      // Without a deadline a slow read runs until the platform kills the
+      // request, which tells the person nothing. See READ_TIMEOUT_MS.
+      signal: deadline,
+    }));
     text = response.text;
     model = response.model;
   } catch (error) {
@@ -137,6 +151,41 @@ export async function readReferto(
   }
 
   return { transcription: parseTranscription(text), model };
+}
+
+/** Statuses worth trying again: the provider is busy, not wrong. */
+const RETRYABLE = new Set([429, 500, 502, 503, 504]);
+
+/**
+ * Retries a provider call while it is merely overloaded.
+ *
+ * Gemini answers 503 "experiencing high demand" readily — often for minutes at
+ * a time, and for every model on a key. One of those used to end the read and
+ * mark the sheet FAILED, which puts a capacity blip on the club's side of the
+ * screen as though their photograph were at fault.
+ *
+ * The retries are deliberately few and quick. They cost nothing when the
+ * provider is up, and when it is down for real nothing here will fix it — the
+ * honest answer arrives a few seconds later either way.
+ */
+async function withRetry<T>(call: () => Promise<T>): Promise<T> {
+  const backoffMs = [1_000, 3_000];
+
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await call();
+    } catch (error) {
+      const status =
+        typeof error === "object" && error !== null && "status" in error
+          ? Number((error as { status?: unknown }).status)
+          : undefined;
+
+      if (attempt >= backoffMs.length || !status || !RETRYABLE.has(status)) throw error;
+
+      log.warn("referto.read.retry", { attempt: attempt + 1, status });
+      await new Promise((resolve) => setTimeout(resolve, backoffMs[attempt]));
+    }
+  }
 }
 
 /**

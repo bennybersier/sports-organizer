@@ -12,8 +12,12 @@ import type { ActionResult } from "@/lib/action";
  * a toast on success, a translated toast on failure, and a refresh so the
  * server-rendered list reflects the change.
  *
- * Actions return a discriminated result rather than throwing, so there is no
- * try/catch here — a failure is an ordinary value.
+ * Actions return a discriminated result rather than throwing, so a failure the
+ * server decided on is an ordinary value. The call can still reject before any
+ * of that: the request may not arrive, or the platform may kill the function
+ * mid-flight — and a vision-model read of a game sheet is long enough for that
+ * to be a real afternoon. Those rejections used to go unhandled, which left the
+ * spinner stopping and nothing else happening at all, so they are caught too.
  */
 export function useAction() {
   const router = useRouter();
@@ -25,7 +29,15 @@ export function useAction() {
     options: { success?: (data: T) => string; onSuccess?: (data: T) => void } = {},
   ) {
     startTransition(async () => {
-      const result = await action();
+      let result: ActionResult<T>;
+      try {
+        result = await action();
+      } catch {
+        // Nothing from the server to translate: the server is what failed to
+        // answer. Say that, rather than leaving the screen silent.
+        toast.error(tErrors("REQUEST_FAILED"));
+        return;
+      }
 
       if (!result.ok) {
         /*

@@ -222,6 +222,7 @@
     "SCHEDULING_ERROR": "That schedule change isn't valid.",
     "EXTERNAL_SERVICE_ERROR": "An external service is unavailable. Please try again.",
     "INTERNAL_ERROR": "Something went wrong on our end. Please try again.",
+    "REQUEST_FAILED": "The request didn't reach the server, or it took too long. Check your connection and try again.",
     "pageTitle": "Something went wrong",
     "pageBody": "We couldn't load this page. Try again — if it keeps happening, let your club administrator know.",
     "reference": "Reference: {digest}",
