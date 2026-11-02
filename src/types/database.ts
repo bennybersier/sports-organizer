@@ -612,6 +612,8 @@ export interface AiProviderConfigurationRow extends Timestamps {
   tenant_id: string;
   provider: AiProvider;
   model: string;
+  /** Model for conversational questions; null falls back to a default. */
+  conversation_model: string | null;
   api_key_ciphertext: string;
   api_key_hint: string;
   is_enabled: boolean;

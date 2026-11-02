@@ -17,7 +17,7 @@ import "server-only";
 export type { AiProviderId } from "@/domain/ai";
 export { AI_PROVIDER_IDS, DEFAULT_MODELS, PROVIDER_LABELS } from "@/domain/ai";
 
-import type { AiProviderId, ReadableImageType } from "@/domain/ai";
+import type { AiProviderId, ReadableFileType } from "@/domain/ai";
 
 /**
  * A picture sent with a message.
@@ -29,7 +29,15 @@ import type { AiProviderId, ReadableImageType } from "@/domain/ai";
  */
 export interface AiImage {
   data: string;
-  mediaType: ReadableImageType;
+  /**
+   * An image type, or `application/pdf`.
+   *
+   * A PDF is not an image and no vendor pretends otherwise — each takes one
+   * through a different kind of content block — so every adapter branches on
+   * this. The field stays on `images` because to a caller it is still "the
+   * thing I am showing the model".
+   */
+  mediaType: ReadableFileType;
 }
 
 export interface AiMessage {

@@ -459,6 +459,7 @@ export function SheetReview({
         questions={questions}
         imageUrl={sheet.imageUrl}
         sheetId={sheet.id}
+        mimeType={sheet.mimeType}
         regions={state.transcription.regions ?? null}
         side={state.side}
         onAnswer={answer}

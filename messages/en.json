@@ -906,7 +906,9 @@
     "CONNECTED": "Connected",
     "DISCONNECTED": "Not connected",
     "ERROR": "Error",
-    "EXPIRED": "Reconnection needed"
+    "EXPIRED": "Reconnection needed",
+    "conversationModel": "Model for questions",
+    "conversationModelHint": "Used when you ask the app about an uploaded sheet. Leave blank for a cheaper default — reading the sheet always uses the model above."
   },
   "mcp": {
     "title": "MCP API keys",
@@ -1266,11 +1268,11 @@
     "fromSheet": "From the game sheet",
     "fromSheetCaveat": "A game sheet records baskets made but never shots attempted, so shooting percentages and valutazione are not meaningful for these rows.",
     "sheets": "Game sheet",
-    "sheetsHint": "Photograph the referto and have it read. Nothing is written to a player's record until you accept what it says.",
+    "sheetsHint": "Upload the referto — the PDF or a photograph — and have it read. Nothing is written to a player's record until you accept what it says.",
     "upload": "Upload a photograph",
     "uploading": "Uploading…",
     "uploaded": "Photograph uploaded",
-    "fileHint": "JPEG, PNG or WebP, up to 10 MB. Straight on and well lit reads best.",
+    "fileHint": "PDF, JPEG, PNG or WebP, up to 10 MB. A PDF of the referto reads best; a photograph should be straight on and well lit.",
     "read": "Read the sheet",
     "reading": "Reading…",
     "wasRead": "Read with {model}",
@@ -1408,13 +1410,18 @@
     "qPlayerSearch": "Search by name or number",
     "qPlayerNoMatch": "No athlete matches that.",
     "askTitle": "Ask about the sheet",
-    "askPlaceholder": "Is that a 1 or a 7? Why do you think a basket was scored here?",
+    "askPlaceholder": "Ask — \"is that a 1 or a 7?\" — or answer: \"it was Scarpetta\", \"the number is 16\".",
     "askSend": "Ask",
     "askFailed": "The question could not be answered.",
-    "askDisclaimer": "An opinion about the photograph. Nothing is saved — you still answer the question above.",
+    "askDisclaimer": "An opinion about the photograph. Nothing is recorded until you press.",
     "cropNoRegion": "This reading is from before the app could point at the paper, so only the whole sheet can be shown. Read it again and every question will frame the exact spot.",
     "qScorerTitleMisread": "Column {side}: who really scored to reach {total}?",
     "qScorerBodyMisread": "On the progressive score ladder, {total} is struck through in column {side} — our half of the sheet — and the number beside it was read as {readAs}. No {readAs} played for us, so one or both digits are wrong. The totals either side make it worth {worth}.",
-    "rereadNow": "Read the sheet again"
+    "rereadNow": "Read the sheet again",
+    "openPdf": "Open the PDF",
+    "askApply": "Use this answer: {answer}",
+    "askNotApplicable": "That answer doesn't fit this question. Choose above instead.",
+    "qScorerChoice": "Shirt {shirt}",
+    "qShirtCorrection": "change shirt {from} to {to}"
   }
 }

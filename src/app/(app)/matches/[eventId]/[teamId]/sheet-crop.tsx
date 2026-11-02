@@ -1,9 +1,10 @@
 "use client";
 
 import { useTranslations } from "next-intl";
-import { Maximize2 } from "lucide-react";
+import { FileText, Maximize2 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { isPdf } from "@/domain/ai";
 import type { Region } from "@/domain/referto/transcription";
 
 /**
@@ -24,11 +25,14 @@ import type { Region } from "@/domain/referto/transcription";
  */
 export function SheetCrop({
   imageUrl,
+  mimeType,
   region,
   highlight,
   className,
 }: {
   imageUrl: string | null;
+  /** A PDF cannot be cropped here; it is offered as a document instead. */
+  mimeType: string;
   /** `[yMin, xMin, yMax, xMax]` in thousandths. Null shows the whole sheet. */
   region: Region | null;
   /**
@@ -45,6 +49,30 @@ export function SheetCrop({
 }) {
   const t = useTranslations("matches");
   if (!imageUrl) return null;
+
+  /*
+    A PDF is not a bitmap, so there is nothing to crop to: CSS cannot zoom
+    into page two of a document. Rendering one in the browser to do it would
+    be a PDF library, a worker and a canvas, which is a great deal of weight
+    for a 44px-tall panel — and the document opens in a viewer that already
+    zooms better than anything built here. So it says what it is and opens.
+  */
+  if (isPdf(mimeType)) {
+    return (
+      <a
+        href={imageUrl}
+        target="_blank"
+        rel="noreferrer"
+        className={cn(
+          "flex items-center justify-center gap-2 rounded-md border border-dashed text-sm text-muted-foreground hover:bg-muted/40",
+          className,
+        )}
+      >
+        <FileText className="size-4" aria-hidden />
+        {t("openPdf")}
+      </a>
+    );
+  }
 
   const view = region ? padded(region) : null;
 

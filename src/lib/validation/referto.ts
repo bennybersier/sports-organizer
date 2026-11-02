@@ -130,6 +130,17 @@ export const askSheetSchema = z.object({
   sheetId: uuidSchema,
   situation: z.string().trim().max(600).default(""),
   question: z.string().trim().min(2).max(600),
+  /*
+    The answers currently on offer, so a reply like "it was Scarpetta" can be
+    turned back into one of them. Values are opaque to the server — an athlete
+    id, a shirt number, a sentinel — and the client is what maps a chosen one
+    onto an answer, because the client is what holds the working copy being
+    reviewed.
+  */
+  choices: z
+    .array(z.object({ value: z.string().min(1).max(64), label: z.string().min(1).max(120) }))
+    .max(40)
+    .default([]),
 });
 
 /**

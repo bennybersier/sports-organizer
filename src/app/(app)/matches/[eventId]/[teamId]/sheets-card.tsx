@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Eye, FileImage, Loader2, ScanLine, Trash2, Upload } from "lucide-react";
+import { Eye, FileImage, FileText, Loader2, ScanLine, Trash2, Upload } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ConfirmDialog } from "@/components/data/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { useAction } from "@/hooks/use-action";
-import { READABLE_IMAGE_TYPES } from "@/domain/ai";
+import { READABLE_FILE_TYPES, isPdf } from "@/domain/ai";
 import {
   deleteSheetAction,
   readSheetAction,
@@ -103,7 +103,7 @@ export function SheetsCard({
             <Input
               ref={fileInput}
               type="file"
-              accept={READABLE_IMAGE_TYPES.join(",")}
+              accept={READABLE_FILE_TYPES.join(",")}
               disabled={isPending}
               onChange={(event) => {
                 const file = event.target.files?.[0];
@@ -127,7 +127,23 @@ export function SheetsCard({
             {sheets.map((sheet) => (
               <li key={sheet.id} className="space-y-4">
                 <div className="flex flex-wrap items-start gap-4">
-                  {sheet.imageUrl ? (
+                  {sheet.imageUrl && isPdf(sheet.mimeType) ? (
+                    /*
+                      A PDF has no thumbnail without rendering it, and
+                      rendering a page in the browser to fill a 160px tile is
+                      a library and a worker for a decoration. A labelled tile
+                      that opens the document says as much and costs nothing.
+                    */
+                    <a
+                      href={sheet.imageUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex h-28 w-40 flex-col items-center justify-center gap-1.5 rounded-md border bg-muted/40 text-muted-foreground hover:bg-muted"
+                    >
+                      <FileText className="size-6" aria-hidden />
+                      <span className="text-xs font-medium">PDF</span>
+                    </a>
+                  ) : sheet.imageUrl ? (
                     // The photograph itself, small, beside the numbers derived
                     // from it. A plain <img>: the URL is signed and short-lived,
                     // so the image optimiser could not fetch it twice anyway.

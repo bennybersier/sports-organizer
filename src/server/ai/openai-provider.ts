@@ -41,11 +41,22 @@ export class OpenAiProvider implements AiProvider {
     return {
       role: message.role,
       content: [
-        ...message.images.map((image) => ({
-          type: "input_image" as const,
-          image_url: `data:${image.mediaType};base64,${image.data}`,
-          detail: "high" as const,
-        })),
+        ...message.images.map((image) =>
+          // A PDF goes in as a file, not an image: `input_image` takes a
+          // picture and a referto arrives as a page. `filename` is required
+          // and is not read for anything but the extension.
+          image.mediaType === "application/pdf"
+            ? {
+                type: "input_file" as const,
+                filename: "sheet.pdf",
+                file_data: `data:application/pdf;base64,${image.data}`,
+              }
+            : {
+                type: "input_image" as const,
+                image_url: `data:${image.mediaType};base64,${image.data}`,
+                detail: "high" as const,
+              },
+        ),
         { type: "input_text" as const, text: message.content },
       ],
     };

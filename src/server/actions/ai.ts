@@ -17,6 +17,8 @@ const providerSchema = z.enum(["ANTHROPIC", "GEMINI", "OPENAI"]);
 const saveSchema = z.object({
   provider: providerSchema,
   model: z.string().trim().min(1).max(100),
+  /** Blank is meaningful: it means "use the app's default for this provider". */
+  conversationModel: z.string().trim().max(100).optional(),
   // Optional so the model can be edited without re-pasting the key.
   apiKey: z.string().trim().min(10).max(500).optional().or(z.literal("").transform(() => undefined)),
   isEnabled: z.coerce.boolean().default(true),

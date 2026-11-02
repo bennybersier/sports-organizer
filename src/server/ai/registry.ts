@@ -1,5 +1,6 @@
 import "server-only";
 
+import { CONVERSATION_MODELS } from "@/domain/ai";
 import { ConflictError } from "@/lib/errors";
 import type { AuthContext } from "@/server/auth/context";
 import { assertPermission } from "@/server/auth/authorization";
@@ -43,6 +44,27 @@ export async function getProvider(
     case "OPENAI":
       return new OpenAiProvider(apiKey, model);
   }
+}
+
+/**
+ * The model a club has chosen for talking about a document, if any.
+ *
+ * Three steps, most specific first: what the club set, then the application's
+ * cheap default for that provider, then the club's reading model. The last
+ * step is what makes this safe to leave blank — a provider with no cheap
+ * model named still works, it just costs the same as a read.
+ */
+export async function getConversationModel(
+  context: AuthContext,
+  providerId?: AiProviderId,
+): Promise<string | undefined> {
+  assertPermission(context, "ai.read");
+
+  const id = providerId ?? (await getDefaultProvider(context));
+  if (!id) return undefined;
+
+  const { conversationModel } = await getDecryptedKey(context, id);
+  return conversationModel?.trim() || CONVERSATION_MODELS[id];
 }
 
 /** Builds a provider from a key that hasn't been stored yet, to test it. */

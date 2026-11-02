@@ -42,10 +42,21 @@ export class AnthropicProvider implements AiProvider {
     if (!message.images?.length) return message.content;
     return [
       ...message.images.map(
-        (image): Anthropic.ImageBlockParam => ({
-          type: "image",
-          source: { type: "base64", media_type: image.mediaType, data: image.data },
-        }),
+        (
+          image,
+        ): Anthropic.ImageBlockParam | Anthropic.DocumentBlockParam =>
+          // A PDF is a document block here, not an image one: the API renders
+          // its pages itself, which is why it reads a multi-page referto that
+          // an image block could not carry.
+          image.mediaType === "application/pdf"
+            ? {
+                type: "document",
+                source: { type: "base64", media_type: "application/pdf", data: image.data },
+              }
+            : {
+                type: "image",
+                source: { type: "base64", media_type: image.mediaType, data: image.data },
+              },
       ),
       { type: "text", text: message.content },
     ];

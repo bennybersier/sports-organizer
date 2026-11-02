@@ -22,9 +22,7 @@ export const PROVIDER_LABELS: Record<AiProviderId, string> = {
  *
  * Deliberately short. HEIC is what an iPhone stores and no vendor accepts it;
  * naming these three on the file input is what makes iOS hand over a JPEG
- * instead. PDF is absent because reading one differs per vendor, and a format
- * that works on one provider's key and not another's is worse than one that is
- * refused up front.
+ * instead.
  */
 export const READABLE_IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
@@ -35,11 +33,54 @@ export function isReadableImageType(value: string): value is ReadableImageType {
 }
 
 /**
+ * Everything a sheet may be uploaded as.
+ *
+ * PDF was left out at first because each vendor takes one differently — an
+ * inline part for Gemini, a document block for Anthropic, a file input for
+ * OpenAI — and a format that works on one club's key and not another's is
+ * worse than one refused up front. All three adapters now carry that
+ * difference, so the club can hand over what it actually has: a referto is
+ * routinely circulated as a PDF, and asking somebody to convert one back to
+ * a photograph is asking them to degrade it first.
+ */
+export const READABLE_FILE_TYPES = [...READABLE_IMAGE_TYPES, "application/pdf"] as const;
+
+export type ReadableFileType = (typeof READABLE_FILE_TYPES)[number];
+
+export function isReadableFileType(value: string): value is ReadableFileType {
+  return (READABLE_FILE_TYPES as readonly string[]).includes(value);
+}
+
+/** Whether a stored sheet is a page to be rendered rather than a picture. */
+export function isPdf(mimeType: string): boolean {
+  return mimeType === "application/pdf";
+}
+
+/**
  * 10 MB, which is the storage bucket's limit and the figure
  * `serverActions.bodySizeLimit` in next.config.ts is set above. A phone photo
  * of a single A4 sheet is 2–5 MB, so this is headroom rather than a target.
  */
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+/**
+ * A cheaper model for talking *about* a sheet, rather than transcribing one.
+ *
+ * Transcribing is the expensive job and worth the good model: it produces
+ * numbers that go into a child's season. Answering "is that a 1 or a 7?" is
+ * one glance and three sentences, and the person asking is looking at the
+ * same crop and confirms anything before it is applied — so a tenth of the
+ * price buys the same usefulness.
+ *
+ * Partial on purpose. A provider is listed only where the cheap model has
+ * been checked to exist and to read an image; anywhere else the club's own
+ * configured model is used, because a wrong model id is a 404 and a feature
+ * that silently does not work.
+ */
+export const CONVERSATION_MODELS: Partial<Record<AiProviderId, string>> = {
+  GEMINI: "gemini-3.5-flash-lite",
+  ANTHROPIC: "claude-haiku-5-5",
+};
 
 /**
  * Default model per provider — only the suggestion the form starts with; the

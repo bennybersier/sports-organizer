@@ -29,6 +29,8 @@ export interface AiConfigView {
   lastVerifiedAt: string | null;
   lastError: string | null;
   updatedAt: string;
+  /** Empty means "use the app's default for this provider". */
+  conversationModel: string | null;
 }
 
 export async function listAiConfigs(context: AuthContext): Promise<AiConfigView[]> {
@@ -36,7 +38,7 @@ export async function listAiConfigs(context: AuthContext): Promise<AiConfigView[
 
   const { data, error } = await createAdminClient()
     .from("ai_provider_configurations")
-    .select("id, provider, model, api_key_hint, is_enabled, is_default, last_verified_at, last_error, updated_at")
+    .select("id, provider, model, conversation_model, api_key_hint, is_enabled, is_default, last_verified_at, last_error, updated_at")
     .eq("tenant_id", context.tenant.id)
     .order("provider");
 
@@ -46,6 +48,7 @@ export async function listAiConfigs(context: AuthContext): Promise<AiConfigView[
     id: row.id,
     provider: row.provider as AiProviderId,
     model: row.model,
+    conversationModel: row.conversation_model,
     keyHint: row.api_key_hint,
     isEnabled: row.is_enabled,
     isDefault: row.is_default,
@@ -58,6 +61,8 @@ export async function listAiConfigs(context: AuthContext): Promise<AiConfigView[
 export interface SaveAiConfigInput {
   provider: AiProviderId;
   model: string;
+  /** Blank keeps the app's default for this provider. */
+  conversationModel?: string | null;
   /** Omitted when editing without rotating the key. */
   apiKey?: string;
   isEnabled: boolean;
@@ -94,6 +99,7 @@ export async function saveAiConfig(
         tenant_id: context.tenant.id,
         provider: input.provider,
         model: input.model,
+        conversation_model: input.conversationModel?.trim() ? input.conversationModel.trim() : null,
         api_key_ciphertext: ciphertext,
         api_key_hint: hint,
         is_enabled: input.isEnabled,
@@ -104,7 +110,7 @@ export async function saveAiConfig(
       },
       { onConflict: "tenant_id,provider" },
     )
-    .select("id, provider, model, api_key_hint, is_enabled, is_default, last_verified_at, last_error, updated_at")
+    .select("id, provider, model, conversation_model, api_key_hint, is_enabled, is_default, last_verified_at, last_error, updated_at")
     .single();
 
   if (error) throw fromDatabaseError(error, { resource: "AI configuration" });
@@ -120,6 +126,7 @@ export async function saveAiConfig(
     newValue: {
       provider: input.provider,
       model: input.model,
+      conversation_model: input.conversationModel ?? null,
       enabled: input.isEnabled,
       key_rotated: Boolean(input.apiKey),
     },
@@ -129,6 +136,7 @@ export async function saveAiConfig(
     id: data.id,
     provider: data.provider as AiProviderId,
     model: data.model,
+    conversationModel: data.conversation_model,
     keyHint: data.api_key_hint,
     isEnabled: data.is_enabled,
     isDefault: data.is_default,
@@ -208,10 +216,10 @@ export async function recordVerification(
 export async function getDecryptedKey(
   context: AuthContext,
   provider: AiProviderId,
-): Promise<{ apiKey: string; model: string }> {
+): Promise<{ apiKey: string; model: string; conversationModel: string | null }> {
   const { data, error } = await createAdminClient()
     .from("ai_provider_configurations")
-    .select("api_key_ciphertext, model, is_enabled")
+    .select("api_key_ciphertext, model, conversation_model, is_enabled")
     .eq("tenant_id", context.tenant.id)
     .eq("provider", provider)
     .maybeSingle();
@@ -220,7 +228,11 @@ export async function getDecryptedKey(
   if (!data) throw new NotFoundError("AI configuration");
   if (!data.is_enabled) throw new ConflictError("That AI provider is switched off.");
 
-  return { apiKey: decryptSecret(data.api_key_ciphertext), model: data.model };
+  return {
+    apiKey: decryptSecret(data.api_key_ciphertext),
+    model: data.model,
+    conversationModel: data.conversation_model,
+  };
 }
 
 /** The tenant's active provider, if any. */
