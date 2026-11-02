@@ -89,6 +89,40 @@ export interface TranscribedTeam {
 }
 
 /**
+ * Where something sits on the photograph: `[yMin, xMin, yMax, xMax]`.
+ *
+ * Thousandths of the image, which is the convention vision models already
+ * answer in, and resolution-independent so it survives the photo being
+ * resized. Used only to show a reader the part of the paper a question is
+ * about — nothing is derived from it, so a box that is slightly off costs a
+ * clumsy crop and never a wrong number.
+ */
+export type Region = [number, number, number, number];
+
+/**
+ * The landmarks of the printed form.
+ *
+ * The form is the same every week, but a photograph of it is not: taken at an
+ * angle, on a table, with the page occupying whatever part of the frame the
+ * phone happened to catch. So the blocks are located by the reader rather
+ * than assumed, and a question can then show the centimetre of paper it is
+ * asking about instead of the whole page at thumbnail size.
+ *
+ * Optional throughout: a sheet read before this existed has none, and the
+ * answer is to show the whole photograph as before.
+ */
+export interface SheetRegions {
+  /** The roster block of squadra A, and of squadra B. */
+  rosterA?: Region | null;
+  rosterB?: Region | null;
+  /**
+   * The four printed blocks of the progressive score, left to right: totals
+   * 1–40, 41–80, 81–120, 121–160. Each covers both the A and B columns.
+   */
+  ladder?: (Region | null)[] | null;
+}
+
+/**
  * A whole sheet, as seen.
  *
  * Squadra A is always the home side, which is the only way to attach the two
@@ -107,6 +141,8 @@ export interface RefertoTranscription {
   competition: string | null;
   /** Squadra A — the home side — then squadra B. */
   teams: { a: TranscribedTeam; b: TranscribedTeam };
+  /** Where the blocks are on the photograph. Absent on older readings. */
+  regions?: SheetRegions | null;
 }
 
 /** The side of the sheet one of our teams played on. */

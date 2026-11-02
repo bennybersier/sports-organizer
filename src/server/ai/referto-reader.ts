@@ -71,6 +71,19 @@ Do not confuse those two circles. One is in the scorer column, one in the
 total column, and only the period marker is underlined. Report the rungs in
 ascending order. Do NOT work out what any basket was worth.
 
+WHERE THINGS ARE
+
+Also report where the blocks sit on the photograph, so a person can be shown
+the part of the paper a question is about. Each region is
+[yMin, xMin, yMax, xMax] in thousandths of the image, top-left origin:
+- rosterA / rosterB: the twelve-row ATLETA block of each team, from the
+  ANNO NASC heading to the last player row, including the N. and FALLI
+  columns.
+- ladder: the four printed blocks of PUNTEGGIO PROGRESSIVO, left to right —
+  totals 1-40, then 41-80, 81-120, 121-160. Each block spans its A column,
+  its B column and the two scorer columns beside them.
+Give a region only for what you can actually see; use null otherwise.
+
 OUTPUT
 
 Reply with JSON only — no prose, no markdown fence — of exactly this shape:
@@ -89,6 +102,10 @@ Reply with JSON only — no prose, no markdown fence — of exactly this shape:
                    "circledScorer": boolean, "periodEnd": boolean }]
     },
     "b": { ...same shape... }
+  },
+  "regions": {
+    "rosterA": [y,x,y,x]|null, "rosterB": [y,x,y,x]|null,
+    "ladder": [[y,x,y,x]|null, [y,x,y,x]|null, [y,x,y,x]|null, [y,x,y,x]|null]
   }
 }`;
 

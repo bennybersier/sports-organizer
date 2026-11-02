@@ -458,6 +458,8 @@ export function SheetReview({
         onOpenChange={setAsking}
         questions={questions}
         imageUrl={sheet.imageUrl}
+        regions={state.transcription.regions ?? null}
+        side={state.side}
         onAnswer={answer}
       />
     </div>

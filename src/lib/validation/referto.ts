@@ -66,6 +66,34 @@ export const transcribedTeamSchema = z.object({
   ladder: z.array(ladderEntrySchema).max(200).default([]),
 });
 
+/**
+ * `[yMin, xMin, yMax, xMax]` in thousandths of the image.
+ *
+ * Nothing is derived from a region — it only decides which part of the
+ * photograph a question shows — so a malformed one is dropped rather than
+ * allowed to fail the whole transcription.
+ */
+const regionSchema = z
+  .tuple([
+    z.coerce.number().min(0).max(1000),
+    z.coerce.number().min(0).max(1000),
+    z.coerce.number().min(0).max(1000),
+    z.coerce.number().min(0).max(1000),
+  ])
+  .nullish()
+  .catch(null)
+  .transform((v) => v ?? null);
+
+const sheetRegionsSchema = z
+  .object({
+    rosterA: regionSchema,
+    rosterB: regionSchema,
+    ladder: z.array(regionSchema).max(8).nullish().catch(null).transform((v) => v ?? null),
+  })
+  .nullish()
+  .catch(null)
+  .transform((v) => v ?? null);
+
 export const refertoTranscriptionSchema = z.object({
   gameNumber: optionalText(40),
   /**
@@ -78,6 +106,7 @@ export const refertoTranscriptionSchema = z.object({
   venue: optionalText(200),
   competition: optionalText(150),
   teams: z.object({ a: transcribedTeamSchema, b: transcribedTeamSchema }),
+  regions: sheetRegionsSchema,
 });
 
 export const sheetSideSchema = z.enum(["a", "b"]);
