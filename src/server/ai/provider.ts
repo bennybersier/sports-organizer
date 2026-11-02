@@ -53,6 +53,15 @@ export interface GenerateOptions {
   model?: string;
   signal?: AbortSignal;
   /**
+   * How much the model should reason before answering.
+   *
+   * "low" for work that is perception rather than deduction — reading marks
+   * off a photograph is the example. Measured on one referto: the default
+   * spent 16,573 thinking tokens and 138 seconds; "low" spent none and took
+   * 20, for the same transcription. Providers without the notion ignore it.
+   */
+  thinking?: "low";
+  /**
    * Ask the provider to emit JSON and nothing else.
    *
    * A prompt that says "reply with JSON only" is a request; this is a

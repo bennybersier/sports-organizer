@@ -1,6 +1,6 @@
 import "server-only";
 
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, ThinkingLevel } from "@google/genai";
 
 import {
   describeProviderError,
@@ -50,6 +50,9 @@ export class GeminiProvider implements AiProvider {
         ...(options.system ? { systemInstruction: options.system } : {}),
         maxOutputTokens: options.maxTokens ?? 4096,
         ...(options.json ? { responseMimeType: "application/json" } : {}),
+        ...(options.thinking === "low"
+          ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
+          : {}),
         abortSignal: options.signal,
       },
     });
