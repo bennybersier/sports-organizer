@@ -315,6 +315,23 @@ describe("applyAnswer", () => {
     expect(reading.lines.find((line) => line.shirt === 9)?.points).toBe(18);
   });
 
+  it("drops a rung that was never struck on our side", () => {
+    const ladder = parseLadder(LADDER);
+    const state = stateFor({ a: { ladder } });
+    const before = readTeam(state.transcription.teams.a).points;
+
+    // A rung read out of the opponent's column has no right scorer: naming one
+    // invents a basket, and leaving it null stops the sheet reconciling.
+    const next = applyAnswer(
+      state,
+      { kind: "SCORER", ladderIndex: ladder.length - 1, shirt: null, remove: true },
+      SQUAD,
+    );
+
+    expect(next.transcription.teams.a.ladder).toHaveLength(ladder.length - 1);
+    expect(readTeam(next.transcription.teams.a).points).toBeLessThan(before);
+  });
+
   it("records who wore a shirt", () => {
     const next = applyAnswer(
       stateFor({}, []),

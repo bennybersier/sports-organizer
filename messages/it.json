@@ -1353,8 +1353,8 @@
     "qSideBody": "Non si legge il nome di nessuna delle due società, quindi non si può decidere dalla carta. Sbagliare importerebbe i giocatori avversari.",
     "qSideOption": "{club} · {players} giocatori · {points} punti",
     "qSideUnknown": "Nome illeggibile",
-    "qScorerTitle": "Chi ha segnato arrivando a {total}?",
-    "qScorerBody": "Il numero di maglia accanto a questo totale non è leggibile. I totali vicini lo rendono da {worth}.",
+    "qScorerTitle": "Colonna {side}: chi ha segnato arrivando a {total}?",
+    "qScorerBody": "Nel punteggio progressivo, nella colonna {side} — la nostra metà del referto — il {total} è barrato, ma il numero di maglia scritto accanto non si legge. Dai totali vicini il canestro vale {worth}.",
     "qScorerSkipWarning": "Se la lasci in bianco il referto non torna e non si può importare.",
     "qPlayerTitle": "Chi portava il numero {shirt}?",
     "qPlayerNoNumber": "Nessuno in questa squadra è registrato con il numero {shirt}.",
@@ -1399,6 +1399,9 @@
     "enterByHand": "Inserisci le statistiche a mano",
     "opponentSheet": "{club} — dal referto",
     "opponentUnreadable": "La loro metà del referto non torna, quindi i dati dei loro giocatori non vengono mostrati.",
-    "opponentNotKept": "Letti dal referto e non archiviati: i giocatori della società avversaria non sono anagrafiche nostre."
+    "opponentNotKept": "Letti dal referto e non archiviati: i giocatori della società avversaria non sono anagrafiche nostre.",
+    "qScorerPick": "Tocca il numero di maglia scritto accanto",
+    "qScorerAbsent": "Lì non c'è niente di barrato",
+    "qScorerAbsentHint": "Usa questo se nella colonna {side} il {total} non è barrato. Accanto è stampato il punteggio dell'altra squadra ed è facile scambiarlo per il nostro."
   }
 }

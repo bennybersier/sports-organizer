@@ -198,7 +198,7 @@ function titleOf(question: Question, t: Translator): string {
     case "SIDE":
       return t("qSideTitle");
     case "SCORER":
-      return t("qScorerTitle", { total: question.total });
+      return t("qScorerTitle", { total: question.total, side: question.side.toUpperCase() });
     case "PLAYER":
       return t("qPlayerTitle", { shirt: question.shirt });
     case "OPPONENT_SCORE":
@@ -216,7 +216,11 @@ function bodyOf(question: Question, t: Translator): string {
       */
       return question.conflict ? t("qSideBody") + " " + t("qSideConflictShort") : t("qSideBody");
     case "SCORER":
-      return t("qScorerBody", { worth: question.worth });
+      return t("qScorerBody", {
+        worth: question.worth,
+        total: question.total,
+        side: question.side.toUpperCase(),
+      });
     case "PLAYER": {
       const why =
         question.reason === "NO_NUMBER_ON_FILE"
@@ -303,19 +307,59 @@ function QuestionBody({
 
     case "SCORER":
       return (
-        <div className="flex flex-wrap gap-2">
-          {question.options.map((shirt) => (
+        <div className="space-y-4">
+          {/*
+            A grid of bare numbers does not say what the numbers are. They are
+            shirt numbers, not totals, not points — and both of those are also
+            numbers on this sheet.
+          */}
+          <div className="space-y-2">
+            <p className="text-xs font-medium text-muted-foreground">{t("qScorerPick")}</p>
+            <div className="flex flex-wrap gap-2">
+              {question.options.map((shirt) => (
+                <Button
+                  key={shirt}
+                  variant="outline"
+                  className="h-11 w-14 text-base tabular-nums"
+                  onClick={() =>
+                    onAnswer({ kind: "SCORER", ladderIndex: question.ladderIndex, shirt })
+                  }
+                >
+                  {shirt}
+                </Button>
+              ))}
+            </div>
+          </div>
+
+          {/*
+            The way out when the basket is not ours. Without it the only
+            answers are a shirt number, which invents a scorer, and "I don't
+            know", which leaves a basket nobody scored and stops the sheet
+            reconciling for good.
+          */}
+          <div className="space-y-1 border-t pt-3">
             <Button
-              key={shirt}
-              variant="outline"
-              className="h-11 w-14 text-base tabular-nums"
+              variant="ghost"
+              size="sm"
+              className="h-auto px-0 text-left font-normal text-muted-foreground hover:text-foreground"
               onClick={() =>
-                onAnswer({ kind: "SCORER", ladderIndex: question.ladderIndex, shirt })
+                onAnswer({
+                  kind: "SCORER",
+                  ladderIndex: question.ladderIndex,
+                  shirt: null,
+                  remove: true,
+                })
               }
             >
-              {shirt}
+              {t("qScorerAbsent")}
             </Button>
-          ))}
+            <p className="text-xs text-muted-foreground">
+              {t("qScorerAbsentHint", {
+                total: question.total,
+                side: question.side.toUpperCase(),
+              })}
+            </p>
+          </div>
         </div>
       );
 

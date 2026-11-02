@@ -60,6 +60,14 @@ export type Question =
   | {
       kind: "SCORER";
       id: string;
+      /**
+       * Which of the two printed ladders this rung is in.
+       *
+       * The sheet prints squadra A's and squadra B's side by side, so a
+       * question that names only a running total sends the reader to whichever
+       * column their eye lands on first — and both columns have a row 6.
+       */
+      side: SheetSide;
       /** Where to write the answer back. */
       ladderIndex: number;
       /** The running total this basket reached, so it can be found on the paper. */
@@ -91,7 +99,16 @@ export type Question =
 
 export type Answer =
   | { kind: "SIDE"; side: SheetSide }
-  | { kind: "SCORER"; ladderIndex: number; shirt: number | null }
+  /**
+   * `remove` deletes the rung instead of naming its scorer.
+   *
+   * The two ladders are printed side by side and a reader can take a mark in
+   * the opponent's column for one in ours. When that happens there is no
+   * right shirt number, and "I don't know" is the wrong answer too — it leaves
+   * a basket on the sheet that was never scored, and the arithmetic will never
+   * reconcile. Saying so is the only honest way out.
+   */
+  | { kind: "SCORER"; ladderIndex: number; shirt: number | null; remove?: boolean }
   | { kind: "PLAYER"; shirt: number; athleteId: string | null }
   | { kind: "OPPONENT_SCORE"; score: number | null };
 
@@ -199,6 +216,7 @@ export function askQuestions(
     questions.push({
       kind: "SCORER",
       id: `scorer:${index}`,
+      side: state.side,
       ladderIndex: index,
       total: entry.total,
       worth: entry.total - previous,
@@ -398,9 +416,11 @@ export function applyAnswer(
 
     case "SCORER": {
       const team = state.transcription.teams[state.side];
-      const ladder = team.ladder.map((entry, index) =>
-        index === answer.ladderIndex ? { ...entry, shirt: answer.shirt } : entry,
-      );
+      const ladder = answer.remove
+        ? team.ladder.filter((_, index) => index !== answer.ladderIndex)
+        : team.ladder.map((entry, index) =>
+            index === answer.ladderIndex ? { ...entry, shirt: answer.shirt } : entry,
+          );
       return {
         ...state,
         transcription: withTeam(state.transcription, state.side, { ...team, ladder }),

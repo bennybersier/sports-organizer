@@ -1353,8 +1353,8 @@
     "qSideBody": "Neither club name could be read, so this can't be settled from the paper. Getting it wrong would import the opponent's players.",
     "qSideOption": "{club} · {players} players · {points} points",
     "qSideUnknown": "Name not readable",
-    "qScorerTitle": "Who scored to reach {total}?",
-    "qScorerBody": "The shirt number beside this total couldn't be read. The totals either side make it worth {worth}.",
+    "qScorerTitle": "Column {side}: who scored to reach {total}?",
+    "qScorerBody": "On the progressive score ladder, {total} is struck through in column {side} — our half of the sheet — but the shirt number written beside it can't be read. The totals either side make it worth {worth}.",
     "qScorerSkipWarning": "Leave it unanswered and the sheet won't reconcile, so it can't be imported.",
     "qPlayerTitle": "Who wore number {shirt}?",
     "qPlayerNoNumber": "Nobody in this squad is registered with number {shirt}.",
@@ -1399,6 +1399,9 @@
     "enterByHand": "Enter the scoresheet by hand",
     "opponentSheet": "{club} — from the game sheet",
     "opponentUnreadable": "Their half of the sheet doesn't reconcile, so their players' figures aren't shown.",
-    "opponentNotKept": "Read from the sheet and not stored: the opposing club's players are not records of ours."
+    "opponentNotKept": "Read from the sheet and not stored: the opposing club's players are not records of ours.",
+    "qScorerPick": "Tap the shirt number written beside it",
+    "qScorerAbsent": "Nothing is struck there",
+    "qScorerAbsentHint": "Use this if {total} is not struck through in column {side}. The other team's ladder is printed alongside and is easy to mistake for ours."
   }
 }
