@@ -160,9 +160,21 @@ export async function importSheetAction(input: unknown): Promise<ActionResult<Im
     const context = await requirePermission("attendance.record");
     const values = parseInput(importSheetSchema, input);
     const outcome = await importSheet(context, values);
-    // An import writes attendance, a box score and a result at once, so
-    // everything that reads any of them is now stale.
+    /*
+      An import writes attendance, a box score and a result at once, so
+      everything that reads any of them is now stale.
+
+      The match page itself was missing from this list, and its absence did
+      more than show a stale result. The page it left on screen still held the
+      convocazioni as they were before the import — nobody called up, nobody a
+      starter — and saving that form afterwards wrote those blanks back over
+      the call-ups and the starting five the import had just recorded. A
+      missing revalidation is usually a cosmetic bug; with a form on the page
+      it is a data-loss bug.
+    */
+    revalidatePath("/matches/[eventId]/[teamId]", "page");
     revalidatePath("/matches");
+    revalidatePath("/athletes/[id]", "page");
     revalidatePath("/athletes");
     revalidatePath("/competitions");
     revalidatePath("/teams");
