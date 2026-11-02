@@ -374,7 +374,12 @@ export function RegisterSheetEditor({ sheet }: { sheet: RegisterSheet }) {
 
       {/* Held above the fold of a phone: the coach's thumb is already down here. */}
       {sheet.editable ? (
-        <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 p-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:left-[var(--sidebar-width,0px)]">
+        <div
+          // `data-save-bar` is what the app shell looks for to reserve the
+          // space this bar covers — see the layout.
+          data-save-bar
+          className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur supports-[backdrop-filter]:bg-background/80 md:left-[var(--sidebar-width,0px)]"
+        >
           <div className="mx-auto flex max-w-3xl items-center gap-2">
             <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
               {dirty ? t("unsaved") : t("upToDate")}

@@ -95,7 +95,17 @@ export function SheetReview({
   const { run, isPending } = useAction();
 
   const [editing, setEditing] = useState(false);
+  /*
+    Opens by itself the first time a freshly read sheet has questions.
+
+    The rule is that the model asks when it is unsure, and a button the
+    uploader has to notice is not asking — it is waiting to be asked. Once
+    dismissed it stays shut (`askedOnce`), because reopening a dialog somebody
+    has just closed is the other way to get this wrong; the button beside it
+    brings the queue back.
+  */
   const [asking, setAsking] = useState(false);
+  const [askedOnce, setAskedOnce] = useState(false);
   const [withResult, setWithResult] = useState(true);
 
   const [state, setState] = useState<ReviewState | null>(() => {
@@ -128,6 +138,14 @@ export function SheetReview({
       sure: certainties(state, reading, options),
     };
   }, [state, squad, needsResult, withResult, sheet.reading?.evidence]);
+
+  if (derived && !askedOnce && derived.questions.length > 0 && canRecord) {
+    // Adjusting during render rather than in an effect: an effect would paint
+    // the page once without the dialog and then pop it, which is exactly the
+    // flicker it is there to avoid.
+    setAskedOnce(true);
+    setAsking(true);
+  }
 
   if (!state || !derived) {
     return (
