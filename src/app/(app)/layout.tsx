@@ -100,7 +100,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <div
           id="main-content"
           tabIndex={-1}
-          className="flex-1 p-4 has-[[data-save-bar]]:pb-[calc(6rem+env(safe-area-inset-bottom))] md:p-6"
+          className="min-w-0 flex-1 p-4 has-[[data-save-bar]]:pb-[calc(6rem+env(safe-area-inset-bottom))] md:p-6"
         >
           {children}
         </div>

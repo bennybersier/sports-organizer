@@ -49,6 +49,7 @@ export class GeminiProvider implements AiProvider {
       config: {
         ...(options.system ? { systemInstruction: options.system } : {}),
         maxOutputTokens: options.maxTokens ?? 4096,
+        ...(options.json ? { responseMimeType: "application/json" } : {}),
         abortSignal: options.signal,
       },
     });
