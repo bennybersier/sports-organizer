@@ -906,7 +906,9 @@
     "CONNECTED": "Collegato",
     "DISCONNECTED": "Non collegato",
     "ERROR": "Errore",
-    "EXPIRED": "Ricollegamento necessario"
+    "EXPIRED": "Ricollegamento necessario",
+    "conversationModel": "Modello per le domande",
+    "conversationModelHint": "Usato quando fai domande su un referto caricato. Lascia vuoto per un modello più economico — la lettura del referto usa sempre il modello qui sopra."
   },
   "mcp": {
     "title": "Chiavi API MCP",
@@ -1408,14 +1410,18 @@
     "qPlayerSearch": "Cerca per nome o numero",
     "qPlayerNoMatch": "Nessun atleta corrisponde.",
     "askTitle": "Chiedi qualcosa sul referto",
-    "askPlaceholder": "È un 1 o un 7? Perché pensi che qui ci sia un canestro?",
+    "askPlaceholder": "Chiedi — \"è un 1 o un 7?\" — oppure rispondi: \"era Scarpetta\", \"il numero è 16\".",
     "askSend": "Chiedi",
     "askFailed": "Non è stato possibile rispondere.",
-    "askDisclaimer": "È un parere sulla foto. Non viene salvato nulla — alla domanda qui sopra rispondi tu.",
+    "askDisclaimer": "È un parere sulla foto. Niente viene registrato finché non premi.",
     "cropNoRegion": "Questa lettura è precedente alla funzione che indica il punto sul foglio, quindi si può mostrare solo il referto intero. Rileggilo e ogni domanda inquadrerà il punto esatto.",
     "qScorerTitleMisread": "Colonna {side}: chi ha segnato davvero arrivando a {total}?",
     "qScorerBodyMisread": "Nel punteggio progressivo, nella colonna {side} — la nostra metà del referto — il {total} è barrato e il numero accanto è stato letto come {readAs}. Nessun {readAs} ha giocato con noi, quindi una cifra o l'altra è sbagliata. Dai totali vicini il canestro vale {worth}.",
     "rereadNow": "Rileggi il referto",
-    "openPdf": "Apri il PDF"
+    "openPdf": "Apri il PDF",
+    "askApply": "Usa questa risposta: {answer}",
+    "askNotApplicable": "Questa risposta non vale per questa domanda. Scegli qui sopra.",
+    "qScorerChoice": "Maglia {shirt}",
+    "qShirtCorrection": "cambia la maglia {from} in {to}"
   }
 }

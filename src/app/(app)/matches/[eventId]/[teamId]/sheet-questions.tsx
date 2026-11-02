@@ -179,7 +179,17 @@ export function SheetQuestions({
           ) : null}
 
           <QuestionBody question={question} onAnswer={answer} />
-          <SheetAsk sheetId={sheetId} situation={situationOf(question, t)} />
+          <SheetAsk
+            sheetId={sheetId}
+            situation={situationOf(question, t)}
+            choices={choicesOf(question, t)}
+            describe={(value) => describeChoice(question, value, t)}
+            onChoose={(value) => {
+              const chosen = answerForChoice(question, value);
+              if (chosen) answer(chosen);
+              return chosen ? value : null;
+            }}
+          />
         </div>
 
         <DialogFooter className="sm:justify-between">
@@ -279,6 +289,98 @@ function highlightFor(
  * which is also what the reader can see on screen, so there is nothing hidden
  * going to the provider that is not in front of them.
  */
+/**
+ * The answers on offer, flattened for the model to match a sentence against.
+ *
+ * Values are what comes back and are turned into an answer by
+ * `answerForChoice`; labels are what the model reads, and what the confirm
+ * button shows. Shirt numbers are their own value because the question is
+ * about a number — an athlete is an id, because a name is not unique and a
+ * child's season is the thing being written to.
+ */
+function choicesOf(question: Question, t: Translator): { value: string; label: string }[] {
+  switch (question.kind) {
+    case "SCORER":
+      return [
+        ...question.options.map((shirt) => ({
+          value: String(shirt),
+          label: t("qScorerChoice", { shirt }),
+        })),
+        { value: NO_BASKET, label: t("qScorerAbsent") },
+      ];
+    case "PLAYER":
+      return question.options.map((option) => ({
+        value: option.athleteId,
+        label:
+          option.jerseyNumber === null
+            ? option.name
+            : `${option.name} (${option.jerseyNumber})`,
+      }));
+    case "OPPONENT_SCORE":
+      return question.suggestion === null
+        ? []
+        : [{ value: String(question.suggestion), label: String(question.suggestion) }];
+    case "SIDE":
+      return question.options.map((option) => ({
+        value: option.side,
+        label: option.clubName ?? option.side.toUpperCase(),
+      }));
+  }
+}
+
+/** What the confirm button says for an answer that is not one of the choices. */
+function describeChoice(question: Question, value: string, t: Translator): string | null {
+  if (question.kind !== "PLAYER") return null;
+  const shirt = Number.parseInt(value, 10);
+  return Number.isFinite(shirt) ? t("qShirtCorrection", { from: question.shirt, to: shirt }) : null;
+}
+
+/** The sentinel for "nothing is struck there", which is not a shirt number. */
+const NO_BASKET = "none";
+
+/**
+ * Turns a chosen value back into an answer, or null if it cannot be one.
+ *
+ * The last line of defence between a sentence and a child's statistics. A
+ * free-typed shirt number is accepted because the reader is holding the
+ * paper; an athlete id is not, because inventing one would assign a basket
+ * to somebody who is not in the squad.
+ */
+function answerForChoice(question: Question, value: string): Answer | null {
+  switch (question.kind) {
+    case "SCORER": {
+      if (value === NO_BASKET) {
+        return { kind: "SCORER", ladderIndex: question.ladderIndex, shirt: null, remove: true };
+      }
+      const shirt = Number.parseInt(value, 10);
+      return Number.isFinite(shirt) && shirt >= 0
+        ? { kind: "SCORER", ladderIndex: question.ladderIndex, shirt }
+        : null;
+    }
+    case "PLAYER": {
+      if (question.options.some((option) => option.athleteId === value)) {
+        return { kind: "PLAYER", shirt: question.shirt, athleteId: value };
+      }
+      /*
+        A bare number here is the other thing people say to this question:
+        not "it was Scarpetta" but "they misread it, the number is 16". That
+        is a correction to the roster row rather than a choice of athlete, and
+        it is the answer the app could not previously take at all.
+      */
+      const shirt = Number.parseInt(value, 10);
+      return Number.isFinite(shirt) && shirt >= 0 && shirt !== question.shirt
+        ? { kind: "SHIRT", from: question.shirt, to: shirt }
+        : null;
+    }
+    case "OPPONENT_SCORE": {
+      const score = Number.parseInt(value, 10);
+      return Number.isFinite(score) && score >= 0 ? { kind: "OPPONENT_SCORE", score } : null;
+    }
+    case "SIDE":
+      return value === "a" || value === "b" ? { kind: "SIDE", side: value } : null;
+  }
+}
+
 function situationOf(question: Question, t: Translator): string {
   return `${titleOf(question, t)} ${bodyOf(question, t)}`;
 }

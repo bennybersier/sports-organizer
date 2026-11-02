@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Loader2, MessageCircleQuestion, Send } from "lucide-react";
+import { Check, Loader2, MessageCircleQuestion, Send } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,10 +27,26 @@ import { askSheetAction } from "@/server/actions/matches";
  * being disputed into the prompt, so a three-word question like "is that a 7?"
  * arrives with the context that makes it answerable.
  */
-export function SheetAsk({ sheetId, situation }: { sheetId: string; situation: string }) {
+export function SheetAsk({
+  sheetId,
+  situation,
+  choices,
+  describe,
+  onChoose,
+}: {
+  sheetId: string;
+  situation: string;
+  /** The answers on offer, so a reply can be matched back to one. */
+  choices: { value: string; label: string }[];
+  /** Names a value that is not one of the choices, where that is meaningful. */
+  describe?: (value: string) => string | null;
+  /** Applies a chosen value. Returns the label applied, or null if it cannot. */
+  onChoose: (value: string) => string | null;
+}) {
   const t = useTranslations("matches");
   const [question, setQuestion] = useState("");
   const [answer, setAnswer] = useState<string | null>(null);
+  const [proposed, setProposed] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isAsking, setIsAsking] = useState(false);
 
@@ -45,11 +61,12 @@ export function SheetAsk({ sheetId, situation }: { sheetId: string; situation: s
       is being fetched is less jarring than a box that empties and sits blank
       for twenty seconds. It is replaced when the new one lands.
     */
-    const result = await askSheetAction({ sheetId, situation, question: asked });
+    const result = await askSheetAction({ sheetId, situation, question: asked, choices });
     setIsAsking(false);
 
     if (result.ok) {
       setAnswer(result.data.answer);
+      setProposed(result.data.choice);
       setQuestion("");
     } else {
       setError(result.error.message ?? t("askFailed"));
@@ -94,11 +111,45 @@ export function SheetAsk({ sheetId, situation }: { sheetId: string; situation: s
       {error ? <p className="text-xs text-destructive">{error}</p> : null}
 
       {answer ? (
-        <div className="rounded-md border bg-muted/40 p-2.5 text-sm whitespace-pre-wrap">
-          {answer}
-          <p className="mt-2 text-xs text-muted-foreground">{t("askDisclaimer")}</p>
+        <div className="space-y-2 rounded-md border bg-muted/40 p-2.5 text-sm">
+          <p className="whitespace-pre-wrap">{answer}</p>
+
+          {/*
+            Proposed, never applied. The model has understood "it was
+            Scarpetta" as an answer and says which one it would record; the
+            press is the person's. Reading a sentence and deciding it meant
+            the right player is exactly the kind of judgement that must not
+            happen silently when the result is a number in a child's season.
+          */}
+          {proposed ? (
+            <Button
+              size="sm"
+              className="w-full justify-start"
+              onClick={() => {
+                const applied = onChoose(proposed);
+                setProposed(null);
+                if (applied === null) setError(t("askNotApplicable"));
+              }}
+            >
+              <Check aria-hidden />
+              {t("askApply", { answer: describe?.(proposed) ?? labelFor(proposed, choices) })}
+            </Button>
+          ) : null}
+
+          <p className="text-xs text-muted-foreground">{t("askDisclaimer")}</p>
         </div>
       ) : null}
     </div>
   );
+}
+
+/**
+ * What to call a proposed value in the confirm button.
+ *
+ * A value that is not on the list is shown as itself: that is the case where
+ * the reader has given a shirt number the reading never offered, which is
+ * allowed on purpose — they are the one holding the paper.
+ */
+function labelFor(value: string, choices: { value: string; label: string }[]): string {
+  return choices.find((choice) => choice.value === value)?.label ?? value;
 }

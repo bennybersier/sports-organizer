@@ -134,7 +134,9 @@ export async function readSheetAction(input: unknown): Promise<ActionResult<Shee
  * No `revalidatePath`: this changes no server state, so refreshing the page
  * would throw away the answer the reader just asked for.
  */
-export async function askSheetAction(input: unknown): Promise<ActionResult<{ answer: string }>> {
+export async function askSheetAction(
+  input: unknown,
+): Promise<ActionResult<{ answer: string; choice: string | null }>> {
   return runAction(async () => {
     const context = await requirePermission("ai.read");
     const values = parseInput(askSheetSchema, input);

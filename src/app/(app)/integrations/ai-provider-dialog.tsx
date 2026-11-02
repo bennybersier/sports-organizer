@@ -24,7 +24,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAction } from "@/hooks/use-action";
-import { DEFAULT_MODELS, PROVIDER_LABELS, type AiProviderId } from "@/domain/ai";
+import {
+  CONVERSATION_MODELS,
+  DEFAULT_MODELS,
+  PROVIDER_LABELS,
+  type AiProviderId,
+} from "@/domain/ai";
 import { saveAiConfigAction } from "@/server/actions/ai";
 import type { AiConfigView } from "@/server/services/ai-config-service";
 
@@ -45,6 +50,7 @@ export function AiProviderDialog({
 
   const [provider, setProvider] = useState<AiProviderId>(existing?.provider ?? available[0]);
   const [model, setModel] = useState(existing?.model ?? DEFAULT_MODELS[available[0]]);
+  const [conversationModel, setConversationModel] = useState(existing?.conversationModel ?? "");
   const [apiKey, setApiKey] = useState("");
   const [isEnabled, setIsEnabled] = useState(existing?.isEnabled ?? true);
   const [makeDefault, setMakeDefault] = useState(existing?.isDefault ?? true);
@@ -92,6 +98,25 @@ export function AiProviderDialog({
               onChange={(event) => setModel(event.target.value)}
               className="font-mono text-sm"
             />
+          </div>
+
+          {/*
+            Two models, because the club pays for both and the jobs are not
+            alike: one transcribes a scoresheet into a child's season, the
+            other answers "is that a 1 or a 7?" about a picture they are
+            already looking at. Left blank it follows the app's cheap default
+            for the provider, which is the right answer for most clubs.
+          */}
+          <div className="grid gap-1">
+            <Label htmlFor="ai-conversation-model">{t("conversationModel")}</Label>
+            <Input
+              id="ai-conversation-model"
+              value={conversationModel}
+              onChange={(event) => setConversationModel(event.target.value)}
+              placeholder={CONVERSATION_MODELS[provider] ?? model}
+              className="font-mono text-sm"
+            />
+            <p className="text-xs text-muted-foreground">{t("conversationModelHint")}</p>
           </div>
 
           <div className="grid gap-1">
@@ -145,6 +170,7 @@ export function AiProviderDialog({
                   saveAiConfigAction({
                     provider,
                     model,
+                    conversationModel,
                     apiKey: apiKey || undefined,
                     isEnabled,
                     makeDefault,

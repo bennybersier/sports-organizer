@@ -6,7 +6,7 @@ import type { RefertoTranscription } from "@/domain/referto/transcription";
 import { refertoTranscriptionSchema } from "@/lib/validation/referto";
 import { assertPermission } from "@/server/auth/authorization";
 import type { AuthContext } from "@/server/auth/context";
-import { getProvider } from "@/server/ai/registry";
+import { getConversationModel, getProvider } from "@/server/ai/registry";
 import { READ_TIMEOUT_MS, describeProviderError } from "@/server/ai/provider";
 import { log } from "@/lib/observability";
 
@@ -305,30 +305,71 @@ export function parseTranscription(text: string): RefertoTranscription {
 export async function askAboutReferto(
   context: AuthContext,
   image: { data: string; mediaType: ReadableFileType },
-  input: { situation: string; question: string },
-): Promise<{ answer: string; model: string }> {
+  input: {
+    situation: string;
+    question: string;
+    choices: { value: string; label: string }[];
+  },
+): Promise<{ answer: string; choice: string | null; model: string }> {
   assertPermission(context, "ai.read");
 
+  const offered = input.choices.length
+    ? `\n\nThe answers currently on offer, as value = what it means:\n${input.choices
+        .map((choice) => `${choice.value} = ${choice.label}`)
+        .join("\n")}`
+    : "";
+
   try {
-    const provider = await getProvider(context);
+    const [provider, model] = await Promise.all([
+      getProvider(context),
+      getConversationModel(context),
+    ]);
     const response = await withRetry(() =>
       provider.generate({
+        // The good model reads the sheet; a cheap one talks about it. The
+        // club picks both in Integrations, and undefined here means they left
+        // the second blank and we fall back to their reading model.
+        model,
         system: ASK_SYSTEM,
         messages: [
           {
             role: "user",
-            content: `What the app is unsure about:\n${input.situation}\n\nThe question:\n${input.question}`,
+            content: `What the app is unsure about:\n${input.situation}\n\nWhat they wrote:\n${input.question}${offered}`,
             images: [image],
           },
         ],
         maxTokens: 2_048,
         thinking: "low",
+        json: true,
         signal: AbortSignal.timeout(READ_TIMEOUT_MS),
       }),
     );
-    return { answer: response.text.trim(), model: response.model };
+    return { ...parseAnswer(response.text), model: response.model };
   } catch (error) {
     throw new ConflictError(describeProviderError(error));
+  }
+}
+
+/**
+ * Pulls the reply and any proposed answer out of the model's JSON.
+ *
+ * Forgiving by design: the reply is the part that matters and a malformed
+ * `choice` must not cost it. A model that answers in prose despite being
+ * asked for JSON still gets its words shown.
+ */
+function parseAnswer(text: string): { answer: string; choice: string | null } {
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
+  if (start === -1 || end <= start) return { answer: text.trim(), choice: null };
+
+  try {
+    const raw = JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
+    const reply = typeof raw.reply === "string" ? raw.reply.trim() : "";
+    const choice =
+      typeof raw.choice === "string" && raw.choice.trim() !== "" ? raw.choice.trim() : null;
+    return { answer: reply || text.trim(), choice };
+  } catch {
+    return { answer: text.trim(), choice: null };
   }
 }
 
@@ -338,6 +379,23 @@ checking an automatic transcription of it against the paper.
 
 Answer their question about what is on the sheet. Be short — a few sentences,
 no preamble, no markdown. Answer in the language they wrote in.
+
+They may be asking you something, or answering the question themselves —
+"who scored?" and "it was Scarpetta" arrive through the same box. Handle both.
+
+Reply with JSON only: {"reply": string, "choice": string|null}
+
+- "reply" is what you say to them: a few sentences, no preamble, no markdown,
+  in the language they wrote in.
+- "choice" is how their message answers the question, as one of the offered
+  values, exactly as written in the list. Null if they asked rather than
+  answered, or if you cannot tell which they meant — a wrong choice is worse
+  than none, because it puts a number in a child's season.
+- If they give a shirt number that is not in the list, set "choice" to that
+  number anyway: they are holding the paper and the list came from a reading
+  that may have misread the roster.
+- When you set a choice, say in "reply" what you are about to apply, so they
+  can see it before confirming.
 
 Rules that matter more than being helpful:
 - Report what you can see, and say plainly when you cannot see it. "I can't

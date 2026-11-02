@@ -269,8 +269,13 @@ export async function getSheet(context: AuthContext, sheetId: string): Promise<S
  */
 export async function askAboutSheet(
   context: AuthContext,
-  input: { sheetId: string; situation: string; question: string },
-): Promise<{ answer: string }> {
+  input: {
+    sheetId: string;
+    situation: string;
+    question: string;
+    choices: { value: string; label: string }[];
+  },
+): Promise<{ answer: string; choice: string | null }> {
   assertPermission(context, "ai.read");
 
   const { data: row, error } = await context.db
@@ -289,16 +294,16 @@ export async function askAboutSheet(
     throw new ConflictError("The stored photograph could not be read back.");
   }
 
-  const { answer } = await askAboutReferto(
+  const { answer, choice } = await askAboutReferto(
     context,
     {
       data: Buffer.from(await file.arrayBuffer()).toString("base64"),
       mediaType: row.mime_type as ReadableFileType,
     },
-    { situation: input.situation, question: input.question },
+    { situation: input.situation, question: input.question, choices: input.choices },
   );
 
-  return { answer };
+  return { answer, choice };
 }
 
 export async function readSheet(context: AuthContext, sheetId: string): Promise<SheetView> {

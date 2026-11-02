@@ -353,6 +353,25 @@ describe("applyAnswer", () => {
     expect(readTeam(next.transcription.teams.a).points).toBeLessThan(before);
   });
 
+  it("renumbers a misread shirt everywhere it appears", () => {
+    const ladder = parseLadder(LADDER);
+    const scorer = ladder.find((entry) => entry.shirt !== null)!.shirt!;
+    const state = stateFor({ a: { ladder } });
+    const before = readTeam(state.transcription.teams.a).points;
+
+    const next = applyAnswer(state, { kind: "SHIRT", from: scorer, to: 77 }, SQUAD);
+    const team = next.transcription.teams.a;
+
+    expect(team.ladder.some((entry) => entry.shirt === scorer)).toBe(false);
+    expect(team.ladder.some((entry) => entry.shirt === 77)).toBe(true);
+    // The roster moves with it, or the renamed scorer is no longer on the team.
+    if (state.transcription.teams.a.players.some((player) => player.shirt === scorer)) {
+      expect(team.players.some((player) => player.shirt === 77)).toBe(true);
+    }
+    // A renumbering moves points between shirts; it never invents or loses any.
+    expect(readTeam(team).points).toBe(before);
+  });
+
   it("records who wore a shirt", () => {
     const next = applyAnswer(
       stateFor({}, []),

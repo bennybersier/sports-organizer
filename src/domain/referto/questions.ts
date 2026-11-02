@@ -120,6 +120,16 @@ export type Answer =
    */
   | { kind: "SCORER"; ladderIndex: number; shirt: number | null; remove?: boolean }
   | { kind: "PLAYER"; shirt: number; athleteId: string | null }
+  /**
+   * The roster row's number was misread: it says `from`, the paper says `to`.
+   *
+   * Distinct from naming a scorer, and a much bigger edit, because a shirt
+   * number is the key the whole sheet is written in — the ladder refers back
+   * to it, the assignment to an athlete hangs off it. Changing it anywhere
+   * means changing it everywhere, which is precisely why it cannot be left
+   * to somebody retyping the roster by hand and missing one.
+   */
+  | { kind: "SHIRT"; from: number; to: number }
   | { kind: "OPPONENT_SCORE"; score: number | null };
 
 /**
@@ -456,6 +466,33 @@ export function applyAnswer(
         ...state,
         assignments: { ...state.assignments, [answer.shirt]: answer.athleteId },
       };
+
+    case "SHIRT": {
+      const team = state.transcription.teams[state.side];
+      const players = team.players.map((player) =>
+        player.shirt === answer.from ? { ...player, shirt: answer.to } : player,
+      );
+      const ladder = team.ladder.map((entry) =>
+        entry.shirt === answer.from ? { ...entry, shirt: answer.to } : entry,
+      );
+
+      /*
+        The assignment moves with the number. Leaving it under the old key
+        would quietly unassign the player, and the next question would ask who
+        wore a shirt nobody is now recorded as wearing.
+      */
+      const assignments = { ...state.assignments };
+      if (answer.from in assignments) {
+        assignments[answer.to] = assignments[answer.from];
+        delete assignments[answer.from];
+      }
+
+      return {
+        ...state,
+        assignments,
+        transcription: withTeam(state.transcription, state.side, { ...team, players, ladder }),
+      };
+    }
 
     case "OPPONENT_SCORE": {
       const otherSide: SheetSide = state.side === "a" ? "b" : "a";

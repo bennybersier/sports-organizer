@@ -64,6 +64,25 @@ export function isPdf(mimeType: string): boolean {
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
 /**
+ * A cheaper model for talking *about* a sheet, rather than transcribing one.
+ *
+ * Transcribing is the expensive job and worth the good model: it produces
+ * numbers that go into a child's season. Answering "is that a 1 or a 7?" is
+ * one glance and three sentences, and the person asking is looking at the
+ * same crop and confirms anything before it is applied — so a tenth of the
+ * price buys the same usefulness.
+ *
+ * Partial on purpose. A provider is listed only where the cheap model has
+ * been checked to exist and to read an image; anywhere else the club's own
+ * configured model is used, because a wrong model id is a 404 and a feature
+ * that silently does not work.
+ */
+export const CONVERSATION_MODELS: Partial<Record<AiProviderId, string>> = {
+  GEMINI: "gemini-3.5-flash-lite",
+  ANTHROPIC: "claude-haiku-5-5",
+};
+
+/**
  * Default model per provider — only the suggestion the form starts with; the
  * chosen model is stored per tenant. Bumping a default is one edit here.
  */
