@@ -1357,10 +1357,10 @@
     "qScorerBody": "On the progressive score ladder, {total} is struck through in column {side} — our half of the sheet — but the shirt number written beside it can't be read. The totals either side make it worth {worth}.",
     "qScorerSkipWarning": "Leave it unanswered and the sheet won't reconcile, so it can't be imported.",
     "qPlayerTitle": "Who wore number {shirt}?",
-    "qPlayerNoNumber": "Nobody in this squad is registered with number {shirt}.",
+    "qPlayerNoNumber": "The roster block on the sheet has a player wearing {shirt}, but no athlete in this squad has {shirt} on file.",
     "qPlayerTwice": "More than one player could be number {shirt}, so the reader won't choose.",
-    "qPlayerOnSheet": "The sheet says {name}.",
-    "qPlayerPoints": "{points} points on this sheet.",
+    "qPlayerOnSheet": "The surname written on that line reads {name}.",
+    "qPlayerPoints": "That shirt scored {points} points here.",
     "qPlayerSkipWarning": "Skip and this player's line is left out of the import.",
     "qOpponentTitle": "What did {club} finish on?",
     "qOpponentBody": "Their final score couldn't be read, and the result needs both halves.",
@@ -1402,6 +1402,10 @@
     "opponentNotKept": "Read from the sheet and not stored: the opposing club's players are not records of ours.",
     "qScorerPick": "Tap the shirt number written beside it",
     "qScorerAbsent": "Nothing is struck there",
-    "qScorerAbsentHint": "Use this if {total} is not struck through in column {side}. The other team's ladder is printed alongside and is easy to mistake for ours."
+    "qScorerAbsentHint": "Use this if {total} is not struck through in column {side}. The other team's ladder is printed alongside and is easy to mistake for ours.",
+    "qScorerOther": "Or another number",
+    "qUse": "Use",
+    "qPlayerSearch": "Search by name or number",
+    "qPlayerNoMatch": "No athlete matches that."
   }
 }

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowLeft, ArrowRight, CircleHelp, Eye } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, CircleHelp, Search } from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +21,9 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Answer, Question } from "@/domain/referto/questions";
+import type { Region, SheetRegions, SheetSide } from "@/domain/referto/transcription";
+
+import { SheetCrop, ladderRowRegion } from "./sheet-crop";
 
 /**
  * The questions, one at a time, with the photograph beside them.
@@ -48,12 +51,18 @@ export function SheetQuestions({
   onOpenChange,
   questions,
   imageUrl,
+  regions,
+  side,
   onAnswer,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   questions: Question[];
   imageUrl: string | null;
+  /** Where the blocks are on the photograph, so a question can point at one. */
+  regions: SheetRegions | null;
+  /** Which block is ours — picks the roster a player question is about. */
+  side: SheetSide;
   /** Applied immediately; the caller re-derives and hands back a shorter list. */
   onAnswer: (answer: Answer) => void;
 }) {
@@ -107,47 +116,26 @@ export function SheetQuestions({
           <DialogDescription>{bodyOf(question, t)}</DialogDescription>
         </DialogHeader>
 
-        <div className="grid gap-4 sm:grid-cols-[1fr_auto]">
-          <ScrollArea className="max-h-72 pe-3">
+        <div className="space-y-4">
+          {/*
+            The paper first, and only the part being asked about.
+
+            It was a thumbnail of the whole A4 beside the answers, which on a
+            page of three-millimetre handwriting is a grey rectangle — so the
+            question got answered from memory, or from the wrong column. The
+            crop goes above the answers rather than beside them because the
+            shapes demand it: a strip of the ladder is wide and short.
+          */}
+          <SheetCrop
+            imageUrl={imageUrl}
+            region={regionFor(question, regions, side)}
+            className="h-36 w-full sm:h-44"
+          />
+
+          <ScrollArea className="max-h-64 pe-3">
             <QuestionBody question={question} onAnswer={answer} />
           </ScrollArea>
-
-          {imageUrl ? (
-            /*
-              The paper, in the dialog. Answering "who scored to reach 65?"
-              means finding 65 on the sheet, and a person who has to close the
-              dialog to look will answer from memory instead.
-              eslint-disable-next-line @next/next/no-img-element
-            */
-            <a
-              href={imageUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="hidden shrink-0 sm:block"
-              title={t("openFullSize")}
-            >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={imageUrl}
-                alt=""
-                className="h-40 w-28 rounded-md border object-cover transition-opacity hover:opacity-80"
-              />
-            </a>
-          ) : null}
         </div>
-
-        {/*
-          No room beside the questions on a phone, so the paper is a tap away
-          instead — opened full size, where it can be pinched to find the 65.
-        */}
-        {imageUrl ? (
-          <Button variant="outline" size="sm" asChild className="sm:hidden">
-            <a href={imageUrl} target="_blank" rel="noreferrer">
-              <Eye aria-hidden />
-              {t("openFullSize")}
-            </a>
-          </Button>
-        ) : null}
 
         <DialogFooter className="sm:justify-between">
           <div className="flex gap-2">
@@ -193,6 +181,35 @@ export function SheetQuestions({
 
 type Translator = ReturnType<typeof useTranslations<"matches">>;
 
+/**
+ * The part of the photograph this question is about.
+ *
+ * Null falls back to the whole sheet, which is what happens for a reading
+ * taken before the model was asked where anything was, and for a block it
+ * could not locate.
+ */
+function regionFor(
+  question: Question,
+  regions: SheetRegions | null,
+  side: SheetSide,
+): Region | null {
+  if (!regions) return null;
+
+  switch (question.kind) {
+    case "SCORER":
+      return ladderRowRegion(regions.ladder, question.total);
+    case "PLAYER":
+      // The roster block, where the shirt number in question is written.
+      return (side === "a" ? regions.rosterA : regions.rosterB) ?? null;
+    case "SIDE":
+      // Both rosters at once is the whole sheet, which is the right answer
+      // here: the question is which half of it is ours.
+      return null;
+    case "OPPONENT_SCORE":
+      return null;
+  }
+}
+
 function titleOf(question: Question, t: Translator): string {
   switch (question.kind) {
     case "SIDE":
@@ -226,8 +243,13 @@ function bodyOf(question: Question, t: Translator): string {
         question.reason === "NO_NUMBER_ON_FILE"
           ? t("qPlayerNoNumber", { shirt: question.shirt })
           : t("qPlayerTwice", { shirt: question.shirt });
+      /*
+        Trailing full stops come off the name: a referto's Nome column is
+        initials, so the surname arrives as "ROSSANO T." and the sentence
+        around it ended "ROSSANO T..".
+      */
       const onSheet = question.nameOnSheet
-        ? ` ${t("qPlayerOnSheet", { name: question.nameOnSheet })}`
+        ? ` ${t("qPlayerOnSheet", { name: question.nameOnSheet.replace(/\.+$/, "") })}`
         : "";
       return `${why}${onSheet} ${t("qPlayerPoints", { points: question.points })}`;
     }
@@ -249,6 +271,82 @@ function skipWarningOf(question: Question, t: Translator): string {
     case "OPPONENT_SCORE":
       return t("qOpponentSkipWarning");
   }
+}
+
+/**
+ * The squad, searchable.
+ *
+ * A dozen buttons is a list you read; a full squad is a list you scroll past,
+ * and the name you want is the one below the fold. Typing filters on both the
+ * name and the number on file, because a secretary who knows the squad thinks
+ * in numbers and one who does not thinks in names.
+ */
+function PlayerOptions({
+  question,
+  onAnswer,
+}: {
+  question: Extract<Question, { kind: "PLAYER" }>;
+  onAnswer: (answer: Answer) => void;
+}) {
+  const t = useTranslations("matches");
+  const [term, setTerm] = useState("");
+
+  const needle = term.trim().toLowerCase();
+  const shown = needle
+    ? question.options.filter(
+        (option) =>
+          option.name.toLowerCase().includes(needle) ||
+          String(option.jerseyNumber ?? "").includes(needle),
+      )
+    : question.options;
+
+  return (
+    <div className="space-y-2">
+      {question.options.length > 6 ? (
+        <div className="relative">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground"
+            aria-hidden
+          />
+          <Input
+            value={term}
+            onChange={(event) => setTerm(event.target.value)}
+            placeholder={t("qPlayerSearch")}
+            aria-label={t("qPlayerSearch")}
+            className="pl-8"
+          />
+        </div>
+      ) : null}
+
+      {shown.length === 0 ? (
+        <p className="py-2 text-sm text-muted-foreground">{t("qPlayerNoMatch")}</p>
+      ) : (
+        <div className="space-y-1.5">
+          {shown.map((option) => (
+            <Button
+              key={option.athleteId}
+              variant="outline"
+              className="w-full justify-start font-normal"
+              onClick={() =>
+                onAnswer({
+                  kind: "PLAYER",
+                  shirt: question.shirt,
+                  athleteId: option.athleteId,
+                })
+              }
+            >
+              {option.jerseyNumber !== null ? (
+                <Badge variant="secondary" className="me-2 tabular-nums">
+                  {option.jerseyNumber}
+                </Badge>
+              ) : null}
+              <span className="truncate">{option.name}</span>
+            </Button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /** What "I don't know" means for each kind — never a guess. */
@@ -279,6 +377,8 @@ function QuestionBody({
   const [score, setScore] = useState(
     question.kind === "OPPONENT_SCORE" ? (question.suggestion?.toString() ?? "") : "",
   );
+  /** A shirt number, or part of a name, typed rather than chosen. */
+  const [typed, setTyped] = useState("");
 
   switch (question.kind) {
     case "SIDE":
@@ -332,6 +432,44 @@ function QuestionBody({
           </div>
 
           {/*
+            And a box to type one in.
+
+            The buttons are the shirts the roster says took part, which is the
+            right shortlist and not always the right list: the roster line
+            itself may have been misread. Whoever is holding the paper can see
+            a number the reading never did, and refusing it would make them
+            correct the roster first to answer a question about the ladder.
+          */}
+          <form
+            className="flex items-end gap-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              const shirt = Number.parseInt(typed, 10);
+              if (!Number.isFinite(shirt) || shirt < 0) return;
+              onAnswer({ kind: "SCORER", ladderIndex: question.ladderIndex, shirt });
+              setTyped("");
+            }}
+          >
+            <div className="space-y-1.5">
+              <Label htmlFor="scorer-other" className="text-xs font-normal text-muted-foreground">
+                {t("qScorerOther")}
+              </Label>
+              <Input
+                id="scorer-other"
+                value={typed}
+                onChange={(event) => setTyped(event.target.value)}
+                inputMode="numeric"
+                autoComplete="off"
+                className="w-24 tabular-nums"
+              />
+            </div>
+            <Button type="submit" variant="secondary" disabled={typed.trim() === ""}>
+              <Check aria-hidden />
+              {t("qUse")}
+            </Button>
+          </form>
+
+          {/*
             The way out when the basket is not ours. Without it the only
             answers are a shirt number, which invents a scorer, and "I don't
             know", which leaves a basket nobody scored and stops the sheet
@@ -369,29 +507,7 @@ function QuestionBody({
           <AlertDescription>{t("qPlayerSkipWarning")}</AlertDescription>
         </Alert>
       ) : (
-        <div className="space-y-1.5">
-          {question.options.map((option) => (
-            <Button
-              key={option.athleteId}
-              variant="outline"
-              className="w-full justify-start font-normal"
-              onClick={() =>
-                onAnswer({
-                  kind: "PLAYER",
-                  shirt: question.shirt,
-                  athleteId: option.athleteId,
-                })
-              }
-            >
-              {option.jerseyNumber !== null ? (
-                <Badge variant="secondary" className="me-2 tabular-nums">
-                  {option.jerseyNumber}
-                </Badge>
-              ) : null}
-              <span className="truncate">{option.name}</span>
-            </Button>
-          ))}
-        </div>
+        <PlayerOptions question={question} onAnswer={onAnswer} />
       );
 
     case "OPPONENT_SCORE":

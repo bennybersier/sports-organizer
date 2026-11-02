@@ -1357,10 +1357,10 @@
     "qScorerBody": "Nel punteggio progressivo, nella colonna {side} — la nostra metà del referto — il {total} è barrato, ma il numero di maglia scritto accanto non si legge. Dai totali vicini il canestro vale {worth}.",
     "qScorerSkipWarning": "Se la lasci in bianco il referto non torna e non si può importare.",
     "qPlayerTitle": "Chi portava il numero {shirt}?",
-    "qPlayerNoNumber": "Nessuno in questa squadra è registrato con il numero {shirt}.",
+    "qPlayerNoNumber": "Nel blocco ATLETA del referto c'è un giocatore con il {shirt}, ma nessun atleta di questa squadra ha il {shirt} registrato.",
     "qPlayerTwice": "Più di un giocatore potrebbe essere il numero {shirt}, quindi il lettore non sceglie.",
-    "qPlayerOnSheet": "Sul referto c'è scritto {name}.",
-    "qPlayerPoints": "{points} punti su questo referto.",
+    "qPlayerOnSheet": "Sulla riga è scritto il cognome {name}.",
+    "qPlayerPoints": "Quella maglia ha segnato {points} punti.",
     "qPlayerSkipWarning": "Se salti, la riga di questo giocatore non viene importata.",
     "qOpponentTitle": "Con quanto ha chiuso {club}?",
     "qOpponentBody": "Il loro punteggio finale non è leggibile, e il risultato ha bisogno di entrambi.",
@@ -1402,6 +1402,10 @@
     "opponentNotKept": "Letti dal referto e non archiviati: i giocatori della società avversaria non sono anagrafiche nostre.",
     "qScorerPick": "Tocca il numero di maglia scritto accanto",
     "qScorerAbsent": "Lì non c'è niente di barrato",
-    "qScorerAbsentHint": "Usa questo se nella colonna {side} il {total} non è barrato. Accanto è stampato il punteggio dell'altra squadra ed è facile scambiarlo per il nostro."
+    "qScorerAbsentHint": "Usa questo se nella colonna {side} il {total} non è barrato. Accanto è stampato il punteggio dell'altra squadra ed è facile scambiarlo per il nostro.",
+    "qScorerOther": "Oppure un altro numero",
+    "qUse": "Usa",
+    "qPlayerSearch": "Cerca per nome o numero",
+    "qPlayerNoMatch": "Nessun atleta corrisponde."
   }
 }
