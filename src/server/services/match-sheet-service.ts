@@ -13,7 +13,7 @@ import { refertoTranscriptionSchema } from "@/lib/validation/referto";
 import type { ImportSheetInput, ReviseSheetInput } from "@/lib/validation/referto";
 import { assertPermission } from "@/server/auth/authorization";
 import type { AuthContext } from "@/server/auth/context";
-import { readReferto } from "@/server/ai/referto-reader";
+import { askAboutReferto, readReferto } from "@/server/ai/referto-reader";
 import { AUDIT_ACTIONS, recordAudit } from "@/server/services/audit-service";
 import { saveResult } from "@/server/services/match-service";
 import type { MatchSheetRow, MatchSheetState } from "@/types/database";
@@ -251,6 +251,47 @@ export async function getSheet(context: AuthContext, sheetId: string): Promise<S
  * into our athletes' seasons, so the review screen always shows which side was
  * chosen and lets it be changed without a second model call.
  */
+/**
+ * Asks the model a free-text question about a sheet's photograph.
+ *
+ * Reads nothing and writes nothing: the answer goes to the screen and no
+ * further. A reader who can ask "is that a 1 or a 7?" while looking at the
+ * crop catches misreadings that a list of radio buttons never would.
+ */
+export async function askAboutSheet(
+  context: AuthContext,
+  input: { sheetId: string; situation: string; question: string },
+): Promise<{ answer: string }> {
+  assertPermission(context, "ai.read");
+
+  const { data: row, error } = await context.db
+    .from("match_sheets")
+    .select("storage_path, mime_type")
+    .eq("tenant_id", context.tenant.id)
+    .eq("id", input.sheetId)
+    .maybeSingle();
+  if (error) throw fromDatabaseError(error, { resource: "game sheet" });
+  if (!row) throw new NotFoundError("game sheet");
+
+  const { data: file, error: downloadError } = await context.db.storage
+    .from(BUCKET)
+    .download(row.storage_path);
+  if (downloadError || !file) {
+    throw new ConflictError("The stored photograph could not be read back.");
+  }
+
+  const { answer } = await askAboutReferto(
+    context,
+    {
+      data: Buffer.from(await file.arrayBuffer()).toString("base64"),
+      mediaType: row.mime_type as ReadableImageType,
+    },
+    { situation: input.situation, question: input.question },
+  );
+
+  return { answer };
+}
+
 export async function readSheet(context: AuthContext, sheetId: string): Promise<SheetView> {
   assertPermission(context, "attendance.record");
   assertPermission(context, "ai.read");

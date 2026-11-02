@@ -119,6 +119,20 @@ export const sheetSideSchema = z.enum(["a", "b"]);
 export const readSheetSchema = z.object({ sheetId: uuidSchema });
 
 /**
+ * Asking the model about a photograph in words.
+ *
+ * `situation` is written by the app, not the user: it is the question being
+ * reviewed, so the model knows what is being disputed without the reader
+ * having to retype it. Both are capped because this goes into a prompt, and a
+ * prompt is a cost.
+ */
+export const askSheetSchema = z.object({
+  sheetId: uuidSchema,
+  situation: z.string().trim().max(600).default(""),
+  question: z.string().trim().min(2).max(600),
+});
+
+/**
  * Re-deriving a sheet from a corrected transcription.
  *
  * `side` is here rather than inferred because a cropped photograph may not show
@@ -167,5 +181,6 @@ export const importSheetSchema = z.object({
 export type TranscribedPlayerInput = z.infer<typeof transcribedPlayerSchema>;
 export type RefertoTranscriptionInput = z.infer<typeof refertoTranscriptionSchema>;
 export type ReadSheetInput = z.infer<typeof readSheetSchema>;
+export type AskSheetInput = z.infer<typeof askSheetSchema>;
 export type ReviseSheetInput = z.infer<typeof reviseSheetSchema>;
 export type ImportSheetInput = z.infer<typeof importSheetSchema>;

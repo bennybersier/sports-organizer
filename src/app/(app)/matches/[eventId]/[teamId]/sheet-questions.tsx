@@ -23,6 +23,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Answer, Question } from "@/domain/referto/questions";
 import type { Region, SheetRegions, SheetSide } from "@/domain/referto/transcription";
 
+import { SheetAsk } from "./sheet-ask";
 import { SheetCrop, ladderRowRegion } from "./sheet-crop";
 
 /**
@@ -51,6 +52,7 @@ export function SheetQuestions({
   onOpenChange,
   questions,
   imageUrl,
+  sheetId,
   regions,
   side,
   onAnswer,
@@ -59,6 +61,8 @@ export function SheetQuestions({
   onOpenChange: (open: boolean) => void;
   questions: Question[];
   imageUrl: string | null;
+  /** Which sheet this is, so a question about it can be asked of the model. */
+  sheetId: string;
   /** Where the blocks are on the photograph, so a question can point at one. */
   regions: SheetRegions | null;
   /** Which block is ours — picks the roster a player question is about. */
@@ -132,8 +136,21 @@ export function SheetQuestions({
             className="h-36 w-full sm:h-44"
           />
 
+          {/*
+            Said out loud rather than left as a mystery. A reading taken before
+            the model was asked where anything was can only show the whole
+            page, and at this size that is a grey rectangle — which looks like
+            a broken feature unless it says why.
+          */}
+          {regions === null ? (
+            <p className="text-xs text-muted-foreground">{t("cropNoRegion")}</p>
+          ) : null}
+
           <ScrollArea className="max-h-64 pe-3">
-            <QuestionBody question={question} onAnswer={answer} />
+            <div className="space-y-4">
+              <QuestionBody question={question} onAnswer={answer} />
+              <SheetAsk sheetId={sheetId} situation={situationOf(question, t)} />
+            </div>
           </ScrollArea>
         </div>
 
@@ -210,12 +227,31 @@ function regionFor(
   }
 }
 
+/**
+ * What the app is unsure about, in a sentence the model can use.
+ *
+ * Carried into the prompt so a three-word question — "is that a 7?" — arrives
+ * with the context that makes it answerable. It is the question as asked,
+ * which is also what the reader can see on screen, so there is nothing hidden
+ * going to the provider that is not in front of them.
+ */
+function situationOf(question: Question, t: Translator): string {
+  return `${titleOf(question, t)} ${bodyOf(question, t)}`;
+}
+
 function titleOf(question: Question, t: Translator): string {
   switch (question.kind) {
     case "SIDE":
       return t("qSideTitle");
     case "SCORER":
-      return t("qScorerTitle", { total: question.total, side: question.side.toUpperCase() });
+      // Unreadable and misread are different predicaments: one asks you to
+      // read a number, the other tells you which number to disbelieve.
+      return question.readAs === null
+        ? t("qScorerTitle", { total: question.total, side: question.side.toUpperCase() })
+        : t("qScorerTitleMisread", {
+            total: question.total,
+            side: question.side.toUpperCase(),
+          });
     case "PLAYER":
       return t("qPlayerTitle", { shirt: question.shirt });
     case "OPPONENT_SCORE":
@@ -233,11 +269,18 @@ function bodyOf(question: Question, t: Translator): string {
       */
       return question.conflict ? t("qSideBody") + " " + t("qSideConflictShort") : t("qSideBody");
     case "SCORER":
-      return t("qScorerBody", {
-        worth: question.worth,
-        total: question.total,
-        side: question.side.toUpperCase(),
-      });
+      return question.readAs === null
+        ? t("qScorerBody", {
+            worth: question.worth,
+            total: question.total,
+            side: question.side.toUpperCase(),
+          })
+        : t("qScorerBodyMisread", {
+            worth: question.worth,
+            total: question.total,
+            side: question.side.toUpperCase(),
+            readAs: question.readAs,
+          });
     case "PLAYER": {
       const why =
         question.reason === "NO_NUMBER_ON_FILE"

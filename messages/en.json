@@ -1406,6 +1406,14 @@
     "qScorerOther": "Or another number",
     "qUse": "Use",
     "qPlayerSearch": "Search by name or number",
-    "qPlayerNoMatch": "No athlete matches that."
+    "qPlayerNoMatch": "No athlete matches that.",
+    "askTitle": "Ask about the sheet",
+    "askPlaceholder": "Is that a 1 or a 7? Why do you think a basket was scored here?",
+    "askSend": "Ask",
+    "askFailed": "The question could not be answered.",
+    "askDisclaimer": "An opinion about the photograph. Nothing is saved — you still answer the question above.",
+    "cropNoRegion": "This reading doesn't know where things are on the paper. Read the sheet again to have questions point at the exact spot.",
+    "qScorerTitleMisread": "Column {side}: who really scored to reach {total}?",
+    "qScorerBodyMisread": "On the progressive score ladder, {total} is struck through in column {side} — our half of the sheet — and the number beside it was read as {readAs}. No {readAs} played for us, so one or both digits are wrong. The totals either side make it worth {worth}."
   }
 }

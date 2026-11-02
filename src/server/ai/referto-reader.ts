@@ -60,7 +60,19 @@ forty, each block four columns:
   [ A scorer ] [ A total ] [ B total ] [ B scorer ]
 
 The scorer strikes through the running total the team has REACHED and writes
-the scorer's shirt number beside it. So report, for each struck total:
+the scorer's shirt number beside it.
+
+WHICH COLUMN IS WHICH. The two teams' ladders are printed against each other,
+and the single most damaging error you can make is to file one team's basket
+under the other. A's shirt numbers are written to the LEFT of the A column;
+B's are written to the RIGHT of the B column. So a number sitting between the
+A and B totals belongs to A, and a number to the right of everything belongs
+to B. Before reporting a rung, check the strike is in that team's own total
+column and not in the one touching it. A row where only B's total is struck
+produces a rung for B and NOTHING for A — do not report an empty row as a
+rung with an unreadable scorer, report nothing at all.
+
+So report, for each struck total:
 - total: the number struck through
 - shirt: the number written beside it, or null if you cannot read it
 - circledScorer: true if the SHIRT NUMBER is circled (the scorer's mark for a
@@ -273,3 +285,68 @@ export function parseTranscription(text: string): RefertoTranscription {
 
   return parsed.data;
 }
+
+/**
+ * Answers a question about the photograph, in words.
+ *
+ * The review screen asks the reader things like "who scored to reach 6?" and
+ * the reader, reasonably, sometimes wants to ask something back — what does
+ * this say, why do you think there is a basket here, is that a 1 or a 7. This
+ * is that conversation: the same photograph, a free-text question, a short
+ * answer.
+ *
+ * It is advice and nothing else. Nothing it says is written anywhere, no
+ * transcription is revised by it, and the person still answers the question
+ * themselves. That is the same rule the rest of this file follows — the model
+ * describes what it sees, people and arithmetic decide what is true — and here
+ * it is the whole point: a reader who can interrogate a reading is far more
+ * likely to catch it being wrong than one who can only accept or skip it.
+ */
+export async function askAboutReferto(
+  context: AuthContext,
+  image: { data: string; mediaType: ReadableImageType },
+  input: { situation: string; question: string },
+): Promise<{ answer: string; model: string }> {
+  assertPermission(context, "ai.read");
+
+  try {
+    const provider = await getProvider(context);
+    const response = await withRetry(() =>
+      provider.generate({
+        system: ASK_SYSTEM,
+        messages: [
+          {
+            role: "user",
+            content: `What the app is unsure about:\n${input.situation}\n\nThe question:\n${input.question}`,
+            images: [image],
+          },
+        ],
+        maxTokens: 2_048,
+        thinking: "low",
+        signal: AbortSignal.timeout(READ_TIMEOUT_MS),
+      }),
+    );
+    return { answer: response.text.trim(), model: response.model };
+  } catch (error) {
+    throw new ConflictError(describeProviderError(error));
+  }
+}
+
+const ASK_SYSTEM = `You are looking at a photograph of an Italian basketball
+score sheet (referto ufficiale di gara) with somebody from the club, who is
+checking an automatic transcription of it against the paper.
+
+Answer their question about what is on the sheet. Be short — a few sentences,
+no preamble, no markdown. Answer in the language they wrote in.
+
+Rules that matter more than being helpful:
+- Report what you can see, and say plainly when you cannot see it. "I can't
+  make that out" is a useful answer; a guess dressed as a reading is not.
+- If they are asking why the transcription says something, consider that the
+  transcription may simply be wrong, and say so if that is what the paper
+  shows. You are not defending it.
+- The PUNTEGGIO PROGRESSIVO has two teams side by side, in the order
+  [A scorer] [A total] [B total] [B scorer]. A mark in one team's columns is
+  easily taken for the other's. Check which column you are describing before
+  you answer.
+- Never total, sum or calculate anything. The app does the arithmetic.`;
