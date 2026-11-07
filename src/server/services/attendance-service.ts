@@ -394,7 +394,40 @@ export async function getRegisterSheet(
     }
   }
 
-  const athleteIds = (records ?? []).map((row) => row.athlete_id);
+  const editable =
+    register.state !== "RECORDED"
+      ? hasPermission(context, "attendance.record")
+      : hasPermission(context, "attendance.manage");
+  const day = registerDay(register.starts_at, context.tenant.timezone);
+
+  /*
+    The sheet is a snapshot of the squad taken when it was opened, so a player
+    who joined the team since has no line on it — and no way on to it. While
+    the sheet can still be changed, they are offered a blank line here; nothing
+    is written until the coach saves, and `saveRegister` upserts it then.
+
+    A training register keeps to the date they joined: a newcomer was not at
+    last month's session. A match sheet does not, because a newcomer starts it
+    uncalled, and a coach adding the player they just signed in order to put
+    them on last Sunday's sheet is exactly why they are here.
+  */
+  const newcomers: string[] = [];
+  if (editable) {
+    let query = context.db
+      .from("athlete_teams")
+      .select("athlete_id")
+      .eq("tenant_id", context.tenant.id)
+      .eq("team_id", register.team_id)
+      .is("left_at", null);
+    if (register.occasion !== "MATCH") query = query.lte("joined_at", day);
+    const { data: squad } = await query;
+    const onSheet = new Set((records ?? []).map((row) => row.athlete_id));
+    newcomers.push(
+      ...(squad ?? []).map((row) => row.athlete_id).filter((id) => !onSheet.has(id)),
+    );
+  }
+
+  const athleteIds = [...(records ?? []).map((row) => row.athlete_id), ...newcomers];
   const [{ data: athletes }, { data: links }] = await Promise.all([
     athleteIds.length
       ? context.db
@@ -416,14 +449,25 @@ export async function getRegisterSheet(
     (athletes ?? []).map((a) => [a.id, `${a.first_name} ${a.last_name}`]),
   );
   const linkById = new Map((links ?? []).map((l) => [l.athlete_id, l]));
-  const declared = await declaredAbsencesOn(
-    context,
-    athleteIds,
-    register.team_id,
-    registerDay(register.starts_at, context.tenant.timezone),
-  );
+  const declared = await declaredAbsencesOn(context, athleteIds, register.team_id, day);
 
-  const lines: RegisterLine[] = (records ?? [])
+  // Shaped like the row `seedLines` would have written for them.
+  const blanks = newcomers.map((athleteId) => {
+    const absence = declared.get(athleteId);
+    return {
+      athlete_id: athleteId,
+      state: (absence ? "EXCUSED" : "PRESENT") as AttendanceStateValue,
+      reason: absence?.reason ?? null,
+      minutes_late: null,
+      prefilled: Boolean(absence),
+      called_up: register.occasion === "MATCH" ? false : null,
+      started: null,
+      bench_reason: null,
+      note: null,
+    };
+  });
+
+  const lines: RegisterLine[] = [...(records ?? []), ...blanks]
     .map((row) => {
       const absence = declared.get(row.athlete_id);
       return {
@@ -458,10 +502,7 @@ export async function getRegisterSheet(
       ? { opponent: event.opponent, competition: event.competition, isHome: event.is_home }
       : null,
     lines,
-    editable:
-      register.state !== "RECORDED"
-        ? hasPermission(context, "attendance.record")
-        : hasPermission(context, "attendance.manage"),
+    editable,
     previousCallUps,
   };
 }
