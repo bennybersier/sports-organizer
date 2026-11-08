@@ -271,7 +271,10 @@
     "headCoachHint": "Spunta chi allena questa squadra, poi indica con la stella chi la guida. Gli altri sono assistenti.",
     "noHeadCoach": "Nessun capo allenatore indicato — la squadra risulta senza guida.",
     "assistantCoach": "Assistente",
-    "noHeadCoachYet": "Non ancora deciso"
+    "noHeadCoachYet": "Non ancora deciso",
+    "shirtNumbers": "Numeri di maglia",
+    "shirtNumbersHint": "Il numero che ogni giocatore indossa in questa squadra. Il referto indica i marcatori per numero di maglia, quindi viene letto confrontandolo con questi.",
+    "shirtClash": "Due giocatori hanno lo stesso numero."
   },
   "gender": {
     "MALE": "Maschile",

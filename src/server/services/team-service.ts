@@ -513,3 +513,70 @@ export async function setTeamAthletes(
 
   return { added: added.length, removed: removed.length };
 }
+
+/**
+ * Shirt numbers for the current squad, set as a whole.
+ *
+ * A number belongs to the membership, not the athlete: the same player can be
+ * 7 for the U15s and 12 for the U17s. And it is set for the squad at once
+ * rather than per player, because the rule that matters — no two players in
+ * one squad wearing the same shirt — is about the squad, and is what reading
+ * a referto by shirt number relies on.
+ */
+export async function setSquadNumbers(
+  context: AuthContext,
+  teamId: string,
+  numbers: { athleteId: string; jerseyNumber: number | null }[],
+): Promise<{ changed: number }> {
+  assertPermission(context, "teams.update");
+
+  const team = await getTeam(context, teamId);
+
+  const taken = new Set<number>();
+  for (const { jerseyNumber } of numbers) {
+    if (jerseyNumber === null) continue;
+    if (taken.has(jerseyNumber)) {
+      throw new ConflictError(`Two players in this squad are down to wear ${jerseyNumber}.`);
+    }
+    taken.add(jerseyNumber);
+  }
+
+  const { data: currentRows, error } = await context.db
+    .from("athlete_teams")
+    .select("athlete_id, jersey_number")
+    .eq("tenant_id", context.tenant.id)
+    .eq("team_id", teamId)
+    .is("left_at", null);
+  if (error) throw fromDatabaseError(error, { resource: "team" });
+
+  const current = new Map((currentRows ?? []).map((row) => [row.athlete_id, row.jersey_number]));
+  // Only players still in the squad, and only the numbers that moved.
+  const changes = numbers.filter(
+    (entry) => current.has(entry.athleteId) && current.get(entry.athleteId) !== entry.jerseyNumber,
+  );
+
+  const results = await Promise.all(
+    changes.map((entry) =>
+      context.db
+        .from("athlete_teams")
+        .update({ jersey_number: entry.jerseyNumber })
+        .eq("tenant_id", context.tenant.id)
+        .eq("team_id", teamId)
+        .eq("athlete_id", entry.athleteId)
+        .is("left_at", null),
+    ),
+  );
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw fromDatabaseError(failed.error, { resource: "team" });
+
+  if (changes.length > 0) {
+    await recordAudit(context, {
+      action: AUDIT_ACTIONS.TEAM_UPDATED,
+      resourceType: "team",
+      resourceId: teamId,
+      newValue: { team: team.name, shirtNumbers: changes.length },
+    });
+  }
+
+  return { changed: changes.length };
+}

@@ -30,6 +30,7 @@ import { getTeam, listTeamOptions } from "@/server/services/team-service";
 import { listTrainerOptions } from "@/server/services/trainer-service";
 import { listAthleteOptions } from "@/server/services/athlete-service";
 import { ManageRelationDialog } from "@/components/data/manage-relation-dialog";
+import { ShirtNumbersDialog } from "@/components/data/shirt-numbers-dialog";
 import { TeamFormDialog } from "../team-form-dialog";
 import { setTeamAthletesAction } from "@/server/actions/relations";
 import { getTrainingRequirement } from "@/server/services/training-requirement-service";
@@ -386,17 +387,31 @@ export default async function TeamDetailPage({
             ],
           }))}
           action={
-            canEditTeam && athletePool.length > 0 ? (
-              <ManageRelationDialog
-                title={tRelated("athletes")}
-                options={athletePool.map((athlete) => ({
-                  value: athlete.id,
-                  label: `${athlete.last_name} ${athlete.first_name}`,
-                }))}
-                selected={relations.athletes.map((athlete) => athlete.id)}
-                id={id}
-                save={setTeamAthletesAction}
-              />
+            canEditTeam ? (
+              <>
+                {relations.athletes.length > 0 ? (
+                  <ShirtNumbersDialog
+                    teamId={id}
+                    members={relations.athletes.map((athlete) => ({
+                      id: athlete.id,
+                      name: athlete.name,
+                      jerseyNumber: athlete.jerseyNumber ?? null,
+                    }))}
+                  />
+                ) : null}
+                {athletePool.length > 0 ? (
+                  <ManageRelationDialog
+                    title={tRelated("athletes")}
+                    options={athletePool.map((athlete) => ({
+                      value: athlete.id,
+                      label: `${athlete.last_name} ${athlete.first_name}`,
+                    }))}
+                    selected={relations.athletes.map((athlete) => athlete.id)}
+                    id={id}
+                    save={setTeamAthletesAction}
+                  />
+                ) : null}
+              </>
             ) : null
           }
         />

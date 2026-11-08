@@ -271,7 +271,10 @@
     "headCoachHint": "Tick who coaches this side, then star the one who leads it. Everyone else assists.",
     "noHeadCoach": "No head coach named — this side is listed as between coaches.",
     "assistantCoach": "Assistant",
-    "noHeadCoachYet": "Not decided yet"
+    "noHeadCoachYet": "Not decided yet",
+    "shirtNumbers": "Shirt numbers",
+    "shirtNumbersHint": "The number each player wears for this team. A referto names scorers by shirt, so these are what it is read against.",
+    "shirtClash": "Two players have the same number."
   },
   "gender": {
     "MALE": "Male",

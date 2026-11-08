@@ -19,6 +19,7 @@ import {
 import { AccessDenied } from "@/components/data/access-denied";
 import { PageHeader } from "@/components/data/page-header";
 import { Disclosure } from "@/components/data/disclosure";
+import { ShirtNumbersDialog } from "@/components/data/shirt-numbers-dialog";
 import { isAppError } from "@/lib/errors";
 import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
@@ -165,6 +166,7 @@ export default async function MatchPage({
     );
   const canReadAthletes = hasPermission(context, "athletes.read");
   const canRecord = hasPermission(context, "attendance.record");
+  const canEditTeam = hasPermission(context, "teams.update");
   const subtitle = [
     format.dateTime(new Date(match.startsAt), {
       weekday: "long",
@@ -385,7 +387,21 @@ export default async function MatchPage({
             defaultOpen={register.register.state !== "RECORDED"}
           >
             <div className="space-y-4">
-              <div className="flex justify-end">
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {/*
+                  Here as well as on the team page: a player added to the
+                  squad this week has no number, and this is where that shows.
+                */}
+                {canEditTeam && squad.length > 0 ? (
+                  <ShirtNumbersDialog
+                    teamId={teamId}
+                    members={squad.map((member) => ({
+                      id: member.athleteId,
+                      name: member.name,
+                      jerseyNumber: member.jerseyNumber,
+                    }))}
+                  />
+                ) : null}
                 <RegisterStateActions
                   registerId={register.register.id}
                   state={register.register.state}
