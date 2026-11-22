@@ -242,6 +242,32 @@ describe("matchStats", () => {
     expect(matchStats(ATHLETE, inputs(matches, records)).currentOmissionStreak).toBe(3);
   });
 
+  it("counts an open sheet whose referto was imported", () => {
+    const open = [
+      register("m1", "2026-10-04T16:00:00Z", { occasion: "MATCH", state: "OPEN", hasImportedSheet: true }),
+      register("m2", "2026-10-11T16:00:00Z", { occasion: "MATCH", state: "RECORDED" }),
+    ];
+    const records = [record("m1", { calledUp: true }), record("m2", { calledUp: true })];
+    const stats = matchStats(ATHLETE, inputs(open, records));
+
+    expect(stats.eligible).toBe(2);
+    expect(stats.played).toBe(2);
+  });
+
+  it("still ignores an open sheet without a referto, and a cancelled one with", () => {
+    const sheets = [
+      register("m1", "2026-10-04T16:00:00Z", { occasion: "MATCH", state: "OPEN" }),
+      register("m2", "2026-10-11T16:00:00Z", {
+        occasion: "MATCH",
+        state: "CANCELLED",
+        hasImportedSheet: true,
+      }),
+    ];
+    const records = [record("m1", { calledUp: true }), record("m2", { calledUp: true })];
+
+    expect(matchStats(ATHLETE, inputs(sheets, records)).eligible).toBe(0);
+  });
+
   it("keeps training sessions out of the match numbers", () => {
     const mixed = [matches[0], register("r1", "2026-10-06T18:00:00Z")];
     const records = [record("m1", { calledUp: true }), record("r1")];

@@ -93,12 +93,33 @@ async function collectFacts(
   const { data: registerRows, error: registerError } = await registerQuery;
   if (registerError) throw fromDatabaseError(registerError, { resource: "register" });
 
+  /*
+    Matches whose referto was imported. Importing writes every player's line
+    and leaves the squad list open, so without this a season read off the
+    official sheets would count as unmarked until somebody closed each one.
+  */
+  const matchIds = (registerRows ?? [])
+    .filter((row) => row.occasion === "MATCH" && row.state === "OPEN")
+    .map((row) => row.id);
+  const imported = new Set<string>();
+  if (matchIds.length > 0) {
+    const { data: sheetRows, error: sheetError } = await context.db
+      .from("match_sheets")
+      .select("register_id")
+      .eq("tenant_id", context.tenant.id)
+      .eq("state", "IMPORTED")
+      .in("register_id", matchIds);
+    if (sheetError) throw fromDatabaseError(sheetError, { resource: "game sheet" });
+    for (const row of sheetRows ?? []) imported.add(row.register_id);
+  }
+
   const registers: RegisterFact[] = (registerRows ?? []).map((row) => ({
     id: row.id,
     teamId: row.team_id,
     occasion: row.occasion,
     state: row.state,
     startsAt: row.starts_at,
+    hasImportedSheet: imported.has(row.id),
   }));
 
   if (registers.length === 0) return { ...empty, squads };

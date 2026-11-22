@@ -37,6 +37,12 @@ export interface RegisterFact {
   state: RegisterState;
   /** Absolute instant; bucketed into club-local months by the caller. */
   startsAt: string;
+  /**
+   * A match whose official game sheet has been imported. The referto is the
+   * record of who played, so the sheet counts as marked even while nobody has
+   * pressed "save and close" on it.
+   */
+  hasImportedSheet?: boolean;
 }
 
 /** One athlete's line on one register. */
@@ -145,8 +151,11 @@ function eligibleRegisters(
     .filter((register) => {
       if (register.occasion !== occasion) return false;
       // Only a marked sheet is evidence. OPEN means nobody has said yet;
-      // CANCELLED means it did not happen.
-      if (register.state !== "RECORDED") return false;
+      // CANCELLED means it did not happen. The exception is a match whose
+      // referto was imported: the official sheet has said who played, and a
+      // coach who never closed the squad list should not unsay it.
+      if (register.state === "CANCELLED") return false;
+      if (register.state !== "RECORDED" && !register.hasImportedSheet) return false;
       const day = registerDay(register.startsAt, timeZone);
       return windows.some(
         (window) => window.teamId === register.teamId && inSquad(window, day),
