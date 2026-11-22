@@ -444,7 +444,24 @@
     "archiveConfirmTitle": "Archiviare questo atleta?",
     "archiveConfirmBody": "Lo storico delle squadre viene conservato. Non comparirà nelle nuove rose.",
     "allTeams": "Tutte le squadre",
-    "allStatuses": "Tutti gli stati"
+    "allStatuses": "Tutti gli stati",
+    "detailsEyebrow": "Dati atleta",
+    "attendanceEyebrow": "Presenze",
+    "availabilityTitle": "Disponibilità e convocazioni",
+    "scoringEyebrow": "Punti",
+    "scoringTitle": "Profilo offensivo e falli",
+    "gamesLogged": "{count, plural, one {# partita registrata} other {# partite registrate}}",
+    "trendEyebrow": "Andamento",
+    "avg": "Media",
+    "range": "Periodo: {from} – {to}",
+    "latest": "Ultima: {points} pt",
+    "logEyebrow": "Partite",
+    "matchesCount": "{count, plural, one {# partita} other {# partite}}",
+    "ptsShort": "pt",
+    "foulsShort": "f",
+    "absencesEyebrow": "Assenze",
+    "rosterEyebrow": "Squadre",
+    "staffEyebrow": "Staff"
   },
   "weekdays": {
     "monday": "Lunedì",
@@ -1124,7 +1141,8 @@
       "pointsPerMatch": "Punti per partita",
       "averagePoints": "Media {value}",
       "pointsValue": "{points} punti",
-      "pointsChartLabel": "Punti segnati in ciascuna delle ultime {matches} partite, con una media di {average} a partita."
+      "pointsChartLabel": "Punti segnati in ciascuna delle ultime {matches} partite, con una media di {average} a partita.",
+      "averageShort": "Media {value}"
     },
     "findings": {
       "title": "Da segnalare",

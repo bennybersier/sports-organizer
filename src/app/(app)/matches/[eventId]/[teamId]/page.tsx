@@ -223,6 +223,15 @@ export default async function MatchPage({
   const played = match.result !== null && match.result.state !== "PENDING";
   // Home side first, everywhere the two are written side by side.
   const awayMatch = match.isHome === false;
+  // Our side's name leads to its team page, for whoever may open one.
+  const teamHref = hasPermission(context, "teams.read") ? `/teams/${teamId}` : null;
+  const teamLink = teamHref ? (
+    <Link href={teamHref} className="underline-offset-4 hover:underline">
+      {match.teamName}
+    </Link>
+  ) : (
+    match.teamName
+  );
   const fixtureTitle = awayMatch
     ? `${match.opponent} — ${match.teamName}`
     : `${match.teamName} — ${match.opponent}`;
@@ -358,9 +367,9 @@ export default async function MatchPage({
           </div>
 
           <h1 className="max-sm:sr-only text-2xl leading-7 font-bold tracking-[-0.01em] text-balance sm:text-[32px] sm:leading-[38px] sm:tracking-[-0.02em]">
-            {awayMatch ? match.opponent : match.teamName}{" "}
+            {awayMatch ? match.opponent : teamLink}{" "}
             <span className="text-muted-foreground">—</span>{" "}
-            {awayMatch ? match.teamName : match.opponent}
+            {awayMatch ? teamLink : match.opponent}
           </h1>
 
           <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-muted-foreground max-sm:text-xs">
@@ -382,6 +391,7 @@ export default async function MatchPage({
         <div className={match.tracksBoxScore ? "lg:col-span-2" : "lg:col-span-3"}>
           <Scoreboard
             teamName={match.teamName}
+            teamHref={teamHref}
             opponent={match.opponent}
             isHome={match.isHome}
             result={match.result}

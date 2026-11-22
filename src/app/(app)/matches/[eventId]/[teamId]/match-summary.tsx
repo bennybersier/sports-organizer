@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { getTranslations } from "next-intl/server";
 import { CheckCircle2, ChartColumn, FileText, Flag, MessageSquareQuote, ScanLine } from "lucide-react";
 
@@ -19,6 +20,20 @@ import { TabLink } from "./match-tabs";
 
 const ACCENT = "text-orange-600 dark:text-orange-400";
 
+/**
+ * A side's name on the scoreboard — a link through to the team's page for our
+ * side, plain text for theirs, which is not a team of ours to open.
+ */
+function TeamName({ name, href }: { name: string; href: string | null }) {
+  return href ? (
+    <Link href={href} className="underline-offset-4 hover:underline">
+      {name}
+    </Link>
+  ) : (
+    <>{name}</>
+  );
+}
+
 /** One decimal, the way a share of the points is quoted. */
 function percentOf(part: number, whole: number): string {
   return whole > 0 ? ((part / whole) * 100).toFixed(1) : "0";
@@ -27,12 +42,15 @@ function percentOf(part: number, whole: number): string {
 /** The final score, quarter by quarter, and the coach's note. */
 export async function Scoreboard({
   teamName,
+  teamHref,
   opponent,
   isHome,
   result,
   kickoff,
 }: {
   teamName: string;
+  /** Our team's own page, when the viewer may open it. */
+  teamHref: string | null;
   opponent: string;
   isHome: boolean | null;
   result: MatchResultSummary | null;
@@ -61,6 +79,7 @@ export async function Scoreboard({
   const weAreRight = isHome === false;
   const us = {
     name: teamName,
+    href: teamHref,
     label: `${t("ourScore")}${isHome !== null ? ` · ${isHome ? t("home") : t("away")}` : ""}`,
     venue: isHome === null ? null : isHome ? t("home") : t("away"),
     score: result?.ourScore ?? null,
@@ -76,6 +95,7 @@ export async function Scoreboard({
     leads: margin < 0,
     won: played && margin < 0,
     accent: false,
+    href: null as string | null,
   };
   const [left, right] = weAreRight ? [them, us] : [us, them];
 
@@ -121,7 +141,7 @@ export async function Scoreboard({
             >
               <div className="min-w-0 flex-1">
                 <p className={cn("font-bold text-balance break-words", side.accent && ACCENT)}>
-                  {side.name}
+                  <TeamName name={side.name} href={side.href} />
                 </p>
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   {side.venue ? (
@@ -153,7 +173,7 @@ export async function Scoreboard({
         <div className="hidden items-center gap-4 rounded-xl border bg-background/60 p-6 sm:grid sm:grid-cols-[1fr_auto_1fr]">
           <div className="min-w-0 text-center sm:text-start">
             <p className={cn("text-xl font-bold text-balance break-words", left.accent && ACCENT)}>
-              {left.name}
+              <TeamName name={left.name} href={left.href} />
             </p>
             <p className="text-sm text-muted-foreground">{left.label}</p>
           </div>
@@ -185,7 +205,7 @@ export async function Scoreboard({
 
           <div className="min-w-0 text-center sm:text-end">
             <p className={cn("text-xl font-bold text-balance break-words", right.accent && ACCENT)}>
-              {right.name}
+              <TeamName name={right.name} href={right.href} />
             </p>
             <p className="text-sm text-muted-foreground">{right.label}</p>
           </div>

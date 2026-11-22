@@ -444,7 +444,24 @@
     "archiveConfirmTitle": "Archive this athlete?",
     "archiveConfirmBody": "Their team history is preserved. They won't appear in new squads.",
     "allTeams": "All teams",
-    "allStatuses": "All statuses"
+    "allStatuses": "All statuses",
+    "detailsEyebrow": "Athlete details",
+    "attendanceEyebrow": "Attendance",
+    "availabilityTitle": "Availability & selection",
+    "scoringEyebrow": "Scoring",
+    "scoringTitle": "Offensive & foul profile",
+    "gamesLogged": "{count, plural, one {# game} other {# games}} logged",
+    "trendEyebrow": "Trend",
+    "avg": "Avg",
+    "range": "Range: {from} – {to}",
+    "latest": "Latest: {points} pts",
+    "logEyebrow": "Game log",
+    "matchesCount": "{count, plural, one {# match} other {# matches}}",
+    "ptsShort": "pts",
+    "foulsShort": "fls",
+    "absencesEyebrow": "Absences",
+    "rosterEyebrow": "Roster",
+    "staffEyebrow": "Staff"
   },
   "weekdays": {
     "monday": "Monday",
@@ -1124,7 +1141,8 @@
       "pointsPerMatch": "Points per match",
       "averagePoints": "Average {value}",
       "pointsValue": "{points} points",
-      "pointsChartLabel": "Points scored in each of the last {matches} matches, averaging {average} per match."
+      "pointsChartLabel": "Points scored in each of the last {matches} matches, averaging {average} per match.",
+      "averageShort": "Avg {value}"
     },
     "findings": {
       "title": "Worth a word",
