@@ -106,6 +106,28 @@ export async function listAvailability(
   }));
 }
 
+/**
+ * Which owners have any recurring availability at all, in one read.
+ *
+ * For readiness counts: asking listAvailability once per gym and per trainer
+ * was a request each, so the organizer page grew slower with every hall.
+ */
+export async function ownersWithAvailability(
+  context: AuthContext,
+  domain: AvailabilityDomain,
+): Promise<Set<string>> {
+  assertPermission(context, "availability.read");
+  const config = DOMAINS[domain];
+
+  const { data, error } = await (context.db as unknown as LooseClient)
+    .from(config.recurring)
+    .select(config.fk)
+    .eq("tenant_id", context.tenant.id);
+
+  if (error) throw fromDatabaseError(error, { resource: "availability" });
+  return new Set((data ?? []).map((row: Record<string, unknown>) => row[config.fk] as string));
+}
+
 export async function listExceptions(
   context: AuthContext,
   domain: AvailabilityDomain,

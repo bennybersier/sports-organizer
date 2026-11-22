@@ -7,8 +7,11 @@ import type { Database } from "@/types/database";
  * Refreshes the Supabase session cookie on every request and reports whether
  * the caller is authenticated.
  *
- * `getUser()` (not `getSession()`) is deliberate: it revalidates the JWT with
- * the auth server, so a revoked or tampered token is not trusted.
+ * `getClaims()` (not `getSession()`) is deliberate: it verifies the JWT's
+ * signature, so a tampered token is not trusted. It refreshes an expired
+ * session like `getUser()` did, but checks the signature locally against the
+ * project's cached ES256 key instead of asking the auth server on every
+ * navigation.
  */
 export async function updateSession(request: NextRequest): Promise<{
   response: NextResponse;
@@ -37,9 +40,7 @@ export async function updateSession(request: NextRequest): Promise<{
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data } = await supabase.auth.getClaims();
 
-  return { response, userId: user?.id ?? null };
+  return { response, userId: data?.claims?.sub ?? null };
 }

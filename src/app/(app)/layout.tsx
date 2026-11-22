@@ -34,15 +34,14 @@ export default async function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getCurrentUser();
-  if (!user) redirect("/login");
-
-  const [memberships, isPlatformAdmin] = await Promise.all([
+  // All four are request-cached and resolve in the same round of reads.
+  const [user, memberships, isPlatformAdmin, context] = await Promise.all([
+    getCurrentUser(),
     getMemberships(),
     getIsPlatformAdmin(),
+    getAuthContext(),
   ]);
-
-  const context = await getAuthContext();
+  if (!user) redirect("/login");
 
   if (!context) {
     // Platform staff belong to no club, so the console — not the club picker —

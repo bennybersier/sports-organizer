@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -18,13 +19,16 @@ import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
 import { listAvailability, listExceptions } from "@/server/services/availability-service";
 import { listCompetitionsForTeams } from "@/server/services/competition-service";
-import { getTrainerRelations } from "@/server/services/relations-service";
+import { getTrainerRelations, trainerTeamIds } from "@/server/services/relations-service";
 import { ManageRelationDialog } from "@/components/data/manage-relation-dialog";
 import { TrainerFormDialog } from "../trainer-form-dialog";
 import { setTrainerTeamsAction } from "@/server/actions/relations";
 import { listTeamOptions } from "@/server/services/team-service";
 import { getAvailabilityAnchorDate } from "@/server/services/season-service";
 import { getTrainer } from "@/server/services/trainer-service";
+
+/** Shared by the metadata and the page, so the trainer row is read once. */
+const loadTrainer = cache(getTrainer);
 
 export async function generateMetadata({
   params,
@@ -34,7 +38,7 @@ export async function generateMetadata({
   const context = await requireAuthContext();
   if (!hasPermission(context, "trainers.read")) return {};
   try {
-    const trainer = await getTrainer(context, (await params).id);
+    const trainer = await loadTrainer(context, (await params).id);
     return { title: `${trainer.first_name} ${trainer.last_name}` };
   } catch {
     return {};
@@ -56,14 +60,6 @@ export default async function TrainerDetailPage({
   const tCompetitions = await getTranslations("competitions");
   const tMembership = await getTranslations("membershipState");
 
-  let trainer;
-  try {
-    trainer = await getTrainer(context, id);
-  } catch (error) {
-    if (isAppError(error) && error.code === "NOT_FOUND") notFound();
-    throw error;
-  }
-
   /*
     A trainer may edit their own availability without holding trainers.update —
     the Trainer role has availability.* precisely so coaches can keep their own
@@ -74,25 +70,35 @@ export default async function TrainerDetailPage({
 
   const canReadTeams = hasPermission(context, "teams.read");
   const canEditTrainer = hasPermission(context, "trainers.update");
-  const teamPool = canEditTrainer && canReadTeams ? await listTeamOptions(context) : [];
   const canReadAthletes = hasPermission(context, "athletes.read");
   const canReadGyms = hasPermission(context, "gyms.read");
 
   const today = new Date().toISOString().slice(0, 10);
-  const [windows, exceptions, seasonStart, relations] = await Promise.all([
-    canReadAvailability ? listAvailability(context, "trainer", id) : Promise.resolve([]),
-    canReadAvailability
-      ? listExceptions(context, "trainer", id, { from: today })
-      : Promise.resolve([]),
-    getAvailabilityAnchorDate(context),
-    getTrainerRelations(context, id),
-  ]);
-
-  // A coach reaches a competition through the squads they take, so this waits
-  // on the relations above rather than joining alongside them.
-  const competitions = hasPermission(context, "competitions.read")
-    ? await listCompetitionsForTeams(context, relations.teams.map((team) => team.id))
-    : [];
+  // All of it needs only the id, so it is asked for at once.
+  let loaded;
+  try {
+    loaded = await Promise.all([
+      loadTrainer(context, id),
+      canEditTrainer && canReadTeams ? listTeamOptions(context) : Promise.resolve([]),
+      canReadAvailability ? listAvailability(context, "trainer", id) : Promise.resolve([]),
+      canReadAvailability
+        ? listExceptions(context, "trainer", id, { from: today })
+        : Promise.resolve([]),
+      getAvailabilityAnchorDate(context),
+      getTrainerRelations(context, id),
+      // A coach reaches a competition through the squads they take, so this
+      // starts from those squads rather than waiting on all of the relations.
+      // Gated on teams.read as well, as it was when it went through the
+      // relations: without it the squads are not this viewer's to see.
+      hasPermission(context, "competitions.read") && canReadTeams
+        ? trainerTeamIds(context, id).then((teamIds) => listCompetitionsForTeams(context, teamIds))
+        : Promise.resolve([]),
+    ]);
+  } catch (error) {
+    if (isAppError(error) && error.code === "NOT_FOUND") notFound();
+    throw error;
+  }
+  const [trainer, teamPool, windows, exceptions, seasonStart, relations, competitions] = loaded;
 
   return (
     <div className="flex w-full flex-col gap-6">

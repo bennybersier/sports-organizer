@@ -263,7 +263,18 @@ export async function getMatch(
 ): Promise<MatchDetail> {
   assertPermission(context, "attendance.read");
 
-  const [{ data: event, error: eventError }, { data: team }, { data: link }] = await Promise.all([
+  /*
+    Everything keyed by the event and team goes in one round; only the gym and
+    the competition, which need ids off these rows, wait for a second.
+  */
+  const [
+    { data: event, error: eventError },
+    { data: team },
+    { data: link },
+    { data: register },
+    { data: result },
+    { data: fixture },
+  ] = await Promise.all([
     context.db
       .from("calendar_events")
       .select("id, start_at, end_at, gym_id, opponent, is_home, competition, status")
@@ -283,6 +294,26 @@ export async function getMatch(
       .eq("event_id", eventId)
       .eq("team_id", teamId)
       .maybeSingle(),
+    context.db
+      .from("attendance_registers")
+      .select("id")
+      .eq("tenant_id", context.tenant.id)
+      .eq("event_id", eventId)
+      .eq("team_id", teamId)
+      .maybeSingle(),
+    context.db
+      .from("match_results")
+      .select("*")
+      .eq("tenant_id", context.tenant.id)
+      .eq("event_id", eventId)
+      .eq("team_id", teamId)
+      .maybeSingle(),
+    context.db
+      .from("fixtures")
+      .select("matchday, competition_id")
+      .eq("tenant_id", context.tenant.id)
+      .eq("calendar_event_id", eventId)
+      .maybeSingle(),
   ]);
 
   if (eventError) throw fromDatabaseError(eventError, { resource: "event" });
@@ -291,43 +322,22 @@ export async function getMatch(
   // and not something a match URL should resolve to.
   if (event.opponent === null) throw new NotFoundError("match");
 
-  const [{ data: register }, { data: result }, { data: gym }, { data: fixture }] =
-    await Promise.all([
-      context.db
-        .from("attendance_registers")
-        .select("id")
-        .eq("tenant_id", context.tenant.id)
-        .eq("event_id", eventId)
-        .eq("team_id", teamId)
-        .maybeSingle(),
-      context.db
-        .from("match_results")
-        .select("*")
-        .eq("tenant_id", context.tenant.id)
-        .eq("event_id", eventId)
-        .eq("team_id", teamId)
-        .maybeSingle(),
-      event.gym_id
-        ? context.db.from("gyms").select("name").eq("id", event.gym_id).maybeSingle()
-        : Promise.resolve({ data: null }),
-      context.db
-        .from("fixtures")
-        .select("matchday, competition_id")
-        .eq("tenant_id", context.tenant.id)
-        .eq("calendar_event_id", eventId)
-        .maybeSingle(),
-    ]);
+  const [{ data: gym }, { data: competition }] = await Promise.all([
+    event.gym_id
+      ? context.db.from("gyms").select("name").eq("id", event.gym_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    // Named separately rather than embedded: `Relationships` is empty in our
+    // hand-written Database type, so a PostgREST embed has no usable shape.
+    fixture
+      ? context.db
+          .from("competitions")
+          .select("id, name")
+          .eq("tenant_id", context.tenant.id)
+          .eq("id", fixture.competition_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
 
-  // Named separately rather than embedded: `Relationships` is empty in our
-  // hand-written Database type, so a PostgREST embed has no usable shape.
-  const { data: competition } = fixture
-    ? await context.db
-        .from("competitions")
-        .select("id, name")
-        .eq("tenant_id", context.tenant.id)
-        .eq("id", fixture.competition_id)
-        .maybeSingle()
-    : { data: null };
 
   return {
     eventId: event.id,
@@ -469,6 +479,67 @@ export async function getTeamRecord(
     competitionId: options.competitionId,
     only: "PLAYED",
   });
+  return teamRecordFrom(matches);
+}
+
+/**
+ * Every played result's outcome per team, most recent first — for the teams
+ * list's record and form.
+ *
+ * listMatches answered this by reading every match in every season with its
+ * registers, full result rows and the club's halls, to keep one word per
+ * match. This reads the scores and the kick-off dates and nothing else.
+ */
+export async function listTeamOutcomes(
+  context: AuthContext,
+): Promise<Map<string, Outcome[]>> {
+  assertPermission(context, "attendance.read");
+
+  const { data: results, error } = await context.db
+    .from("match_results")
+    .select("event_id, team_id, our_score, their_score")
+    .eq("tenant_id", context.tenant.id)
+    .neq("state", "PENDING");
+  if (error) throw fromDatabaseError(error, { resource: "match" });
+
+  const scored = (results ?? []).filter(
+    (row): row is typeof row & { our_score: number; their_score: number } =>
+      row.our_score !== null && row.their_score !== null,
+  );
+  if (scored.length === 0) return new Map();
+
+  // Same test listMatches applies: an event with an opponent, not cancelled.
+  const { data: events, error: eventError } = await context.db
+    .from("calendar_events")
+    .select("id, start_at")
+    .eq("tenant_id", context.tenant.id)
+    .in("id", [...new Set(scored.map((row) => row.event_id))])
+    .not("opponent", "is", null)
+    .neq("status", "CANCELLED");
+  if (eventError) throw fromDatabaseError(eventError, { resource: "match" });
+
+  const startById = new Map((events ?? []).map((event) => [event.id, event.start_at]));
+  const byTeam = new Map<string, Outcome[]>();
+  for (const row of scored
+    .filter((row) => startById.has(row.event_id))
+    .sort((a, b) => startById.get(b.event_id)!.localeCompare(startById.get(a.event_id)!))) {
+    const outcome = outcomeOf({ ourScore: row.our_score, theirScore: row.their_score });
+    byTeam.set(row.team_id, [...(byTeam.get(row.team_id) ?? []), outcome]);
+  }
+  return byTeam;
+}
+
+/**
+ * The record made of matches already in hand.
+ *
+ * For a page that lists a team's matches anyway: asking getTeamRecord as well
+ * read every one of them a second time. Unplayed matches are skipped here, so
+ * the full list can be passed as it is.
+ */
+export function teamRecordFrom(all: MatchListItem[]): TeamSeasonRecord {
+  const matches = all.filter(
+    (match) => match.result !== null && match.result.state !== "PENDING",
+  );
 
   /*
     `only: "PLAYED"` already excludes a pending result, but the non-null

@@ -19,6 +19,15 @@ const nextConfig: NextConfig = {
       sentence about the file being too large.
     */
     serverActions: { bodySizeLimit: "12mb" },
+    /*
+      Every page here is dynamic (it reads the session), and Next keeps a
+      dynamic page in the client router cache for 0s by default — so going
+      back to the list you just left re-rendered it on the server. 30s makes
+      that hop instant. Saving through a Server Action still calls
+      revalidatePath, which drops the cached copies, so your own edits always
+      show; someone else's can take up to 30s to appear on a revisit.
+    */
+    staleTimes: { dynamic: 30 },
   },
 };
 

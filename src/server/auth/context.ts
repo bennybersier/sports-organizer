@@ -83,31 +83,43 @@ export const PLATFORM_ADMIN_ROLE = {
 } as const;
 
 /**
- * The signed-in user, or null.
+ * Who the session cookie says is signed in, or null.
  *
- * Uses `getUser()`, which revalidates the JWT against the auth server, rather
- * than `getSession()`, which trusts whatever is in the cookie.
+ * `getClaims()` verifies the access token's signature against the project's
+ * published ES256 key, which auth-js caches process-wide for ten minutes — so
+ * this costs no network round trip, where `getUser()` cost one to the auth
+ * server on every request (and the proxy had already paid one). The trade is
+ * that a revoked session stays valid until its token expires (an hour at
+ * most); the proxy refreshes the token, and the password and sign-out actions
+ * still ask the auth server directly.
+ *
+ * Everything else in this file keys off this rather than the profile, so the
+ * profile, memberships and permissions can all be read at once.
  */
-export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
+const getSessionClaims = cache(async (): Promise<{ id: string; email: string } | null> => {
   const supabase = await createClient();
+  const { data, error } = await supabase.auth.getClaims();
+  if (error || !data?.claims?.sub) return null;
+  return { id: data.claims.sub, email: (data.claims.email as string | undefined) ?? "" };
+});
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+/** The signed-in user with their profile, or null. */
+export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
+  const claims = await getSessionClaims();
+  if (!claims) return null;
 
-  if (!user) return null;
-
+  const supabase = await createClient();
   const { data: profile } = await supabase
     .from("profiles")
     .select("id, email, full_name, avatar_url, locale, timezone")
-    .eq("id", user.id)
+    .eq("id", claims.id)
     .maybeSingle();
 
   // The profile trigger normally guarantees a row; fall back to the JWT claims
   // rather than failing the request outright.
   return {
-    id: user.id,
-    email: profile?.email ?? user.email ?? "",
+    id: claims.id,
+    email: profile?.email ?? claims.email,
     fullName: profile?.full_name ?? null,
     avatarUrl: profile?.avatar_url ?? null,
     locale: profile?.locale ?? "en",
@@ -122,8 +134,7 @@ export const getCurrentUser = cache(async (): Promise<AuthUser | null> => {
  * `authenticated`, so the flag cannot be read — let alone written — directly.
  */
 export const getIsPlatformAdmin = cache(async (): Promise<boolean> => {
-  const user = await getCurrentUser();
-  if (!user) return false;
+  if (!(await getSessionClaims())) return false;
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("am_i_platform_admin");
@@ -144,8 +155,7 @@ export async function requireUser(): Promise<AuthUser> {
  * convenience, never a grant.
  */
 export const getMemberships = cache(async (): Promise<MembershipSummary[]> => {
-  const user = await getCurrentUser();
-  if (!user) return [];
+  if (!(await getSessionClaims())) return [];
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc("my_memberships");
@@ -162,51 +172,9 @@ export const getMemberships = cache(async (): Promise<MembershipSummary[]> => {
   }));
 });
 
-/**
- * Resolves the active tenant.
- *
- * The cookie only *selects* among tenants the user already belongs to. A
- * forged or stale value resolves to nothing and the user is sent to the tenant
- * picker; it can never widen access.
- */
-async function resolveActiveTenantId(
-  memberships: MembershipSummary[],
-  isPlatformAdmin: boolean,
-): Promise<string | null> {
-  const cookieStore = await cookies();
-  const requested = cookieStore.get(ACTIVE_TENANT_COOKIE)?.value;
-
-  if (requested && memberships.some((m) => m.tenantId === requested)) {
-    return requested;
-  }
-
-  // Staff may enter any club. The cookie still only *names* one — the club is
-  // then loaded through RLS, which is what actually authorises the access.
-  if (isPlatformAdmin && requested) return requested;
-
-  if (memberships.length === 1) return memberships[0].tenantId;
-  return null;
-}
-
-export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
-  const user = await getCurrentUser();
-  if (!user) return null;
-
-  const [memberships, isPlatformAdmin] = await Promise.all([
-    getMemberships(),
-    getIsPlatformAdmin(),
-  ]);
-
-  const tenantId = await resolveActiveTenantId(memberships, isPlatformAdmin);
-  if (!tenantId) return null;
-
-  const membership = memberships.find((m) => m.tenantId === tenantId);
-  // Staff without a membership here are acting on the club, not in it.
-  if (!membership && !isPlatformAdmin) return null;
-
+/** The club row and the caller's permissions in it — both RLS-scoped. */
+async function loadTenant(tenantId: string) {
   const supabase = await createClient();
-
-  // Both reads are RLS-scoped, so they double as a membership check.
   const [tenantResult, permissionResult] = await Promise.all([
     supabase
       .from("tenants")
@@ -220,10 +188,70 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
   if (permissionResult.error) {
     throw fromDatabaseError(permissionResult.error, { resource: "permission" });
   }
-  if (!tenantResult.data) return null;
+  return { tenant: tenantResult.data, permissionKeys: permissionResult.data };
+}
+
+/**
+ * Resolves the active tenant.
+ *
+ * The cookie only *selects* among tenants the user already belongs to. A
+ * forged or stale value resolves to nothing and the user is sent to the tenant
+ * picker; it can never widen access.
+ */
+function resolveActiveTenantId(
+  requested: string | undefined,
+  memberships: MembershipSummary[],
+  isPlatformAdmin: boolean,
+): string | null {
+  if (requested && memberships.some((m) => m.tenantId === requested)) {
+    return requested;
+  }
+
+  // Staff may enter any club. The cookie still only *names* one — the club is
+  // then loaded through RLS, which is what actually authorises the access.
+  if (isPlatformAdmin && requested) return requested;
+
+  if (memberships.length === 1) return memberships[0].tenantId;
+  return null;
+}
+
+/*
+  One round of reads, not four.
+
+  Every page waits on this before its own queries start, so its depth is paid
+  on every navigation. The club named by the cookie is read speculatively,
+  alongside the profile, memberships and staff flag, rather than after them:
+  the cookie is only trusted once the memberships confirm it, and the reads go
+  through RLS, so reading early grants nothing. Only a missing or stale cookie
+  costs the second round.
+*/
+export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
+  const claims = await getSessionClaims();
+  if (!claims) return null;
+
+  const requested = (await cookies()).get(ACTIVE_TENANT_COOKIE)?.value;
+
+  const [user, memberships, isPlatformAdmin, speculative] = await Promise.all([
+    getCurrentUser(),
+    getMemberships(),
+    getIsPlatformAdmin(),
+    requested ? loadTenant(requested).catch(() => null) : Promise.resolve(null),
+  ]);
+  if (!user) return null;
+
+  const tenantId = resolveActiveTenantId(requested, memberships, isPlatformAdmin);
+  if (!tenantId) return null;
+
+  const membership = memberships.find((m) => m.tenantId === tenantId);
+  // Staff without a membership here are acting on the club, not in it.
+  if (!membership && !isPlatformAdmin) return null;
+
+  const { tenant, permissionKeys } =
+    tenantId === requested && speculative ? speculative : await loadTenant(tenantId);
+  if (!tenant) return null;
 
   const permissions = new Set<Permission>();
-  for (const key of (permissionResult.data ?? []) as unknown as string[]) {
+  for (const key of (permissionKeys ?? []) as unknown as string[]) {
     // Guards against a permission existing in the database but not yet in the
     // TypeScript taxonomy — it is ignored rather than silently trusted.
     if (isPermission(key)) permissions.add(key);
@@ -232,12 +260,12 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
   return {
     user,
     tenant: {
-      id: tenantResult.data.id,
-      name: tenantResult.data.name,
-      slug: tenantResult.data.slug,
-      timezone: tenantResult.data.timezone,
-      locale: tenantResult.data.locale,
-      weekStart: tenantResult.data.week_start,
+      id: tenant.id,
+      name: tenant.name,
+      slug: tenant.slug,
+      timezone: tenant.timezone,
+      locale: tenant.locale,
+      weekStart: tenant.week_start,
     },
     role: membership
       ? { key: membership.roleKey, name: membership.roleName, rank: membership.roleRank }
@@ -246,7 +274,7 @@ export const getAuthContext = cache(async (): Promise<AuthContext | null> => {
     actorType: membership ? "WEB" : "PLATFORM_ADMIN",
     isPlatformAdmin,
     isActingAsStaff: isPlatformAdmin && !membership,
-    db: supabase,
+    db: await createClient(),
   };
 });
 

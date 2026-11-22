@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
@@ -17,7 +18,7 @@ import {
   listEntries,
   listFixtures,
 } from "@/server/services/competition-service";
-import { getTeamRecord, listMatches } from "@/server/services/match-service";
+import { listMatches, teamRecordFrom } from "@/server/services/match-service";
 import { RecordCard } from "@/components/data/record-card";
 import { getTeam, listTeamOptions } from "@/server/services/team-service";
 import { listSeasonOptions } from "@/server/services/season-service";
@@ -28,6 +29,9 @@ import { fromMinutes } from "@/domain/availability";
 import { EntriesCard } from "./entries-card";
 import { FixturesCard } from "./fixtures-card";
 
+/** Shared by the metadata and the page, so the competition is read once. */
+const loadCompetition = cache(getCompetition);
+
 export async function generateMetadata({
   params,
 }: {
@@ -36,7 +40,7 @@ export async function generateMetadata({
   const context = await requireAuthContext();
   if (!hasPermission(context, "competitions.read")) return {};
   try {
-    const competition = await getCompetition(context, (await params).id);
+    const competition = await loadCompetition(context, (await params).id);
     return { title: competition.name };
   } catch {
     return {};
@@ -55,42 +59,45 @@ export default async function CompetitionDetailPage({
   const t = await getTranslations("competitions");
   const format = await getFormatter();
 
-  let competition;
+  const canReadResults = hasPermission(context, "attendance.read");
+  const canEdit = hasPermission(context, "competitions.update");
+
+  /*
+    One round: only the team row waits on the competition (it needs its team
+    id). The record is worked out from the matches already being read, rather
+    than reading them all a second time.
+  */
+  const competitionPromise = loadCompetition(context, id);
+  const entriesPromise = listEntries(context, id);
+  let loaded;
   try {
-    competition = await getCompetition(context, id);
+    loaded = await Promise.all([
+      competitionPromise,
+      entriesPromise,
+      listFixtures(context, id, entriesPromise),
+      competitionPromise.then((found) => getTeam(context, found.team_id)),
+      // Results hang off the calendar event a fixture became, so they are
+      // fetched per competition and joined to the fixtures below rather than
+      // per row.
+      canReadResults ? listMatches(context, { competitionId: id }) : Promise.resolve([]),
+      // Only for the edit dialog's own pickers.
+      canEdit && hasPermission(context, "seasons.read")
+        ? listSeasonOptions(context)
+        : Promise.resolve([]),
+      canEdit && hasPermission(context, "teams.read")
+        ? listTeamOptions(context)
+        : Promise.resolve([]),
+    ]);
   } catch (error) {
     if (isAppError(error) && error.code === "NOT_FOUND") notFound();
     throw error;
   }
+  const [competition, entries, fixtures, team, matches, seasons, teamOptions] = loaded;
 
-  const canReadResults = hasPermission(context, "attendance.read");
+  const ourMatches = matches.filter((match) => match.teamId === competition.team_id);
+  const record = canReadResults ? teamRecordFrom(ourMatches) : null;
+  const resultByEvent = new Map(ourMatches.map((match) => [match.eventId, match]));
 
-  const [entries, fixtures, team, matches, record] = await Promise.all([
-    listEntries(context, id),
-    listFixtures(context, id),
-    getTeam(context, competition.team_id),
-    // Results hang off the calendar event a fixture became, so they are fetched
-    // per competition and joined to the fixtures below rather than per row.
-    canReadResults ? listMatches(context, { competitionId: id }) : Promise.resolve([]),
-    canReadResults
-      ? getTeamRecord(context, competition.team_id, { competitionId: id })
-      : Promise.resolve(null),
-  ]);
-
-  const resultByEvent = new Map(
-    matches
-      .filter((match) => match.teamId === competition.team_id)
-      .map((match) => [match.eventId, match]),
-  );
-
-  const canEdit = hasPermission(context, "competitions.update");
-  // Only for the edit dialog's own pickers.
-  const [seasons, teamOptions] = await Promise.all([
-    canEdit && hasPermission(context, "seasons.read")
-      ? listSeasonOptions(context)
-      : Promise.resolve([]),
-    canEdit && hasPermission(context, "teams.read") ? listTeamOptions(context) : Promise.resolve([]),
-  ]);
   const canGenerate = hasPermission(context, "competitions.create");
   const zone = context.tenant.timezone;
 

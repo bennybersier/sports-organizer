@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/data/empty-state";
 import { PageHeader } from "@/components/data/page-header";
 import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
-import { listAvailability } from "@/server/services/availability-service";
+import { ownersWithAvailability } from "@/server/services/availability-service";
 import { listGymOptions } from "@/server/services/gym-service";
 import { listSeasonOptions } from "@/server/services/season-service";
 import { listTeamOptions } from "@/server/services/team-service";
@@ -51,7 +51,8 @@ export default async function OrganizerPage({
     seasons.find((season) => season.status === "ACTIVE")?.id ??
     seasons[0].id;
 
-  const [teams, gyms, trainers, requirements, versions] = await Promise.all([
+  const [teams, gyms, trainers, requirements, versions, gymOwners, trainerOwners] =
+    await Promise.all([
     listTeamOptions(context, seasonId),
     listGymOptions(context),
     listTrainerOptions(context),
@@ -63,21 +64,19 @@ export default async function OrganizerPage({
       .eq("season_id", seasonId)
       .order("version_number", { ascending: false })
       .limit(10),
+    /*
+      Readiness is computed rather than assumed: telling someone their
+      schedule is empty *after* a generation run wastes their time, when the
+      cause — "no gym has opening hours" — is knowable beforehand.
+    */
+    ownersWithAvailability(context, "gym"),
+    ownersWithAvailability(context, "trainer"),
   ]);
 
-  /*
-    Readiness is computed rather than assumed: telling someone their schedule
-    is empty *after* a generation run wastes their time, when the cause —
-    "no gym has opening hours" — is knowable beforehand.
-  */
-  const gymsWithAvailability = await countWithAvailability(
-    gyms.map((gym) => gym.id),
-    (id) => listAvailability(context, "gym", id),
-  );
-  const trainersWithAvailability = await countWithAvailability(
-    trainers.map((trainer) => trainer.id),
-    (id) => listAvailability(context, "trainer", id),
-  );
+  const gymsWithAvailability = gyms.filter((gym) => gymOwners.has(gym.id)).length;
+  const trainersWithAvailability = trainers.filter((trainer) =>
+    trainerOwners.has(trainer.id),
+  ).length;
 
   return (
     <div className="flex w-full flex-col gap-6">
@@ -122,13 +121,4 @@ export default async function OrganizerPage({
       />
     </div>
   );
-}
-
-/** How many of these owners have any availability configured at all. */
-async function countWithAvailability(
-  ids: string[],
-  load: (id: string) => Promise<unknown[]>,
-): Promise<number> {
-  const results = await Promise.all(ids.map((id) => load(id)));
-  return results.filter((windows) => windows.length > 0).length;
 }

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -22,7 +23,7 @@ import { listAvailability, listExceptions } from "@/server/services/availability
 import { listGymOptions } from "@/server/services/gym-service";
 import { listCompetitionsForTeams } from "@/server/services/competition-service";
 import { getTeamRelations } from "@/server/services/relations-service";
-import { getTeamRecord, listMatches } from "@/server/services/match-service";
+import { listMatches, teamRecordFrom } from "@/server/services/match-service";
 import { getSeason, listSeasonOptions } from "@/server/services/season-service";
 import { getTeam, listTeamOptions } from "@/server/services/team-service";
 import { listTrainerOptions } from "@/server/services/trainer-service";
@@ -49,6 +50,9 @@ function isIsoDate(value: string | undefined): value is string {
   return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+/** Shared by the metadata and the page, so the team row is read once. */
+const loadTeam = cache(getTeam);
+
 export async function generateMetadata({
   params,
 }: {
@@ -57,7 +61,7 @@ export async function generateMetadata({
   const context = await requireAuthContext();
   if (!hasPermission(context, "teams.read")) return {};
   try {
-    const team = await getTeam(context, (await params).id);
+    const team = await loadTeam(context, (await params).id);
     return { title: team.name };
   } catch {
     return {};
@@ -84,14 +88,6 @@ export default async function TeamDetailPage({
   const tMatches = await getTranslations("matches");
   const tMembership = await getTranslations("membershipState");
 
-  let team;
-  try {
-    team = await getTeam(context, id);
-  } catch (error) {
-    if (isAppError(error) && error.code === "NOT_FOUND") notFound();
-    throw error;
-  }
-
   const {
     view: viewParam,
     date: dateParam,
@@ -110,21 +106,24 @@ export default async function TeamDetailPage({
   const canCreateEvents = hasPermission(context, "calendar.create");
 
   const today = new Date().toISOString().slice(0, 10);
-  const [
-    season,
-    requirement,
-    gyms,
-    windows,
-    exceptions,
-    trainingWeek,
-    trainingMonth,
-    seasons,
-    trainers,
-    teams,
-    athletePool,
-  ] = await Promise.all([
-      getSeason(context, team.season_id),
-      getTrainingRequirement(context, id, team.season_id),
+  const canReadResults = hasPermission(context, "attendance.read");
+
+  /*
+    One round of reads. Only the season and the requirement wait on the team
+    row (they need its season), and only the relations wait on the
+    requirement; everything else needs no more than the id. These used to run
+    in four stages one after another, sixteen round trips deep.
+  */
+  const teamPromise = loadTeam(context, id);
+  const requirementPromise = teamPromise.then((found) =>
+    getTrainingRequirement(context, id, found.season_id),
+  );
+  let loaded;
+  try {
+    loaded = await Promise.all([
+      teamPromise,
+      teamPromise.then((found) => getSeason(context, found.season_id)),
+      requirementPromise,
       hasPermission(context, "gyms.read") ? listGymOptions(context) : Promise.resolve([]),
       canReadAvailability ? listAvailability(context, "team", id) : Promise.resolve([]),
       canReadAvailability
@@ -148,7 +147,44 @@ export default async function TeamDetailPage({
       canEditTeam && hasPermission(context, "athletes.read")
         ? listAthleteOptions(context)
         : Promise.resolve([]),
+      // Needs the requirement: which halls are related to a team is partly a
+      // question its requirements answer.
+      requirementPromise.then((requirement) => getTeamRelations(context, id, requirement)),
+      // A side can be in several at once — a league, the phase it came out
+      // of, a cup — so this is always a list.
+      hasPermission(context, "competitions.read")
+        ? listCompetitionsForTeams(context, [id])
+        : Promise.resolve([]),
+      /*
+        A team's own matches, which Competitions could not answer: a side may
+        be in a league, the phase it came out of and a cup at once, so "its
+        matches" is a question about the team rather than about any one
+        competition. The record is worked out from the same list.
+      */
+      canReadResults ? listMatches(context, { teamId: id }) : Promise.resolve([]),
     ]);
+  } catch (error) {
+    if (isAppError(error) && error.code === "NOT_FOUND") notFound();
+    throw error;
+  }
+  const [
+    team,
+    season,
+    requirement,
+    gyms,
+    windows,
+    exceptions,
+    trainingWeek,
+    trainingMonth,
+    seasons,
+    trainers,
+    teams,
+    athletePool,
+    relations,
+    competitions,
+    recentMatches,
+  ] = loaded;
+  const record = canReadResults ? teamRecordFrom(recentMatches) : null;
 
   /*
     One shape for the card, whichever range was asked for. The week and the
@@ -179,29 +215,6 @@ export default async function TeamDetailPage({
           coverageStart: trainingMonth.coverageStart,
         }
       : null;
-
-  // Needs the requirement above it: which halls are related to a team is partly
-  // a question its requirements answer.
-  const relations = await getTeamRelations(context, id, requirement);
-
-  // A side can be in several at once — a league, the phase it came out of, a
-  // cup — so this is always a list.
-  const competitions = hasPermission(context, "competitions.read")
-    ? await listCompetitionsForTeams(context, [id])
-    : [];
-
-  /*
-    A team's own matches, which Competitions could not answer: a side may be in
-    a league, the phase it came out of and a cup at once, so "its matches" is a
-    question about the team rather than about any one competition.
-  */
-  const canReadResults = hasPermission(context, "attendance.read");
-  const [record, recentMatches] = canReadResults
-    ? await Promise.all([
-        getTeamRecord(context, id),
-        listMatches(context, { teamId: id }),
-      ])
-    : [null, []];
 
   const gymOptions = gyms.map((gym) => ({ value: gym.id, label: gym.name }));
   const eventOptions = canCreateEvents

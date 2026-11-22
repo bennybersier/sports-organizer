@@ -331,6 +331,17 @@ export interface TrainerRelations {
  * that put them there — someone who appears twice is in two of this trainer's
  * teams, not listed twice by accident.
  */
+/** The squads a trainer currently takes. Shared with the trainer page's competitions. */
+export async function trainerTeamIds(context: AuthContext, trainerId: string): Promise<string[]> {
+  const { data } = await context.db
+    .from("trainer_teams")
+    .select("team_id")
+    .eq("tenant_id", context.tenant.id)
+    .eq("trainer_id", trainerId)
+    .is("unassigned_at", null);
+  return (data ?? []).map((row) => row.team_id);
+}
+
 export async function getTrainerRelations(
   context: AuthContext,
   trainerId: string,
@@ -340,27 +351,32 @@ export async function getTrainerRelations(
   const canReadGyms = hasPermission(context, "gyms.read");
   const canReadCalendar = hasPermission(context, "calendar.read");
 
-  const { data: assignments } = await context.db
-    .from("trainer_teams")
-    .select("team_id")
-    .eq("tenant_id", context.tenant.id)
-    .eq("trainer_id", trainerId)
-    .is("unassigned_at", null);
+  /*
+    Three independent chains, run side by side: the squads and then their
+    players, and the published sessions and then their halls. Only each chain's
+    second step waits on its first.
+  */
+  const teamIdsPromise = trainerTeamIds(context, trainerId);
+  const squadPromise = canReadAthletes
+    ? teamIdsPromise.then((teamIds) => athleteLinks(context, teamIds))
+    : Promise.resolve([]);
+  const entriesPromise = canReadGyms && canReadCalendar
+    ? publishedEntries(context, { trainerId })
+    : Promise.resolve([]);
 
-  const teamIds = (assignments ?? []).map((row) => row.team_id);
-
-  const [teams, squad, entries] = await Promise.all([
-    canReadTeams ? fetchTeams(context, teamIds) : Promise.resolve([]),
-    canReadAthletes ? athleteLinks(context, teamIds) : Promise.resolve([]),
-    canReadGyms && canReadCalendar
-      ? publishedEntries(context, { trainerId })
+  const [teams, squad, athletes, entries, gyms] = await Promise.all([
+    canReadTeams
+      ? teamIdsPromise.then((teamIds) => fetchTeams(context, teamIds))
       : Promise.resolve([]),
+    squadPromise,
+    squadPromise.then((links) =>
+      fetchAthletes(context, [...new Set(links.map((link) => link.athlete_id))]),
+    ),
+    entriesPromise,
+    entriesPromise.then((rows) => fetchGyms(context, [...countBy(rows, "gym_id").keys()])),
   ]);
 
   const teamNames = new Map(teams.map((team) => [team.id, team.name]));
-  const athletes = await fetchAthletes(context, [
-    ...new Set(squad.map((link) => link.athlete_id)),
-  ]);
 
   const viaByAthlete = new Map<string, string[]>();
   /*
@@ -383,7 +399,6 @@ export async function getTrainerRelations(
 
   const gymSessions = countBy(entries, "gym_id");
   const teamSessions = countBy(entries, "team_id");
-  const gyms = await fetchGyms(context, [...gymSessions.keys()]);
 
   return {
     teams: teams.map((team) => ({

@@ -352,17 +352,117 @@ export async function getRegisterSheet(
   if (error) throw fromDatabaseError(error, { resource: "register" });
   if (!register) throw new NotFoundError("register");
 
-  const [{ data: team }, { data: records }, { data: gym }, { data: event }] = await Promise.all([
+  const editable =
+    register.state !== "RECORDED"
+      ? hasPermission(context, "attendance.record")
+      : hasPermission(context, "attendance.manage");
+  const day = registerDay(register.starts_at, context.tenant.timezone);
+
+  /*
+    Everything below needs only the register, so it is asked for at once, and
+    the athletes' names wait only on who is on the sheet — not on last game's
+    squad. This was seven round trips deep, one after another.
+  */
+  const recordsPromise = context.db
+    .from("attendance_records")
+    .select("*")
+    .eq("tenant_id", context.tenant.id)
+    .eq("register_id", registerId);
+
+  /*
+    The sheet is a snapshot of the squad taken when it was opened, so a player
+    who joined the team since has no line on it — and no way on to it. While
+    the sheet can still be changed, they are offered a blank line here; nothing
+    is written until the coach saves, and `saveRegister` upserts it then.
+
+    A training register keeps to the date they joined: a newcomer was not at
+    last month's session. A match sheet does not, because a newcomer starts it
+    uncalled, and a coach adding the player they just signed in order to put
+    them on last Sunday's sheet is exactly why they are here.
+  */
+  const squadPromise = editable
+    ? (() => {
+        let query = context.db
+          .from("athlete_teams")
+          .select("athlete_id")
+          .eq("tenant_id", context.tenant.id)
+          .eq("team_id", register.team_id)
+          .is("left_at", null);
+        if (register.occasion !== "MATCH") query = query.lte("joined_at", day);
+        return query;
+      })()
+    : Promise.resolve({ data: [] as { athlete_id: string }[] });
+
+  const peoplePromise = Promise.all([recordsPromise, squadPromise]).then(
+    async ([{ data: records }, { data: squad }]) => {
+      const onSheet = new Set((records ?? []).map((row) => row.athlete_id));
+      const newcomers = (squad ?? [])
+        .map((row) => row.athlete_id)
+        .filter((id) => !onSheet.has(id));
+      const athleteIds = [...(records ?? []).map((row) => row.athlete_id), ...newcomers];
+      const [{ data: athletes }, { data: links }, declared] = await Promise.all([
+        athleteIds.length
+          ? context.db
+              .from("athletes")
+              .select("id, first_name, last_name")
+              .in("id", athleteIds)
+          : Promise.resolve({ data: [] }),
+        athleteIds.length
+          ? context.db
+              .from("athlete_teams")
+              .select("athlete_id, jersey_number, position")
+              .eq("team_id", register.team_id)
+              .in("athlete_id", athleteIds)
+              .is("left_at", null)
+          : Promise.resolve({ data: [] }),
+        declaredAbsencesOn(context, athleteIds, register.team_id, day),
+      ]);
+      return { records, newcomers, athletes, links, declared };
+    },
+  );
+
+  /*
+    The last squad this team put out, so "same as last game" has something to
+    copy. Only a recorded match counts: an abandoned draft is not a decision,
+    and a training register has no call-ups to speak of.
+  */
+  const previousPromise: Promise<string[]> =
+    register.occasion === "MATCH"
+      ? (async () => {
+          const { data: previous } = await context.db
+            .from("attendance_registers")
+            .select("id")
+            .eq("tenant_id", context.tenant.id)
+            .eq("team_id", register.team_id)
+            .eq("occasion", "MATCH")
+            .eq("state", "RECORDED")
+            .lt("starts_at", register.starts_at)
+            .order("starts_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (!previous) return [];
+          const { data: picked } = await context.db
+            .from("attendance_records")
+            .select("athlete_id")
+            .eq("tenant_id", context.tenant.id)
+            .eq("register_id", previous.id)
+            .eq("called_up", true);
+          return (picked ?? []).map((row) => row.athlete_id);
+        })()
+      : Promise.resolve([]);
+
+  const [
+    { data: team },
+    { data: gym },
+    { data: event },
+    previousCallUps,
+    { records, newcomers, athletes, links, declared },
+  ] = await Promise.all([
     context.db
       .from("teams")
       .select("id, name, color, match_call_up_limit, tracks_box_score")
       .eq("id", register.team_id)
       .single(),
-    context.db
-      .from("attendance_records")
-      .select("*")
-      .eq("tenant_id", context.tenant.id)
-      .eq("register_id", registerId),
     register.gym_id
       ? context.db
           .from("gyms")
@@ -377,92 +477,12 @@ export async function getRegisterSheet(
           .eq("id", register.event_id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
-  ]);
-
-  /*
-    The last squad this team put out, so "same as last game" has something to
-    copy. Only a recorded match counts: an abandoned draft is not a decision,
-    and a training register has no call-ups to speak of.
-  */
-  const previousCallUps: string[] = [];
-  if (register.occasion === "MATCH") {
-    const { data: previous } = await context.db
-      .from("attendance_registers")
-      .select("id")
-      .eq("tenant_id", context.tenant.id)
-      .eq("team_id", register.team_id)
-      .eq("occasion", "MATCH")
-      .eq("state", "RECORDED")
-      .lt("starts_at", register.starts_at)
-      .order("starts_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (previous) {
-      const { data: picked } = await context.db
-        .from("attendance_records")
-        .select("athlete_id")
-        .eq("tenant_id", context.tenant.id)
-        .eq("register_id", previous.id)
-        .eq("called_up", true);
-      previousCallUps.push(...(picked ?? []).map((row) => row.athlete_id));
-    }
-  }
-
-  const editable =
-    register.state !== "RECORDED"
-      ? hasPermission(context, "attendance.record")
-      : hasPermission(context, "attendance.manage");
-  const day = registerDay(register.starts_at, context.tenant.timezone);
-
-  /*
-    The sheet is a snapshot of the squad taken when it was opened, so a player
-    who joined the team since has no line on it — and no way on to it. While
-    the sheet can still be changed, they are offered a blank line here; nothing
-    is written until the coach saves, and `saveRegister` upserts it then.
-
-    A training register keeps to the date they joined: a newcomer was not at
-    last month's session. A match sheet does not, because a newcomer starts it
-    uncalled, and a coach adding the player they just signed in order to put
-    them on last Sunday's sheet is exactly why they are here.
-  */
-  const newcomers: string[] = [];
-  if (editable) {
-    let query = context.db
-      .from("athlete_teams")
-      .select("athlete_id")
-      .eq("tenant_id", context.tenant.id)
-      .eq("team_id", register.team_id)
-      .is("left_at", null);
-    if (register.occasion !== "MATCH") query = query.lte("joined_at", day);
-    const { data: squad } = await query;
-    const onSheet = new Set((records ?? []).map((row) => row.athlete_id));
-    newcomers.push(
-      ...(squad ?? []).map((row) => row.athlete_id).filter((id) => !onSheet.has(id)),
-    );
-  }
-
-  const athleteIds = [...(records ?? []).map((row) => row.athlete_id), ...newcomers];
-  const [{ data: athletes }, { data: links }] = await Promise.all([
-    athleteIds.length
-      ? context.db
-          .from("athletes")
-          .select("id, first_name, last_name")
-          .in("id", athleteIds)
-      : Promise.resolve({ data: [] }),
-    athleteIds.length
-      ? context.db
-          .from("athlete_teams")
-          .select("athlete_id, jersey_number, position")
-          .eq("team_id", register.team_id)
-          .in("athlete_id", athleteIds)
-          .is("left_at", null)
-      : Promise.resolve({ data: [] }),
+    previousPromise,
+    peoplePromise,
   ]);
 
   const athleteById = new Map((athletes ?? []).map((a) => [a.id, a]));
   const linkById = new Map((links ?? []).map((l) => [l.athlete_id, l]));
-  const declared = await declaredAbsencesOn(context, athleteIds, register.team_id, day);
 
   // Shaped like the row `seedLines` would have written for them.
   const blanks = newcomers.map((athleteId) => {

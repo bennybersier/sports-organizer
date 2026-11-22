@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
@@ -37,6 +38,9 @@ import { MatchLogCard, PointsTrendCard } from "./match-log-card";
 import { AttendanceCard, ScoringCard } from "./performance-card";
 import { DetailTile, SectionHeader } from "./section";
 
+/** Shared by the metadata and the page, so the athlete row is read once. */
+const loadAthlete = cache(getAthlete);
+
 export async function generateMetadata({
   params,
 }: {
@@ -45,7 +49,7 @@ export async function generateMetadata({
   const context = await requireAuthContext();
   if (!hasPermission(context, "athletes.read")) return {};
   try {
-    const athlete = await getAthlete(context, (await params).id);
+    const athlete = await loadAthlete(context, (await params).id);
     return { title: `${athlete.first_name} ${athlete.last_name}` };
   } catch {
     return {};
@@ -85,48 +89,52 @@ export default async function AthleteDetailPage({
   const tRelated = await getTranslations("related");
   const format = await getFormatter();
 
-  let athlete;
-  try {
-    athlete = await getAthlete(context, id);
-  } catch (error) {
-    if (isAppError(error) && error.code === "NOT_FOUND") notFound();
-    throw error;
-  }
-
-  const relations = await getAthleteRelations(context, id);
-  const shirts = relations.teams.filter(
-    (team): team is typeof team & { jerseyNumber: number } =>
-      team.jerseyNumber !== null && team.jerseyNumber !== undefined,
-  );
   const canReadTeams = hasPermission(context, "teams.read");
   const canEditAthlete = hasPermission(context, "athletes.update");
   const canEditTeams = hasPermission(context, "teams.update");
-  // Every squad they could be put in, not only the ones they are in.
-  const teamPool = canEditAthlete && canReadTeams ? await listTeamOptions(context) : [];
-  // Attendance is its own permission, and a page that can show an athlete does
-  // not automatically get to show their season.
+  const canReadAttendance = hasPermission(context, "attendance.read");
   const { view: viewParam, date: dateParam } = await searchParams;
   const scheduleView: TrainingScheduleView = viewParam === "month" ? "month" : "week";
   const anchorParam = isIsoDate(dateParam) ? dateParam : undefined;
 
-  // Gathered from every squad they are in — a boy who trains up an age group
-  // has two teams' sessions in his week, and that is precisely the week worth
-  // seeing in one place.
-  const training = hasPermission(context, "calendar.read")
-    ? scheduleView === "month"
-      ? await getAthleteTrainingMonth(context, id, anchorParam)
-      : await getAthleteTrainingWeek(context, id, anchorParam)
-    : null;
+  /*
+    Everything below needs only the id, so it is asked for at once. These were
+    awaited one after another — eighteen round trips deep before the page could
+    paint — and an unknown id costs no more for asking early: the others simply
+    come back empty, and getAthlete's NOT_FOUND still decides the page.
+  */
+  let loaded;
+  try {
+    loaded = await Promise.all([
+      loadAthlete(context, id),
+      getAthleteRelations(context, id),
+      // Every squad they could be put in, not only the ones they are in.
+      canEditAthlete && canReadTeams ? listTeamOptions(context) : Promise.resolve([]),
+      // Gathered from every squad they are in — a boy who trains up an age
+      // group has two teams' sessions in his week, and that is precisely the
+      // week worth seeing in one place.
+      hasPermission(context, "calendar.read")
+        ? scheduleView === "month"
+          ? getAthleteTrainingMonth(context, id, anchorParam)
+          : getAthleteTrainingWeek(context, id, anchorParam)
+        : Promise.resolve(null),
+      // Attendance is its own permission, and a page that can show an athlete
+      // does not automatically get to show their season.
+      canReadAttendance ? getAthletePerformance(context, id) : Promise.resolve(null),
+      canReadAttendance ? listAbsences(context, id) : Promise.resolve([]),
+      // The games behind the averages, each one a link back to the match.
+      canReadAttendance ? listAthleteMatches(context, id) : Promise.resolve([]),
+    ]);
+  } catch (error) {
+    if (isAppError(error) && error.code === "NOT_FOUND") notFound();
+    throw error;
+  }
+  const [athlete, relations, teamPool, training, performance, absences, matchLog] = loaded;
 
-  const canReadAttendance = hasPermission(context, "attendance.read");
-  const [performance, absences, matchLog] = canReadAttendance
-    ? await Promise.all([
-        getAthletePerformance(context, id),
-        listAbsences(context, id),
-        // The games behind the averages, each one a link back to the match.
-        listAthleteMatches(context, id),
-      ])
-    : [null, [], []];
+  const shirts = relations.teams.filter(
+    (team): team is typeof team & { jerseyNumber: number } =>
+      team.jerseyNumber !== null && team.jerseyNumber !== undefined,
+  );
   const canReadTrainers = hasPermission(context, "trainers.read");
 
   const address =

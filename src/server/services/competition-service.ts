@@ -225,9 +225,12 @@ export interface FixtureView extends FixtureRow {
 export async function listFixtures(
   context: AuthContext,
   competitionId: string,
+  /** The competition's entries, when the caller is reading them anyway. */
+  knownEntries?: Promise<CompetitionEntryRow[]>,
 ): Promise<FixtureView[]> {
   assertPermission(context, "competitions.read");
 
+  const entriesPromise = knownEntries ?? listEntries(context, competitionId);
   const [fixtures, entries, links] = await Promise.all([
     context.db
       .from("fixtures")
@@ -235,18 +238,28 @@ export async function listFixtures(
       .eq("tenant_id", context.tenant.id)
       .eq("competition_id", competitionId)
       .order("matchday"),
-    listEntries(context, competitionId),
-    context.db
-      .from("fixture_participants")
-      .select("fixture_id, entry_id")
-      .eq("tenant_id", context.tenant.id),
+    entriesPromise,
+    // This competition's participants only — this read every fixture's in the
+    // club. A participant is one of the entries, so they narrow it.
+    entriesPromise.then(async (rows): Promise<{ fixture_id: string; entry_id: string }[]> => {
+      if (rows.length === 0) return [];
+      const { data } = await context.db
+        .from("fixture_participants")
+        .select("fixture_id, entry_id")
+        .eq("tenant_id", context.tenant.id)
+        .in(
+          "entry_id",
+          rows.map((entry) => entry.id),
+        );
+      return data ?? [];
+    }),
   ]);
 
   if (fixtures.error) throw fromDatabaseError(fixtures.error, { resource: "competition" });
 
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
   const participantsByFixture = new Map<string, string[]>();
-  for (const link of links.data ?? []) {
+  for (const link of links) {
     participantsByFixture.set(link.fixture_id, [
       ...(participantsByFixture.get(link.fixture_id) ?? []),
       link.entry_id,
