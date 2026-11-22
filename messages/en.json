@@ -1589,6 +1589,10 @@
     "shownRoster": "The squad as first name and last initial, for athletes allowed on it",
     "matches": "Matches",
     "otherPlayers": "{count, plural, one {# other player} other {# other players}}",
-    "noBoxScore": "No box score for this match."
+    "noBoxScore": "No box score for this match.",
+    "noPlayerStats": "No stats recorded for this team yet.",
+    "missingTitle": "This page isn't available",
+    "missingBody": "This match or player isn't on the team's page any more.",
+    "backToTeam": "Back to the team"
   }
 }
