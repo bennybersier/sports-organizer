@@ -109,6 +109,8 @@ export interface RegisterSheet {
     startsAt: string;
     /** How long the hall is held before the start — the default meeting time. */
     bufferBeforeMinutes: number;
+    /** The address typed on the match, for a venue that is not one of our halls. */
+    location: string | null;
   } | null;
   lines: RegisterLine[];
   /** Whether the caller may change this sheet as it currently stands. */
@@ -473,7 +475,7 @@ export async function getRegisterSheet(
     register.event_id
       ? context.db
           .from("calendar_events")
-          .select("opponent, competition, is_home, start_at, buffer_before_minutes")
+          .select("opponent, competition, is_home, start_at, buffer_before_minutes, location")
           .eq("id", register.event_id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
@@ -548,6 +550,7 @@ export async function getRegisterSheet(
           isHome: event.is_home,
           startsAt: event.start_at,
           bufferBeforeMinutes: event.buffer_before_minutes ?? 0,
+          location: event.location,
         }
       : null,
     lines,

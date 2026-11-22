@@ -61,6 +61,10 @@ export interface EventFormValues {
   opponent: string | null;
   isHome: boolean | null;
   competition: string | null;
+  /** Where it is held, when that is not one of the club's halls. */
+  location: string | null;
+  /** Not edited here, but carried through so saving the form keeps it. */
+  description: string | null;
   bufferBeforeMinutes: number;
   bufferAfterMinutes: number;
 }
@@ -148,6 +152,7 @@ export function NewEventButton({
     event?.isHome === true ? "home" : event?.isHome === false ? "away" : "",
   );
   const [competition, setCompetition] = useState(event?.competition ?? "");
+  const [location, setLocation] = useState(event?.location ?? "");
   const [bufferBefore, setBufferBefore] = useState(event?.bufferBeforeMinutes ?? 0);
   const [bufferAfter, setBufferAfter] = useState(event?.bufferAfterMinutes ?? 0);
 
@@ -179,6 +184,24 @@ export function NewEventButton({
     },
   });
 
+  /*
+    The address, for anywhere that is not one of our halls — an away fixture
+    above all, which is where a parent driving there needs it. One field,
+    placed in the fixture box on a match and under the hall otherwise.
+  */
+  const addressField = (
+    <div className="grid gap-1">
+      <Label htmlFor="event-location">{t("address")}</Label>
+      <Input
+        id="event-location"
+        value={location}
+        maxLength={200}
+        onChange={(e) => setLocation(e.target.value)}
+        placeholder={t("addressPlaceholder")}
+      />
+    </div>
+  );
+
   async function submit() {
     setError(null);
     setPending(true);
@@ -202,6 +225,10 @@ export function NewEventButton({
       opponent: isFixture ? opponent : "",
       isHome: isFixture ? homeAway : "",
       competition: isFixture ? competition : "",
+      location,
+      // Sent back as it came: the update writes every column, so leaving it
+      // out would erase a description this form has no field for.
+      description: event?.description ?? "",
       // An all-day event already holds the whole day; the database refuses a
       // buffer on one.
       bufferBeforeMinutes: allDay ? 0 : bufferBefore,
@@ -346,6 +373,8 @@ export function NewEventButton({
                     placeholder={t("competitionPlaceholder")}
                   />
                 </div>
+                {/* On a match, with the opponent: where an away game is played. */}
+                {addressField}
               </div>
             ) : null}
 
@@ -447,6 +476,9 @@ export function NewEventButton({
                 </Select>
               </div>
             ) : null}
+
+            {/* Off a fixture, the address sits with the hall it stands in for. */}
+            {!isFixture ? addressField : null}
 
             {trainers.length > 0 ? (
               <div className="grid gap-1">

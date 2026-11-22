@@ -151,6 +151,7 @@ export async function ScoringCard({
 }) {
   const t = await getTranslations("attendance");
   const tAthletes = await getTranslations("athletes");
+  const tMatches = await getTranslations("matches");
 
   return (
     <Card className="h-full">
@@ -161,30 +162,50 @@ export async function ScoringCard({
         aside={<SectionChip>{tAthletes("gamesLogged", { count: boxScore.games })}</SectionChip>}
       />
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <StatTile
-            label={t("stats.points")}
-            value={boxScore.perGame.points.toFixed(1)}
-            hint={`${t("stats.perGame")} · ${boxScore.games} ${t("stats.games").toLowerCase()}`}
-            tone="accent"
-          />
-          <StatTile
-            label={t("stats.fouls")}
-            value={boxScore.perGame.fouls.toFixed(1)}
-            hint={t("stats.perGame")}
-          />
-          <StatTile
-            label={t("stats.twoPoint")}
-            value={String(boxScore.basic.twoPointMade)}
-            hint={t("stats.made")}
-            tone="positive"
-          />
-          <StatTile
-            label={t("stats.threePoint")}
-            value={String(boxScore.basic.threePointMade)}
-            hint={t("stats.made")}
-            tone="info"
-          />
+        {/*
+          Two rows: the per-game averages, then the baskets that make them up —
+          two-pointers, threes and free throws, which add up to the points.
+        */}
+        <div className="grid grid-cols-6 gap-2">
+          <div className="col-span-3">
+            <StatTile
+              label={t("stats.points")}
+              value={boxScore.perGame.points.toFixed(1)}
+              hint={`${t("stats.perGame")} · ${boxScore.games} ${t("stats.games").toLowerCase()}`}
+              tone="accent"
+            />
+          </div>
+          <div className="col-span-3">
+            <StatTile
+              label={t("stats.fouls")}
+              value={boxScore.perGame.fouls.toFixed(1)}
+              hint={t("stats.perGame")}
+            />
+          </div>
+          <div className="col-span-2">
+            <StatTile
+              label={t("stats.twoPoint")}
+              value={String(boxScore.basic.twoPointMade)}
+              hint={t("stats.made")}
+              tone="positive"
+            />
+          </div>
+          <div className="col-span-2">
+            <StatTile
+              label={t("stats.threePoint")}
+              value={String(boxScore.basic.threePointMade)}
+              hint={t("stats.made")}
+              tone="info"
+            />
+          </div>
+          <div className="col-span-2">
+            <StatTile
+              label={tMatches("freeThrows")}
+              value={String(boxScore.basic.freeThrowMade)}
+              hint={t("stats.made")}
+              tone="warn"
+            />
+          </div>
         </div>
 
         {boxScore.detail ? (

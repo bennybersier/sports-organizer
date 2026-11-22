@@ -688,7 +688,9 @@
     "hallHeld": "Hall held either side",
     "hallHeldHint": "Setup, warm-up and pack-down. No training is scheduled in this hall during that time.",
     "bufferBefore": "Minutes before",
-    "bufferAfter": "Minutes after"
+    "bufferAfter": "Minutes after",
+    "address": "Address",
+    "addressPlaceholder": "Where it's held, if not one of your halls — e.g. Via Lonato 28, Brescia"
   },
   "conflicts": {
     "VALID": "Valid",

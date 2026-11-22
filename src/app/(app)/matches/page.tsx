@@ -250,10 +250,10 @@ export default async function MatchesPage({
               {next.teamName}
             </p>
             <p className="text-xl leading-tight font-bold">{t("versus", { opponent: next.opponent })}</p>
-            {next.gymName || next.isHome !== null ? (
+            {next.gymName || next.location || next.isHome !== null ? (
               <p className="flex items-center gap-1 text-xs text-muted-foreground">
                 <MapPin className="size-3 shrink-0" aria-hidden />
-                {[next.gymName, next.isHome === null ? null : next.isHome ? t("home") : t("away")]
+                {[next.gymName ?? next.location, next.isHome === null ? null : next.isHome ? t("home") : t("away")]
                   .filter(Boolean)
                   .join(" · ")}
               </p>
@@ -367,10 +367,10 @@ export default async function MatchesPage({
                         >
                           {match.opponent}
                         </Link>
-                        {match.gymName ? (
+                        {match.gymName || match.location ? (
                           <span className="flex items-center gap-1 font-mono text-[11px] text-muted-foreground">
                             <MapPin className="size-3 shrink-0" aria-hidden />
-                            {match.gymName}
+                            {match.gymName ?? match.location}
                           </span>
                         ) : null}
                       </td>
