@@ -22,6 +22,9 @@ const PUBLIC_PREFIXES = [
   "/invitation",
   "/auth/callback",
   "/auth/error",
+  // Share-link pages for parents. The token in the path is the authorization;
+  // see `src/server/services/public-team-service.ts`.
+  "/public",
 ];
 
 /**

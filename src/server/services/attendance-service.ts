@@ -99,7 +99,11 @@ export interface RegisterLine {
 export interface RegisterSheet {
   register: AttendanceRegisterRow;
   team: { id: string; name: string; color: string; callUpLimit: number | null; tracksBoxScore: boolean };
-  /** `address` is the street and city joined, for telling parents where to go. */
+  /**
+   * The hall: for a match, the one currently set on the match; otherwise the
+   * one the register was opened in. `address` is the street and city joined,
+   * for telling parents where to go.
+   */
   gym: { id: string; name: string; address: string | null } | null;
   /** Set for a match: who we are playing, where, and when. */
   fixture: {
@@ -453,6 +457,14 @@ export async function getRegisterSheet(
         })()
       : Promise.resolve([]);
 
+  const eventPromise = register.event_id
+    ? context.db
+        .from("calendar_events")
+        .select("opponent, competition, is_home, start_at, buffer_before_minutes, location, gym_id")
+        .eq("id", register.event_id)
+        .maybeSingle()
+    : Promise.resolve({ data: null });
+
   const [
     { data: team },
     { data: gym },
@@ -465,20 +477,22 @@ export async function getRegisterSheet(
       .select("id, name, color, match_call_up_limit, tracks_box_score")
       .eq("id", register.team_id)
       .single(),
-    register.gym_id
-      ? context.db
-          .from("gyms")
-          .select("id, name, address_line1, city")
-          .eq("id", register.gym_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
-    register.event_id
-      ? context.db
-          .from("calendar_events")
-          .select("opponent, competition, is_home, start_at, buffer_before_minutes, location")
-          .eq("id", register.event_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null }),
+    /*
+      A match's hall is the match's own, read off the event as it stands now.
+      The register copied a gym when it was opened, and a venue set or moved
+      after that would otherwise never reach the call-up message.
+    */
+    eventPromise.then(async ({ data: matchEvent }) => {
+      const gymId = register.event_id ? (matchEvent?.gym_id ?? null) : register.gym_id;
+      if (!gymId) return { data: null };
+      const { data } = await context.db
+        .from("gyms")
+        .select("id, name, address_line1, city")
+        .eq("id", gymId)
+        .maybeSingle();
+      return { data };
+    }),
+    eventPromise,
     previousPromise,
     peoplePromise,
   ]);

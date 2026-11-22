@@ -42,6 +42,7 @@ import {
 import { CoachingStaffDialog } from "./coaching-staff-dialog";
 import { TeamMatchTable } from "./match-table";
 import { RequirementsCard } from "./requirements-form";
+import { PublicPageDialog } from "./public-page-dialog";
 import { RosterGrid } from "./roster-grid";
 
 
@@ -305,30 +306,33 @@ export default async function TeamDetailPage({
             {t("title")}
           </Link>
         </Button>
-        {canEditTeam ? (
-          <TeamFormDialog
-            mode="edit"
-            seasons={seasons.map((entry) => ({ value: entry.id, label: entry.name }))}
-            trainers={trainers.map((trainer) => ({
-              value: trainer.id,
-              label: `${trainer.first_name} ${trainer.last_name}`,
-            }))}
-            gyms={gyms.map((gym) => ({ value: gym.id, label: gym.name }))}
-            initialTrainerIds={relations.trainers.map((trainer) => trainer.id)}
-            team={{
-              id: team.id,
-              seasonId: team.season_id,
-              name: team.name,
-              sport: team.sport,
-              category: team.category,
-              ageGroup: team.age_group,
-              gender: team.gender,
-              homeGymId: team.home_gym_id,
-              color: team.color,
-              notes: team.notes,
-            }}
-          />
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <PublicPageDialog teamId={id} token={team.public_token} canManage={canEditTeam} />
+          {canEditTeam ? (
+            <TeamFormDialog
+              mode="edit"
+              seasons={seasons.map((entry) => ({ value: entry.id, label: entry.name }))}
+              trainers={trainers.map((trainer) => ({
+                value: trainer.id,
+                label: `${trainer.first_name} ${trainer.last_name}`,
+              }))}
+              gyms={gyms.map((gym) => ({ value: gym.id, label: gym.name }))}
+              initialTrainerIds={relations.trainers.map((trainer) => trainer.id)}
+              team={{
+                id: team.id,
+                seasonId: team.season_id,
+                name: team.name,
+                sport: team.sport,
+                category: team.category,
+                ageGroup: team.age_group,
+                gender: team.gender,
+                homeGymId: team.home_gym_id,
+                color: team.color,
+                notes: team.notes,
+              }}
+            />
+          ) : null}
+        </div>
       </div>
 
       <Card className="bg-linear-to-l from-orange-500/10 via-card to-card">
