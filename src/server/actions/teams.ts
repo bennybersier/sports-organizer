@@ -4,11 +4,13 @@ import { revalidatePath } from "next/cache";
 
 import { runAction, parseInput, type ActionResult } from "@/lib/action";
 import { requirePermission } from "@/server/auth/authorization";
+import { uuidSchema } from "@/lib/validation/common";
 import { createTeamSchema, updateTeamSchema } from "@/lib/validation/team";
 import {
   archiveTeam,
   createTeam,
   restoreTeam,
+  setTeamPublicPage,
   updateTeam,
 } from "@/server/services/team-service";
 
@@ -45,5 +47,24 @@ export async function restoreTeamAction(id: string): Promise<ActionResult<{ name
     const team = await restoreTeam(context, id);
     revalidatePath("/teams");
     return { name: team.name };
+  });
+}
+
+/**
+ * Turns a team's parents' page on (always with a new link) or off.
+ *
+ * The id is checked against the club by the service; here it only has to be
+ * shaped like one.
+ */
+export async function setTeamPublicPageAction(
+  id: string,
+  enabled: boolean,
+): Promise<ActionResult<{ token: string | null }>> {
+  return runAction(async () => {
+    const context = await requirePermission("teams.update");
+    const teamId = parseInput(uuidSchema, id);
+    const result = await setTeamPublicPage(context, teamId, enabled === true);
+    revalidatePath(`/teams/${teamId}`);
+    return result;
   });
 }

@@ -1,5 +1,7 @@
 import "server-only";
 
+import { randomBytes } from "node:crypto";
+
 import { ConflictError, NotFoundError, fromDatabaseError } from "@/lib/errors";
 import type { AuthContext } from "@/server/auth/context";
 import { assertPermission } from "@/server/auth/authorization";
@@ -418,6 +420,45 @@ export async function restoreTeam(context: AuthContext, id: string): Promise<Tea
 
   if (error) throw fromDatabaseError(error, { resource: "team" });
   return data;
+}
+
+/**
+ * Turns the parents' page on with a fresh link, or off.
+ *
+ * "On" always issues a new token, even when the page is already on: that is
+ * how a link that has travelled further than intended is withdrawn. The token
+ * itself never goes into the audit log — the log is readable by more people
+ * than should be able to open the page from it.
+ */
+export async function setTeamPublicPage(
+  context: AuthContext,
+  id: string,
+  enabled: boolean,
+): Promise<{ token: string | null }> {
+  assertPermission(context, "teams.update");
+  const before = await getTeam(context, id);
+
+  // 24 bytes is 192 bits: not guessable, and 32 URL-safe characters.
+  const token = enabled ? randomBytes(24).toString("base64url") : null;
+
+  const { error } = await context.db
+    .from("teams")
+    .update({ public_token: token })
+    .eq("tenant_id", context.tenant.id)
+    .eq("id", id);
+
+  if (error) throw fromDatabaseError(error, { resource: "team" });
+
+  await recordAudit(context, {
+    action: AUDIT_ACTIONS.TEAM_PUBLIC_PAGE_CHANGED,
+    resourceType: "team",
+    resourceId: id,
+    oldValue: { publicPage: before.public_token !== null },
+    newValue: { publicPage: enabled },
+    metadata: { linkReplaced: enabled && before.public_token !== null },
+  });
+
+  return { token };
 }
 
 /**

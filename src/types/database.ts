@@ -317,6 +317,8 @@ export interface TeamRow extends Timestamps {
   tracks_box_score: boolean;
   color: string;
   notes: string | null;
+  /** Secret for the parents' public page. Null when the page is off. */
+  public_token: string | null;
   status: EntityStatus;
   created_by: string | null;
   deleted_at: string | null;
