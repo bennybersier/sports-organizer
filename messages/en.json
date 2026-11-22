@@ -209,7 +209,9 @@
   },
   "staffBanner": {
     "message": "You're viewing {club} as a platform administrator. You aren't a member of this club, and this visit is in its audit log.",
-    "leave": "Leave club"
+    "leave": "Leave club",
+    "mode": "Platform admin mode",
+    "short": "Admin mode · <strong>{club}</strong>"
   },
   "errors": {
     "VALIDATION_ERROR": "Please check the highlighted fields.",
@@ -1425,6 +1427,37 @@
     "askApply": "Use this answer: {answer}",
     "askNotApplicable": "That answer doesn't fit this question. Choose above instead.",
     "qScorerChoice": "Shirt {shirt}",
-    "qShirtCorrection": "change shirt {from} to {to}"
+    "qShirtCorrection": "change shirt {from} to {to}",
+    "filterAll": "All",
+    "filterStarters": "Starters",
+    "filterBench": "Bench",
+    "topScorer": "Top scorer",
+    "totals": "Totals",
+    "wonBy": "Won by {margin}",
+    "lostBy": "Lost by {margin}",
+    "quarterByQuarter": "Quarter by quarter",
+    "quarterShort": "Q{quarter}",
+    "vs": "vs",
+    "coachNote": "Coach's note",
+    "editNote": "Edit note",
+    "scoringSplit": "Where the points came from",
+    "twoPointers": "2-point baskets",
+    "threePointers": "3-point baskets",
+    "freeThrowsMade": "Free throws",
+    "madeCount": "{made} made",
+    "pointsTotal": "{points} pts",
+    "teamFouls": "Team fouls",
+    "foulsTotal": "{count, plural, one {# foul} other {# fouls}}",
+    "startersShare": "The starting five scored {scored} of {total} points ({percent}%).",
+    "readWith": "Read with",
+    "checksPassed": "{passed} of {total} passed",
+    "pointsRead": "Points on the sheet",
+    "openSheet": "Open the game sheet",
+    "opponentThreats": "Their top scorers",
+    "viewOpponent": "See their full box score",
+    "resultAndSquad": "Result & squad",
+    "ourBoxScore": "{team} box score",
+    "winner": "Winner",
+    "fouledOut": "in red: fouled out (5 fouls)"
   }
 }

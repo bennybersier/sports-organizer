@@ -209,7 +209,9 @@
   },
   "staffBanner": {
     "message": "Stai visualizzando {club} come amministratore di piattaforma. Non sei membro di questa società e questa visita è registrata nel suo registro attività.",
-    "leave": "Esci dalla società"
+    "leave": "Esci dalla società",
+    "mode": "Modalità amministratore di piattaforma",
+    "short": "Modalità admin · <strong>{club}</strong>"
   },
   "errors": {
     "VALIDATION_ERROR": "Controlla i campi evidenziati.",
@@ -1425,6 +1427,37 @@
     "askApply": "Usa questa risposta: {answer}",
     "askNotApplicable": "Questa risposta non vale per questa domanda. Scegli qui sopra.",
     "qScorerChoice": "Maglia {shirt}",
-    "qShirtCorrection": "cambia la maglia {from} in {to}"
+    "qShirtCorrection": "cambia la maglia {from} in {to}",
+    "filterAll": "Tutti",
+    "filterStarters": "Quintetto",
+    "filterBench": "Panchina",
+    "topScorer": "Miglior marcatore",
+    "totals": "Totali",
+    "wonBy": "Vinta di {margin}",
+    "lostBy": "Persa di {margin}",
+    "quarterByQuarter": "Quarto per quarto",
+    "quarterShort": "Q{quarter}",
+    "vs": "vs",
+    "coachNote": "Nota dell'allenatore",
+    "editNote": "Modifica nota",
+    "scoringSplit": "Da dove arrivano i punti",
+    "twoPointers": "Canestri da 2",
+    "threePointers": "Canestri da 3",
+    "freeThrowsMade": "Tiri liberi",
+    "madeCount": "{made} segnati",
+    "pointsTotal": "{points} pt",
+    "teamFouls": "Falli di squadra",
+    "foulsTotal": "{count, plural, one {# fallo} other {# falli}}",
+    "startersShare": "Il quintetto iniziale ha segnato {scored} punti su {total} ({percent}%).",
+    "readWith": "Letto con",
+    "checksPassed": "{passed} su {total} superati",
+    "pointsRead": "Punti sul referto",
+    "openSheet": "Apri il referto",
+    "opponentThreats": "I loro migliori marcatori",
+    "viewOpponent": "Vedi il loro tabellino completo",
+    "resultAndSquad": "Risultato e convocati",
+    "ourBoxScore": "Tabellino {team}",
+    "winner": "Vincente",
+    "fouledOut": "in rosso: uscito per 5 falli"
   }
 }

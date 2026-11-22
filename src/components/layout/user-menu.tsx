@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTranslations } from "next-intl";
-import { ChevronsUpDown, Languages, LogOut, Palette, Settings2, UserRound } from "lucide-react";
+import { Languages, LogOut, Palette, Settings2, UserRound } from "lucide-react";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   SidebarMenu,
+  SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
@@ -31,6 +32,8 @@ export interface UserMenuUser {
   name: string;
   email: string;
   avatarUrl: string | null;
+  /** Their role in the active club, shown under the name in place of the email. */
+  role?: string;
 }
 
 export function UserMenu({ user }: { user: UserMenuUser }) {
@@ -44,18 +47,25 @@ export function UserMenu({ user }: { user: UserMenuUser }) {
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]:bg-sidebar-accent"
+              className="pr-10 data-[state=open]:bg-sidebar-accent"
               aria-label={t("accountMenu")}
             >
               <Avatar className="size-8 rounded-lg">
                 {user.avatarUrl ? <AvatarImage src={user.avatarUrl} alt="" /> : null}
-                <AvatarFallback className="rounded-lg">{initials(user.name)}</AvatarFallback>
+                <AvatarFallback className="rounded-lg bg-sidebar-accent text-sidebar-accent-foreground">
+                  {initials(user.name)}
+                </AvatarFallback>
               </Avatar>
               <span className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{user.name}</span>
-                <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+                <span className="truncate font-semibold">{user.name}</span>
+                {user.role ? (
+                  <span className="label-caps truncate text-sidebar-primary">
+                    {user.role}
+                  </span>
+                ) : (
+                  <span className="truncate text-xs text-sidebar-foreground/60">{user.email}</span>
+                )}
               </span>
-              <ChevronsUpDown className="ml-auto size-4" aria-hidden />
             </SidebarMenuButton>
           </DropdownMenuTrigger>
 
@@ -123,6 +133,17 @@ export function UserMenu({ user }: { user: UserMenuUser }) {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        {/* Sign out in one tap, as well as from the menu. A form post, as below. */}
+        <form action={signOut}>
+          <SidebarMenuAction
+            type="submit"
+            className="top-3! size-6"
+            aria-label={t("signOut")}
+            title={t("signOut")}
+          >
+            <LogOut aria-hidden />
+          </SidebarMenuAction>
+        </form>
       </SidebarMenuItem>
     </SidebarMenu>
   );

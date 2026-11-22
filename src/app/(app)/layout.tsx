@@ -2,8 +2,16 @@ import { redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 
 import { AppSidebar } from "@/components/layout/app-sidebar";
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
+import {
+  AppBreadcrumb,
+  BreadcrumbProvider,
+} from "@/components/layout/app-breadcrumb";
 import { StaffBanner } from "@/components/layout/staff-banner";
 import {
   getAuthContext,
@@ -20,7 +28,11 @@ import {
  * navigation matches what the user can actually do. Pages beneath still perform
  * their own `requirePermission` checks.
  */
-export default async function AppLayout({ children }: { children: React.ReactNode }) {
+export default async function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
 
@@ -78,32 +90,38 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           name: user.fullName ?? user.email,
           email: user.email,
           avatarUrl: user.avatarUrl,
+          role: context.role.name,
         }}
         permissions={[...context.permissions]}
+        isActingAsStaff={context.isActingAsStaff}
       />
 
       <SidebarInset>
-        {context.isActingAsStaff ? <StaffBanner tenantName={context.tenant.name} /> : null}
-        <header className="sticky top-0 z-10 flex h-14 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <span className="min-w-0 truncate text-sm font-medium">{context.tenant.name}</span>
-        </header>
-        {/*
-          The register's save bar is `position: fixed`, so it is out of flow and
-          sits on top of whatever the page ends with — on a phone that was the
-          last two rows of a table, unreachable. `:has()` lets the shell reserve
-          the room only while such a bar is actually on screen, rather than
-          leaving a gap at the foot of every page in the app. The safe-area
-          inset is the iPhone home indicator, which eats a further 34px.
-        */}
-        <div
-          id="main-content"
-          tabIndex={-1}
-          className="min-w-0 flex-1 p-4 has-[[data-save-bar]]:pb-[calc(6rem+env(safe-area-inset-bottom))] md:p-6"
-        >
-          {children}
-        </div>
+        <BreadcrumbProvider>
+          <header className="sticky top-0 z-10 flex h-16 shrink-0 items-center gap-2 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:px-6">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <AppBreadcrumb club={context.tenant.name} />
+          </header>
+          {context.isActingAsStaff ? (
+            <StaffBanner tenantName={context.tenant.name} />
+          ) : null}
+          {/*
+            The register's save bar is `position: fixed`, so it is out of flow and
+            sits on top of whatever the page ends with — on a phone that was the
+            last two rows of a table, unreachable. `:has()` lets the shell reserve
+            the room only while such a bar is actually on screen, rather than
+            leaving a gap at the foot of every page in the app. The safe-area
+            inset is the iPhone home indicator, which eats a further 34px.
+          */}
+          <div
+            id="main-content"
+            tabIndex={-1}
+            className="min-w-0 flex-1 p-4 has-[[data-save-bar]]:pb-[calc(6rem+env(safe-area-inset-bottom))] md:p-6"
+          >
+            {children}
+          </div>
+        </BreadcrumbProvider>
       </SidebarInset>
     </SidebarProvider>
   );
