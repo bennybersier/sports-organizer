@@ -194,6 +194,9 @@ export default async function AthletesPage({
                         }}
                         teams={teamOptions}
                         currentTeamIds={athlete.teams.map((team) => team.id)}
+                        currentNumbers={Object.fromEntries(
+                          athlete.teams.map((team) => [team.id, team.jerseyNumber]),
+                        )}
                         canUpdate={canUpdate}
                         canDelete={canDelete}
                       />

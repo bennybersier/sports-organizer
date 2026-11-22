@@ -5,6 +5,11 @@ import type { AuthContext } from "@/server/auth/context";
 import { assertPermission } from "@/server/auth/authorization";
 import { AUDIT_ACTIONS, diffFields, recordAudit } from "@/server/services/audit-service";
 import {
+  assertShirtsFree,
+  writeAthleteNumbers,
+  type ShirtEntry,
+} from "@/server/services/athlete-service";
+import {
   buildListResult,
   paginationRange,
   searchAcross,
@@ -575,6 +580,36 @@ export async function setSquadNumbers(
       resourceType: "team",
       resourceId: teamId,
       newValue: { team: team.name, shirtNumbers: changes.length },
+    });
+  }
+
+  return { changed: changes.length };
+}
+
+/**
+ * One athlete's shirt numbers, across every squad they are currently in.
+ *
+ * The same membership fact as {@link setSquadNumbers}, written from the
+ * player's side: a registrar adding a newcomer has the athlete open, not the
+ * team. The squad rule still holds — a number already worn by a teammate is
+ * refused, since a referto is read against shirts.
+ */
+export async function setAthleteNumbers(
+  context: AuthContext,
+  athleteId: string,
+  numbers: ShirtEntry[],
+): Promise<{ changed: number }> {
+  assertPermission(context, "teams.update");
+  await assertShirtsFree(context, athleteId, numbers);
+  const changes = await writeAthleteNumbers(context, athleteId, numbers);
+
+  for (const entry of changes) {
+    const team = await getTeam(context, entry.teamId);
+    await recordAudit(context, {
+      action: AUDIT_ACTIONS.TEAM_UPDATED,
+      resourceType: "team",
+      resourceId: entry.teamId,
+      newValue: { team: team.name, shirtNumbers: 1 },
     });
   }
 

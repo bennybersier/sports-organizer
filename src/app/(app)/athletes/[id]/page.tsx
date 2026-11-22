@@ -32,6 +32,7 @@ import { getAthlete } from "@/server/services/athlete-service";
 import { getAthleteRelations } from "@/server/services/relations-service";
 
 import { AbsencesCard } from "./absences-card";
+import { AthleteShirtNumbersDialog } from "./athlete-shirt-numbers-dialog";
 import { EvaluationDialog } from "./evaluation-dialog";
 import { MatchLogCard } from "./match-log-card";
 import { PerformanceCard } from "./performance-card";
@@ -99,6 +100,7 @@ export default async function AthleteDetailPage({
   );
   const canReadTeams = hasPermission(context, "teams.read");
   const canEditAthlete = hasPermission(context, "athletes.update");
+  const canEditTeams = hasPermission(context, "teams.update");
   // Every squad they could be put in, not only the ones they are in.
   const teamPool = canEditAthlete && canReadTeams ? await listTeamOptions(context) : [];
   // Attendance is its own permission, and a page that can show an athlete does
@@ -181,6 +183,9 @@ export default async function AthleteDetailPage({
                 mode="edit"
                 teams={teamPool.map((team) => ({ value: team.id, label: team.name }))}
                 currentTeamIds={relations.teams.map((team) => team.id)}
+                currentNumbers={Object.fromEntries(
+                  relations.teams.map((team) => [team.id, team.jerseyNumber ?? null]),
+                )}
                 athlete={{
                   id: athlete.id,
                   firstName: athlete.first_name,
@@ -315,15 +320,27 @@ export default async function AthleteDetailPage({
                 : [],
           }))}
           action={
-            teamPool.length > 0 ? (
-              <ManageRelationDialog
-                title={tRelated("teams")}
-                options={teamPool.map((team) => ({ value: team.id, label: team.name }))}
-                selected={relations.teams.map((team) => team.id)}
-                id={id}
-                save={setAthleteTeamsAction}
-              />
-            ) : null
+            <>
+              {canEditTeams && relations.teams.length > 0 ? (
+                <AthleteShirtNumbersDialog
+                  athleteId={id}
+                  teams={relations.teams.map((team) => ({
+                    id: team.id,
+                    name: team.name,
+                    jerseyNumber: team.jerseyNumber ?? null,
+                  }))}
+                />
+              ) : null}
+              {teamPool.length > 0 ? (
+                <ManageRelationDialog
+                  title={tRelated("teams")}
+                  options={teamPool.map((team) => ({ value: team.id, label: team.name }))}
+                  selected={relations.teams.map((team) => team.id)}
+                  id={id}
+                  save={setAthleteTeamsAction}
+                />
+              ) : null}
+            </>
           }
         />
       ) : null}

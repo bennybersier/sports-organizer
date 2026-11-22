@@ -276,7 +276,8 @@
     "noHeadCoachYet": "Non ancora deciso",
     "shirtNumbers": "Numeri di maglia",
     "shirtNumbersHint": "Il numero che ogni giocatore indossa in questa squadra. Il referto indica i marcatori per numero di maglia, quindi viene letto confrontandolo con questi.",
-    "shirtClash": "Due giocatori hanno lo stesso numero."
+    "shirtClash": "Due giocatori hanno lo stesso numero.",
+    "athleteShirtNumbersHint": "Il numero che questo giocatore indossa in ciascuna delle sue squadre. Un numero già indossato da un compagno di squadra viene rifiutato."
   },
   "gender": {
     "MALE": "Maschile",

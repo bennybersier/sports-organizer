@@ -1,6 +1,6 @@
 import "server-only";
 
-import { NotFoundError, fromDatabaseError } from "@/lib/errors";
+import { ConflictError, NotFoundError, fromDatabaseError } from "@/lib/errors";
 import type { AuthContext } from "@/server/auth/context";
 import { assertPermission } from "@/server/auth/authorization";
 import { AUDIT_ACTIONS, diffFields, recordAudit } from "@/server/services/audit-service";
@@ -179,6 +179,95 @@ async function syncTeams(context: AuthContext, athleteId: string, teamIds: strin
   return { added: added.length, removed: removed.length };
 }
 
+export interface ShirtEntry {
+  teamId: string;
+  jerseyNumber: number | null;
+}
+
+/**
+ * Refuses a shirt a teammate already wears.
+ *
+ * Checked before anything is written, so a clash on a new athlete does not
+ * leave the athlete saved and the number silently dropped. `athleteId` is null
+ * for an athlete not yet created — nobody to exclude.
+ */
+export async function assertShirtsFree(
+  context: AuthContext,
+  athleteId: string | null,
+  numbers: ShirtEntry[],
+) {
+  const claimed = numbers.filter(
+    (entry): entry is { teamId: string; jerseyNumber: number } => entry.jerseyNumber !== null,
+  );
+  if (claimed.length === 0) return;
+
+  let query = context.db
+    .from("athlete_teams")
+    .select("team_id, jersey_number")
+    .eq("tenant_id", context.tenant.id)
+    .in("team_id", claimed.map((entry) => entry.teamId))
+    .is("left_at", null)
+    .not("jersey_number", "is", null);
+  if (athleteId) query = query.neq("athlete_id", athleteId);
+  const { data: taken, error } = await query;
+  if (error) throw fromDatabaseError(error, { resource: "team" });
+
+  for (const entry of claimed) {
+    const clash = taken?.find(
+      (row) => row.team_id === entry.teamId && row.jersey_number === entry.jerseyNumber,
+    );
+    if (clash) {
+      const { data: team } = await context.db
+        .from("teams")
+        .select("name")
+        .eq("tenant_id", context.tenant.id)
+        .eq("id", entry.teamId)
+        .maybeSingle();
+      const teamName = team?.name ?? "this team";
+      throw new ConflictError(`${entry.jerseyNumber} is already worn by a teammate in ${teamName}.`);
+    }
+  }
+}
+
+/**
+ * Writes the numbers that moved, for squads the athlete is currently in.
+ * Callers check permission and clashes first.
+ */
+export async function writeAthleteNumbers(
+  context: AuthContext,
+  athleteId: string,
+  numbers: ShirtEntry[],
+): Promise<ShirtEntry[]> {
+  const { data: currentRows, error } = await context.db
+    .from("athlete_teams")
+    .select("team_id, jersey_number")
+    .eq("tenant_id", context.tenant.id)
+    .eq("athlete_id", athleteId)
+    .is("left_at", null);
+  if (error) throw fromDatabaseError(error, { resource: "team" });
+
+  const current = new Map((currentRows ?? []).map((row) => [row.team_id, row.jersey_number]));
+  const changes = numbers.filter(
+    (entry) => current.has(entry.teamId) && current.get(entry.teamId) !== entry.jerseyNumber,
+  );
+
+  const results = await Promise.all(
+    changes.map((entry) =>
+      context.db
+        .from("athlete_teams")
+        .update({ jersey_number: entry.jerseyNumber })
+        .eq("tenant_id", context.tenant.id)
+        .eq("team_id", entry.teamId)
+        .eq("athlete_id", athleteId)
+        .is("left_at", null),
+    ),
+  );
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw fromDatabaseError(failed.error, { resource: "team" });
+
+  return changes;
+}
+
 function toRow(input: CreateAthleteInput) {
   return {
     first_name: input.firstName,
@@ -203,6 +292,8 @@ export async function createAthlete(
   input: CreateAthleteInput,
 ): Promise<AthleteRow> {
   assertPermission(context, "athletes.create");
+  const numbers = input.numbers.filter((entry) => input.teamIds.includes(entry.teamId));
+  await assertShirtsFree(context, null, numbers);
 
   const { data, error } = await context.db
     .from("athletes")
@@ -212,7 +303,10 @@ export async function createAthlete(
 
   if (error) throw fromDatabaseError(error, { resource: "athlete", conflictMessages: CONFLICTS });
 
-  if (input.teamIds.length > 0) await syncTeams(context, data.id, input.teamIds);
+  if (input.teamIds.length > 0) {
+    await syncTeams(context, data.id, input.teamIds);
+    await writeAthleteNumbers(context, data.id, numbers);
+  }
 
   await recordAudit(context, {
     action: AUDIT_ACTIONS.ATHLETE_CREATED,
@@ -231,6 +325,8 @@ export async function updateAthlete(
   assertPermission(context, "athletes.update");
   const before = await getAthlete(context, input.id);
   const changes = toRow(input);
+  const numbers = input.numbers.filter((entry) => input.teamIds.includes(entry.teamId));
+  await assertShirtsFree(context, input.id, numbers);
 
   const { data, error } = await context.db
     .from("athletes")
@@ -242,10 +338,12 @@ export async function updateAthlete(
 
   if (error) throw fromDatabaseError(error, { resource: "athlete", conflictMessages: CONFLICTS });
 
-  const assignments = await syncTeams(context, input.id, input.teamIds);
+  const teamChanges = await syncTeams(context, input.id, input.teamIds);
+  const shirts = await writeAthleteNumbers(context, input.id, numbers);
+  const assignments = { ...teamChanges, shirts: shirts.length };
   const diff = diffFields(before as unknown as Record<string, unknown>, changes);
 
-  if (diff || assignments.added || assignments.removed) {
+  if (diff || assignments.added || assignments.removed || assignments.shirts) {
     await recordAudit(context, {
       action: AUDIT_ACTIONS.ATHLETE_UPDATED,
       resourceType: "athlete",

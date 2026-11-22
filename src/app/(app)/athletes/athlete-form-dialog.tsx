@@ -86,6 +86,7 @@ export function AthleteFormDialog({
   athlete,
   teams,
   currentTeamIds,
+  currentNumbers,
   open: controlledOpen,
   onOpenChange,
 }: {
@@ -93,6 +94,8 @@ export function AthleteFormDialog({
   athlete?: AthleteFormValues;
   teams: MultiSelectOption[];
   currentTeamIds?: string[];
+  /** Shirt per team the athlete is already in, keyed by team id. */
+  currentNumbers?: Record<string, number | null>;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -101,8 +104,16 @@ export function AthleteFormDialog({
   const tCommon = useTranslations("common");
   const tGender = useTranslations("gender");
   const tMembership = useTranslations("membershipState");
+  const tRelated = useTranslations("related");
   const [formError, setFormError] = useState<string | null>(null);
   const [teamIds, setTeamIds] = useState<string[]>(currentTeamIds ?? []);
+  const initialNumbers = () =>
+    Object.fromEntries(
+      Object.entries(currentNumbers ?? {}).map(([teamId, n]) => [teamId, n?.toString() ?? ""]),
+    );
+  // Kept for teams that get unticked too, so ticking one back restores it.
+  const [numbers, setNumbers] = useState<Record<string, string>>(initialNumbers);
+  const teamLabel = new Map(teams.map((team) => [team.value, team.label]));
 
   const form = useForm<Values>({
     resolver: zodResolver(schema),
@@ -149,13 +160,28 @@ export function AthleteFormDialog({
           notes: "",
         });
         setTeamIds([]);
+        setNumbers({});
+      } else {
+        // Squads and shirts can change from the athlete page's own dialogs
+        // while this one stays mounted; saving stale copies would undo them.
+        setTeamIds(currentTeamIds ?? []);
+        setNumbers(initialNumbers());
       }
     },
   });
 
   async function onSubmit(values: Values) {
     setFormError(null);
-    const payload = { ...(mode === "edit" ? { id: athlete?.id } : {}), ...values, teamIds };
+    const shirtNumbers = teamIds.map((teamId) => {
+      const raw = numbers[teamId]?.trim() ?? "";
+      return { teamId, jerseyNumber: raw === "" ? null : Number(raw) };
+    });
+    const payload = {
+      ...(mode === "edit" ? { id: athlete?.id } : {}),
+      ...values,
+      teamIds,
+      numbers: shirtNumbers,
+    };
     const result =
       mode === "create" ? await createAthleteAction(payload) : await updateAthleteAction(payload);
 
@@ -274,6 +300,43 @@ export function AthleteFormDialog({
                       emptyText={tCommon("none")}
                     />
                   </FormItem>
+                ) : null}
+
+                {/*
+                  A number per squad, since the same player can wear 7 for one
+                  side and 12 for another. Shown only once a team is ticked.
+                */}
+                {teamIds.length > 0 ? (
+                  <fieldset className="space-y-2">
+                    <legend className="text-sm font-medium">{tRelated("shirtNumbers")}</legend>
+                    <ul className="divide-y rounded-lg border">
+                      {teamIds.map((teamId) => (
+                        <li key={teamId} className="flex items-center gap-3 p-2.5">
+                          <label
+                            htmlFor={`athlete-shirt-${teamId}`}
+                            className="min-w-0 flex-1 truncate text-sm"
+                          >
+                            {teamLabel.get(teamId) ?? teamId}
+                          </label>
+                          <Input
+                            id={`athlete-shirt-${teamId}`}
+                            inputMode="numeric"
+                            pattern="[0-9]*"
+                            maxLength={3}
+                            placeholder="#"
+                            className="w-20 text-end tabular-nums"
+                            value={numbers[teamId] ?? ""}
+                            onChange={(event) =>
+                              setNumbers((current) => ({
+                                ...current,
+                                [teamId]: event.target.value.replace(/\D/g, ""),
+                              }))
+                            }
+                          />
+                        </li>
+                      ))}
+                    </ul>
+                  </fieldset>
                 ) : null}
 
                 <FormField

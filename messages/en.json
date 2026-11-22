@@ -276,7 +276,8 @@
     "noHeadCoachYet": "Not decided yet",
     "shirtNumbers": "Shirt numbers",
     "shirtNumbersHint": "The number each player wears for this team. A referto names scorers by shirt, so these are what it is read against.",
-    "shirtClash": "Two players have the same number."
+    "shirtClash": "Two players have the same number.",
+    "athleteShirtNumbersHint": "The number this player wears in each of their teams. A number a teammate already wears is refused."
   },
   "gender": {
     "MALE": "Male",
