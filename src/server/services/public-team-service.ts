@@ -20,13 +20,15 @@ import type { GenderCategory, MatchResultState } from "@/types/database";
  *   - the squad, as first name and last initial, for athletes whose family
  *     has not opted out (`athletes.public_consent`)
  *   - fixtures: when, against whom, home or away, where, and the score
+ *   - per match, the box score: shirt, name as above, makes, points, fouls —
+ *     opted-out players are summed into one unnamed line
  *   - the team's own record
  *   - when and where it trains, for the next few weeks
  *
- * Deliberately absent: anything else about an athlete (surnames, shirt
- * numbers, dates of birth, call-ups, attendance, box scores, evaluations —
- * these are children), coaches' names and contact details, internal notes on the team, the event or the result, and ids that
- * would mean something to the rest of the app.
+ * Deliberately absent: anything else about an athlete (surnames, dates of
+ * birth, call-ups, attendance, minutes and advanced stats, evaluations —
+ * these are children), coaches' names and contact details, and internal
+ * notes on the team, the event or the result.
  *
  * ## Why the secret-key client
  *
@@ -45,6 +47,8 @@ export interface PublicVenue {
 }
 
 export interface PublicMatch {
+  /** For the link to the match's own page; only resolves with the team's token. */
+  eventId: string;
   startsAt: string;
   opponent: string;
   isHome: boolean | null;
@@ -90,6 +94,8 @@ export interface PublicTeamPage {
     drawn: number;
     pointsFor: number;
     pointsAgainst: number;
+    pointDifference: number;
+    perGame: { scored: number; conceded: number } | null;
     form: Outcome[];
   };
   /** Soonest first. */
@@ -114,21 +120,67 @@ const TOKEN_SHAPE = /^[A-Za-z0-9_-]{32}$/;
  * and telling a stranger which of those it was would be telling them
  * something.
  */
-export async function getPublicTeamPage(token: string): Promise<PublicTeamPage | null> {
+/**
+ * The team a token opens, or null. The one place a token is checked, so the
+ * team page and the match page cannot disagree about which links still work.
+ */
+async function teamForToken(token: string) {
   if (!TOKEN_SHAPE.test(token)) return null;
 
-  const db = createAdminClient();
-
-  const { data: team, error } = await db
+  const { data: team, error } = await createAdminClient()
     .from("teams")
     .select(
-      "id, tenant_id, season_id, name, sport, category, age_group, gender, color, home_gym_id, status, deleted_at",
+      "id, tenant_id, season_id, name, sport, category, age_group, gender, color, home_gym_id, tracks_box_score, status, deleted_at",
     )
     .eq("public_token", token)
     .maybeSingle();
 
   if (error) throw fromDatabaseError(error, { resource: "team" });
   if (!team || team.deleted_at !== null || team.status === "ARCHIVED") return null;
+  return team;
+}
+
+type HallVenue = PublicVenue & { hasStreet: boolean };
+
+/**
+ * Where a match is played.
+ *
+ * A saved hall with a street address wins: picking it is the deliberate
+ * choice, and correcting the hall corrects every match there. Text typed on
+ * the match fills in when there is no hall, or the hall has no street on file
+ * — an away game at a hall nobody saved, above all.
+ */
+function matchVenue(hall: HallVenue | null, typed: string | null): PublicVenue | null {
+  const text = typed?.trim() || null;
+  if (hall?.hasStreet) return { name: hall.name, address: hall.address };
+  if (hall) return { name: hall.name, address: text ?? hall.address };
+  return text ? { name: text, address: null } : null;
+}
+
+/** A hall's row as a venue, remembering whether it has a street on file. */
+function hallVenue(gym: {
+  name: string;
+  address_line1: string | null;
+  address_line2: string | null;
+  postal_code: string | null;
+  city: string | null;
+}): HallVenue {
+  const place = [gym.postal_code, gym.city].filter(Boolean).join(" ");
+  const address = [gym.address_line1, gym.address_line2, place].filter(Boolean).join(", ");
+  return { name: gym.name, address: address || null, hasStreet: Boolean(gym.address_line1) };
+}
+
+/** "Marco R." — the only form an athlete's name takes on these pages. */
+function publicName(athlete: { first_name: string; last_name: string }): string {
+  const initial = athlete.last_name.trim().charAt(0).toLocaleUpperCase();
+  return initial ? `${athlete.first_name.trim()} ${initial}.` : athlete.first_name.trim();
+}
+
+export async function getPublicTeamPage(token: string): Promise<PublicTeamPage | null> {
+  const team = await teamForToken(token);
+  if (!team) return null;
+
+  const db = createAdminClient();
 
   const tenantId = team.tenant_id;
 
@@ -242,14 +294,8 @@ export async function getPublicTeamPage(token: string): Promise<PublicTeamPage |
           .in("id", gymIds)
       : { data: [] };
 
-  const venueById = new Map(
-    (gyms ?? []).map((gym) => {
-      const place = [gym.postal_code, gym.city].filter(Boolean).join(" ");
-      const address = [gym.address_line1, gym.address_line2, place].filter(Boolean).join(", ");
-      return [gym.id, { name: gym.name, address: address || null }];
-    }),
-  );
-  const venueOf = (gymId: string | null): PublicVenue | null =>
+  const venueById = new Map((gyms ?? []).map((gym) => [gym.id, hallVenue(gym)]));
+  const venueOf = (gymId: string | null): HallVenue | null =>
     gymId ? (venueById.get(gymId) ?? null) : null;
 
   const resultByEvent = new Map((results ?? []).map((row) => [row.event_id, row]));
@@ -263,15 +309,12 @@ export async function getPublicTeamPage(token: string): Promise<PublicTeamPage |
         : null;
 
     const match: PublicMatch = {
+      eventId: event.id,
       startsAt: event.start_at,
       opponent: event.opponent,
       isHome: event.is_home,
       competition: event.competition,
-      // An away hall is rarely one of ours; the event's free-text location is
-      // where the coach wrote it down.
-      venue:
-        venueOf(event.gym_id) ??
-        (event.location ? { name: event.location, address: null } : null),
+      venue: matchVenue(venueOf(event.gym_id), event.location),
       result: row
         ? {
             state: row.state,
@@ -307,24 +350,22 @@ export async function getPublicTeamPage(token: string): Promise<PublicTeamPage |
     reads are meaningful here.
   */
   const record = teamRecordFrom(
-    past.map(
-      (match): MatchListItem => ({
-        eventId: match.startsAt,
-        teamId: team.id,
-        teamName: team.name,
-        teamColor: team.color,
-        startsAt: match.startsAt,
-        endsAt: match.startsAt,
-        opponent: match.opponent,
-        isHome: match.isHome,
-        competition: match.competition,
-        gymName: null,
-        location: null,
-        registerId: null,
-        tracksBoxScore: false,
-        result: match.result ? { ...match.result, notes: null } : null,
-      }),
-    ),
+    past.map((match): MatchListItem => ({
+      eventId: match.startsAt,
+      teamId: team.id,
+      teamName: team.name,
+      teamColor: team.color,
+      startsAt: match.startsAt,
+      endsAt: match.startsAt,
+      opponent: match.opponent,
+      isHome: match.isHome,
+      competition: match.competition,
+      gymName: null,
+      location: null,
+      registerId: null,
+      tracksBoxScore: false,
+      result: match.result ? { ...match.result, notes: null } : null,
+    })),
   );
 
   return {
@@ -340,12 +381,7 @@ export async function getPublicTeamPage(token: string): Promise<PublicTeamPage |
       season: season?.name ?? null,
     },
     homeVenue: venueOf(team.home_gym_id),
-    roster: (athletes ?? [])
-      .map((athlete) => {
-        const initial = athlete.last_name.trim().charAt(0).toLocaleUpperCase();
-        return initial ? `${athlete.first_name.trim()} ${initial}.` : athlete.first_name.trim();
-      })
-      .sort((a, b) => a.localeCompare(b)),
+    roster: (athletes ?? []).map(publicName).sort((a, b) => a.localeCompare(b)),
     record: {
       played: record.played,
       won: record.won,
@@ -353,6 +389,8 @@ export async function getPublicTeamPage(token: string): Promise<PublicTeamPage |
       drawn: record.drawn,
       pointsFor: record.pointsFor,
       pointsAgainst: record.pointsAgainst,
+      pointDifference: record.pointDifference,
+      perGame: record.perGame,
       form: record.form,
     },
     upcoming,
@@ -363,5 +401,216 @@ export async function getPublicTeamPage(token: string): Promise<PublicTeamPage |
       venue: venueOf(session.gym_id),
       cancelled: session.status === "CANCELLED",
     })),
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* One match                                                                  */
+/* -------------------------------------------------------------------------- */
+
+export interface PublicBoxScoreLine {
+  /** "Marco R.", or null for the line that folds together opted-out players. */
+  name: string | null;
+  /** How many players a folded line stands for; 1 otherwise. */
+  players: number;
+  /** The shirt this team gives them. Null on the folded line, or when unset. */
+  shirt: number | null;
+  twos: number;
+  threes: number;
+  freeThrows: number;
+  points: number;
+  fouls: number;
+}
+
+export interface PublicMatchPage {
+  clubName: string;
+  teamName: string;
+  teamColor: string;
+  timeZone: string;
+  match: PublicMatch;
+  /**
+   * Highest scorer first. Empty when the team keeps no scoresheet or none has
+   * been entered. Players whose family opted out are summed into one unnamed
+   * line, last, so the totals still match the score.
+   */
+  boxScore: PublicBoxScoreLine[];
+}
+
+const UUID_SHAPE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * One match of the token's team, or null.
+ *
+ * The event id alone opens nothing: it must be one of this team's matches,
+ * so a token for the U13 cannot be walked over to another team's games.
+ */
+export async function getPublicMatchPage(
+  token: string,
+  eventId: string,
+): Promise<PublicMatchPage | null> {
+  if (!UUID_SHAPE.test(eventId)) return null;
+  const team = await teamForToken(token);
+  if (!team) return null;
+
+  const db = createAdminClient();
+  const tenantId = team.tenant_id;
+
+  const [{ data: tenant }, { data: link }, { data: event }, { data: result }, { data: register }] =
+    await Promise.all([
+      db
+        .from("tenants")
+        .select("name, timezone, status, deleted_at")
+        .eq("id", tenantId)
+        .maybeSingle(),
+      db
+        .from("calendar_event_teams")
+        .select("event_id")
+        .eq("tenant_id", tenantId)
+        .eq("team_id", team.id)
+        .eq("event_id", eventId)
+        .maybeSingle(),
+      db
+        .from("calendar_events")
+        .select("id, start_at, gym_id, location, opponent, is_home, competition, status")
+        .eq("tenant_id", tenantId)
+        .eq("id", eventId)
+        .maybeSingle(),
+      db
+        .from("match_results")
+        .select("state, our_score, their_score, our_periods, their_periods")
+        .eq("tenant_id", tenantId)
+        .eq("team_id", team.id)
+        .eq("event_id", eventId)
+        .maybeSingle(),
+      db
+        .from("attendance_registers")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("team_id", team.id)
+        .eq("event_id", eventId)
+        .maybeSingle(),
+    ]);
+
+  if (!tenant || tenant.status !== "ACTIVE" || tenant.deleted_at !== null) return null;
+  if (!link || !event || event.opponent === null || event.status === "CANCELLED") return null;
+
+  const [{ data: gym }, { data: lines }] = await Promise.all([
+    event.gym_id
+      ? db
+          .from("gyms")
+          .select("name, address_line1, address_line2, postal_code, city")
+          .eq("tenant_id", tenantId)
+          .eq("id", event.gym_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null }),
+    register && team.tracks_box_score
+      ? db
+          .from("match_box_scores")
+          // The counting stats a scoresheet records. Minutes, plus-minus and
+          // the rest stay with the coach.
+          .select(
+            "athlete_id, two_point_made, three_point_made, free_throw_made, points, fouls_committed",
+          )
+          .eq("tenant_id", tenantId)
+          .eq("register_id", register.id)
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const athleteIds = (lines ?? []).map((line) => line.athlete_id);
+  const [{ data: athletes }, { data: memberships }] =
+    athleteIds.length > 0
+      ? await Promise.all([
+          db
+            .from("athletes")
+            .select("id, first_name, last_name, public_consent")
+            .eq("tenant_id", tenantId)
+            .in("id", athleteIds),
+          // A number belongs to the membership, not the person: this team's.
+          db
+            .from("athlete_teams")
+            .select("athlete_id, jersey_number, left_at")
+            .eq("tenant_id", tenantId)
+            .eq("team_id", team.id)
+            .in("athlete_id", athleteIds),
+        ])
+      : [{ data: [] }, { data: [] }];
+  // A current membership's number wins over one from a stint that has ended.
+  const shirtOf = new Map<string, number | null>();
+  for (const row of [...(memberships ?? [])].sort(
+    (a, b) => Number(a.left_at === null) - Number(b.left_at === null),
+  )) {
+    shirtOf.set(row.athlete_id, row.jersey_number);
+  }
+  const named = new Map(
+    (athletes ?? [])
+      .filter((athlete) => athlete.public_consent)
+      .map((athlete) => [athlete.id, publicName(athlete)]),
+  );
+
+  const boxScore: PublicBoxScoreLine[] = [];
+  const folded: PublicBoxScoreLine = {
+    name: null,
+    players: 0,
+    shirt: null,
+    twos: 0,
+    threes: 0,
+    freeThrows: 0,
+    points: 0,
+    fouls: 0,
+  };
+  for (const line of lines ?? []) {
+    const stats = {
+      twos: line.two_point_made,
+      threes: line.three_point_made,
+      freeThrows: line.free_throw_made,
+      points: line.points,
+      fouls: line.fouls_committed,
+    };
+    const name = named.get(line.athlete_id);
+    if (name) {
+      boxScore.push({ name, players: 1, shirt: shirtOf.get(line.athlete_id) ?? null, ...stats });
+    } else {
+      folded.players += 1;
+      folded.twos += stats.twos;
+      folded.threes += stats.threes;
+      folded.freeThrows += stats.freeThrows;
+      folded.points += stats.points;
+      folded.fouls += stats.fouls;
+    }
+  }
+  boxScore.sort((a, b) => b.points - a.points || (a.name ?? "").localeCompare(b.name ?? ""));
+  if (folded.players > 0) boxScore.push(folded);
+
+
+  return {
+    clubName: tenant.name,
+    teamName: team.name,
+    teamColor: team.color,
+    timeZone: tenant.timezone,
+    match: {
+      eventId: event.id,
+      startsAt: event.start_at,
+      opponent: event.opponent,
+      isHome: event.is_home,
+      competition: event.competition,
+      venue: matchVenue(gym ? hallVenue(gym) : null, event.location),
+      result: result
+        ? {
+            state: result.state,
+            ourScore: result.our_score,
+            theirScore: result.their_score,
+            ourPeriods: result.our_periods,
+            theirPeriods: result.their_periods,
+            outcome:
+              result.our_score !== null && result.their_score !== null
+                ? outcomeOf({
+                    ourScore: result.our_score,
+                    theirScore: result.their_score,
+                  })
+                : null,
+          }
+        : null,
+    },
+    boxScore,
   };
 }

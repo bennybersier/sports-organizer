@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
 import { AlertCircle, Loader2, Pencil, Plus } from "lucide-react";
@@ -54,6 +54,8 @@ export interface GymFormValues {
   capacity: number | null;
   sharesHall: boolean;
   sharedOverlapMinutes: number;
+  /** An opponent's hall. Absent reads as one of ours. */
+  isAway?: boolean;
   sportTypes: string[];
   equipment: string[];
   color: string | null;
@@ -69,6 +71,7 @@ const schema = z.object({
   capacity: z.string().trim().optional(),
   sharesHall: z.boolean(),
   sharedOverlapMinutes: z.string(),
+  isAway: z.boolean(),
   sportTypesText: z.string().optional(),
   equipmentText: z.string().optional(),
   color: z.string().optional(),
@@ -109,6 +112,7 @@ export function GymFormDialog({
     capacity: "",
     sharesHall: false,
     sharedOverlapMinutes: "30",
+    isAway: false,
     sportTypesText: "",
     equipmentText: "",
     color: "",
@@ -125,13 +129,16 @@ export function GymFormDialog({
       city: gym?.city ?? "",
       capacity: gym?.capacity ? String(gym.capacity) : "",
       sharesHall: gym?.sharesHall ?? false,
-      sharedOverlapMinutes: String(gym?.sharedOverlapMinutes ?? 30),
+      // A hall that does not share stores 0; offer the usual 30 if it starts to.
+      sharedOverlapMinutes: String(gym?.sharedOverlapMinutes || 30),
+      isAway: gym?.isAway ?? false,
       sportTypesText: (gym?.sportTypes ?? []).join("\n"),
       equipmentText: (gym?.equipment ?? []).join("\n"),
       color: gym?.color ?? "",
       notes: gym?.notes ?? "",
     },
   });
+  const isAway = useWatch({ control: form.control, name: "isAway" });
 
   const [open, setOpen] = useFormDialog({
     open: controlledOpen,
@@ -152,8 +159,10 @@ export function GymFormDialog({
       postalCode: values.postalCode,
       city: values.city,
       capacity: values.capacity,
-      sharesHall: values.sharesHall,
+      // An opponent's hall never shares a changeover with us; it hosts no training.
+      sharesHall: values.isAway ? false : values.sharesHall,
       sharedOverlapMinutes: values.sharedOverlapMinutes,
+      isAway: values.isAway,
       sportTypes: toList(values.sportTypesText),
       equipment: toList(values.equipmentText),
       color: values.color,
@@ -298,6 +307,32 @@ export function GymFormDialog({
 
                 <FormField
                   control={form.control}
+                  name="isAway"
+                  render={({ field }) => (
+                    <FormItem className="rounded-lg border p-3">
+                      <div className="flex items-start gap-3">
+                        <FormControl>
+                          <Checkbox
+                            id="gym-away"
+                            checked={field.value}
+                            onCheckedChange={(value) => field.onChange(value === true)}
+                          />
+                        </FormControl>
+                        <div className="grid gap-1">
+                          <Label htmlFor="gym-away" className="font-normal">
+                            {t("isAway")}
+                          </Label>
+                          <p className="text-muted-foreground text-xs">{t("isAwayHint")}</p>
+                        </div>
+                      </div>
+                    </FormItem>
+                  )}
+                />
+
+                {/* Sharing is a training question, and away halls host none of ours. */}
+                {isAway ? null : (
+                <FormField
+                  control={form.control}
                   name="sharesHall"
                   render={({ field }) => (
                     <FormItem className="rounded-lg border p-3">
@@ -346,6 +381,7 @@ export function GymFormDialog({
                     </FormItem>
                   )}
                 />
+                )}
 
                 <FormField
                   control={form.control}

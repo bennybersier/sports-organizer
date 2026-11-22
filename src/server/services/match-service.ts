@@ -7,6 +7,7 @@ import { AUDIT_ACTIONS, recordAudit } from "@/server/services/audit-service";
 import { athleteBoxScores } from "@/server/services/performance-service";
 import { outcomeOf, teamRecord, type Outcome, type TeamRecord } from "@/domain/competitions/record";
 import type { MatchResultRow, MatchResultState } from "@/types/database";
+import { gymAddress } from "@/server/services/gym-service";
 import type { SaveResultInput } from "@/lib/validation/match";
 
 /**
@@ -267,6 +268,10 @@ export async function listMatches(
 /* -------------------------------------------------------------------------- */
 
 export interface MatchDetail extends MatchListItem {
+  /** The hall's saved address, for the match's map link. */
+  gymAddress: string | null;
+  /** Whether that address has a street, which makes it win over typed text. */
+  gymHasStreet: boolean;
   seasonId: string;
   /** The competition this came from, when it came from one. */
   competitionRef: { id: string; name: string; matchday: number } | null;
@@ -349,7 +354,11 @@ export async function getMatch(
 
   const [{ data: gym }, { data: competition }] = await Promise.all([
     event.gym_id
-      ? context.db.from("gyms").select("name").eq("id", event.gym_id).maybeSingle()
+      ? context.db
+          .from("gyms")
+          .select("name, address_line1, postal_code, city")
+          .eq("id", event.gym_id)
+          .maybeSingle()
       : Promise.resolve({ data: null }),
     // Named separately rather than embedded: `Relationships` is empty in our
     // hand-written Database type, so a PostgREST embed has no usable shape.
@@ -376,6 +385,8 @@ export async function getMatch(
     isHome: event.is_home,
     competition: event.competition,
     gymName: gym?.name ?? null,
+    gymAddress: gym ? gymAddress(gym) : null,
+    gymHasStreet: Boolean(gym?.address_line1),
     location: event.location,
     registerId: register?.id ?? null,
     result: result ? summarise(result) : null,

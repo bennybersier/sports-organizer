@@ -139,6 +139,8 @@ export async function buildScheduleInput(
         .select("id, name, city, max_concurrent_teams, max_shared_overlap_minutes")
         .eq("tenant_id", tenantId)
         .eq("status", "ACTIVE")
+        // An opponent's hall is saved for its address, never to train in.
+        .eq("is_away", false)
         .is("deleted_at", null),
       context.db
         .from("team_training_requirements")

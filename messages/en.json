@@ -357,7 +357,10 @@
     "updated": "{name} updated.",
     "archived": "{name} archived.",
     "archiveConfirmTitle": "Archive this gym?",
-    "archiveConfirmBody": "Past training sessions that used it are preserved. It won't be offered for new schedules."
+    "archiveConfirmBody": "Past training sessions that used it are preserved. It won't be offered for new schedules.",
+    "isAway": "Away hall (opponent's gym)",
+    "isAwayHint": "Saved for its address, so a match there can just pick it. Never used for training.",
+    "awayBadge": "Away"
   },
   "trainers": {
     "title": "Trainers",
@@ -692,7 +695,9 @@
     "bufferBefore": "Minutes before",
     "bufferAfter": "Minutes after",
     "address": "Address",
-    "addressPlaceholder": "Where it's held, if not one of your halls — e.g. Via Lonato 28, Brescia"
+    "addressPlaceholder": "Where it's held, if not one of your halls — e.g. Via Lonato 28, Brescia",
+    "awayHalls": "Away halls",
+    "usesHallAddress": "Leave empty to use the hall's saved address, shown above."
   },
   "conflicts": {
     "VALID": "Valid",
@@ -1574,18 +1579,16 @@
     "goneTitle": "This link doesn't work any more",
     "goneBody": "The club may have replaced it with a new one. Ask the team's coach for the current link.",
     "homeVenue": "Home games",
-    "upcoming": "Next matches",
     "noUpcoming": "No matches scheduled yet.",
     "training": "Training",
     "trainingHint": "The next two weeks.",
     "noTraining": "No training scheduled in the next two weeks.",
     "cancelled": "Cancelled",
-    "results": "Results",
-    "shortWIN": "W",
-    "shortLOSS": "L",
-    "shortDRAW": "D",
     "footer": "Shared by {club}. Times are local ({timeZone}).",
     "roster": "Squad",
-    "shownRoster": "The squad as first name and last initial, for athletes allowed on it"
+    "shownRoster": "The squad as first name and last initial, for athletes allowed on it",
+    "matches": "Matches",
+    "otherPlayers": "{count, plural, one {# other player} other {# other players}}",
+    "noBoxScore": "No box score for this match."
   }
 }

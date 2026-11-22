@@ -357,7 +357,10 @@
     "updated": "{name} aggiornata.",
     "archived": "{name} archiviata.",
     "archiveConfirmTitle": "Archiviare questa palestra?",
-    "archiveConfirmBody": "Gli allenamenti passati che l'hanno usata vengono conservati. Non verrà più proposta per i nuovi calendari."
+    "archiveConfirmBody": "Gli allenamenti passati che l'hanno usata vengono conservati. Non verrà più proposta per i nuovi calendari.",
+    "isAway": "Palestra in trasferta (avversari)",
+    "isAwayHint": "Salvata per il suo indirizzo, così una partita lì può semplicemente sceglierla. Mai usata per gli allenamenti.",
+    "awayBadge": "Trasferta"
   },
   "trainers": {
     "title": "Allenatori",
@@ -692,7 +695,9 @@
     "bufferBefore": "Minuti prima",
     "bufferAfter": "Minuti dopo",
     "address": "Indirizzo",
-    "addressPlaceholder": "Dove si gioca, se non in una vostra palestra — es. Via Lonato 28, Brescia"
+    "addressPlaceholder": "Dove si gioca, se non in una vostra palestra — es. Via Lonato 28, Brescia",
+    "awayHalls": "Palestre in trasferta",
+    "usesHallAddress": "Lascia vuoto per usare l'indirizzo salvato della palestra, mostrato sopra."
   },
   "conflicts": {
     "VALID": "Valido",
@@ -1574,18 +1579,16 @@
     "goneTitle": "Questo link non funziona più",
     "goneBody": "La società potrebbe averlo sostituito con uno nuovo. Chiedi il link aggiornato all'allenatore della squadra.",
     "homeVenue": "Partite in casa",
-    "upcoming": "Prossime partite",
     "noUpcoming": "Nessuna partita in programma.",
     "training": "Allenamenti",
     "trainingHint": "Le prossime due settimane.",
     "noTraining": "Nessun allenamento in programma nelle prossime due settimane.",
     "cancelled": "Annullato",
-    "results": "Risultati",
-    "shortWIN": "V",
-    "shortLOSS": "P",
-    "shortDRAW": "N",
     "footer": "Condiviso da {club}. Orari locali ({timeZone}).",
     "roster": "Rosa",
-    "shownRoster": "La rosa con nome e iniziale del cognome, per gli atleti autorizzati"
+    "shownRoster": "La rosa con nome e iniziale del cognome, per gli atleti autorizzati",
+    "matches": "Partite",
+    "otherPlayers": "{count, plural, one {# altro giocatore} other {altri # giocatori}}",
+    "noBoxScore": "Nessuna statistica per questa partita."
   }
 }

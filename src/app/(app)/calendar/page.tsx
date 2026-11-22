@@ -19,7 +19,7 @@ import {
 import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
 import { listCalendarItems } from "@/server/services/calendar-service";
-import { listGymOptions } from "@/server/services/gym-service";
+import { listGymOptions, toEventGymOption } from "@/server/services/gym-service";
 import { listSeasonOptions } from "@/server/services/season-service";
 import { listTeamOptions } from "@/server/services/team-service";
 import { listTrainerOptions } from "@/server/services/trainer-service";
@@ -76,14 +76,17 @@ export default async function CalendarPage({
     }),
     hasPermission(context, "teams.read") ? listTeamOptions(context) : Promise.resolve([]),
     hasPermission(context, "trainers.read") ? listTrainerOptions(context) : Promise.resolve([]),
-    hasPermission(context, "gyms.read") ? listGymOptions(context) : Promise.resolve([]),
+    // Away halls too: the event editor places away fixtures in them.
+    hasPermission(context, "gyms.read")
+      ? listGymOptions(context, { includeAway: true })
+      : Promise.resolve([]),
     hasPermission(context, "seasons.read") ? listSeasonOptions(context) : Promise.resolve([]),
   ]);
 
   // One set of pickers, shared by the create button and the edit form.
   const eventOptions = {
     seasons: seasons.map((season) => ({ value: season.id, label: season.name })),
-    gyms: gyms.map((gym) => ({ value: gym.id, label: gym.name })),
+    gyms: gyms.map(toEventGymOption),
     trainers: trainers.map((trainer) => ({
       value: trainer.id,
       label: `${trainer.first_name} ${trainer.last_name}`,

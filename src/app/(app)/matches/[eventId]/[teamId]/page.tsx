@@ -195,6 +195,15 @@ export default async function MatchPage({
   */
   const opponent = readOpponent(readSheet);
 
+  /*
+    A saved hall with a street wins: it was picked on purpose, and correcting
+    the hall corrects every match there. Text typed on the match fills in for
+    a hall with no street on file, or no hall at all.
+  */
+  const address = match.gymHasStreet
+    ? match.gymAddress
+    : (match.location ?? match.gymAddress);
+
   const kickoff = format.dateTime(new Date(match.startsAt), {
     weekday: "long",
     day: "numeric",
@@ -370,15 +379,20 @@ export default async function MatchPage({
               usually about to drive there. A plain search link rather than an
               embedded map — nothing loads until someone asks for directions.
             */}
-            {match.location ? (
+            {address ? (
               <a
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(match.location)}`}
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  // The hall's name helps the search when the address is its own.
+                  address === match.gymAddress
+                    ? [match.gymName, address].filter(Boolean).join(", ")
+                    : address,
+                )}`}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-1.5 underline-offset-4 hover:text-foreground hover:underline"
               >
                 <Navigation className="size-4 text-orange-500" aria-hidden />
-                {match.location}
+                {address}
               </a>
             ) : null}
           </div>
