@@ -533,7 +533,15 @@ export default async function MatchPage({
                     canManage={hasPermission(context, "attendance.manage")}
                   />
                 </div>
-                <RegisterSheetEditor sheet={register} />
+                <RegisterSheetEditor
+                  sheet={register}
+                  callUp={{
+                    clubName: context.tenant.name,
+                    // Signed with a first name, as a coach would.
+                    signature: context.user.fullName?.split(" ")[0] ?? "",
+                    timeZone: context.tenant.timezone,
+                  }}
+                />
               </div>
             ) : (
               /*
