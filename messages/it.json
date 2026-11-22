@@ -444,7 +444,9 @@
     "filterAthletes": "Filtra atleti…",
     "hallsCount": "{count, plural, one {# palestra} other {# palestre}}",
     "rest": "Riposo",
-    "openOrganizer": "Smart Organizer"
+    "openOrganizer": "Smart Organizer",
+    "teamsCount": "{count, plural, one {# squadra} other {# squadre}}",
+    "openTeam": "Apri squadra"
   },
   "athletes": {
     "title": "Atleti",
@@ -1528,6 +1530,8 @@
     "resultAndSquad": "Risultato e convocati",
     "ourBoxScore": "Tabellino {team}",
     "winner": "Vincente",
-    "fouledOut": "in rosso: uscito per 5 falli"
+    "fouledOut": "in rosso: uscito per 5 falli",
+    "matchesCount": "{count, plural, one {# partita} other {# partite}}",
+    "searchPlaceholder": "Cerca squadra, avversario o competizione…"
   }
 }

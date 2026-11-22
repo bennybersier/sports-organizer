@@ -444,7 +444,9 @@
     "filterAthletes": "Filter athletes…",
     "hallsCount": "{count, plural, one {# hall} other {# halls}}",
     "rest": "Rest",
-    "openOrganizer": "Smart Organizer"
+    "openOrganizer": "Smart Organizer",
+    "teamsCount": "{count, plural, one {# team} other {# teams}}",
+    "openTeam": "Open team"
   },
   "athletes": {
     "title": "Athletes",
@@ -1528,6 +1530,8 @@
     "resultAndSquad": "Result & squad",
     "ourBoxScore": "{team} box score",
     "winner": "Winner",
-    "fouledOut": "in red: fouled out (5 fouls)"
+    "fouledOut": "in red: fouled out (5 fouls)",
+    "matchesCount": "{count, plural, one {# match} other {# matches}}",
+    "searchPlaceholder": "Search team, opponent or competition…"
   }
 }

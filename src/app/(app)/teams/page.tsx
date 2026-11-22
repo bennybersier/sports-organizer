@@ -1,23 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { getTranslations } from "next-intl/server";
-import { Users } from "lucide-react";
+import { ArrowRight, Users } from "lucide-react";
 
-import { Card } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
 import { AccessDenied } from "@/components/data/access-denied";
 import { EmptyState } from "@/components/data/empty-state";
 import { ListToolbar } from "@/components/data/list-toolbar";
 import { PageHeader } from "@/components/data/page-header";
 import { PaginationBar } from "@/components/data/pagination-bar";
-import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/data/status-badge";
 import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
@@ -26,6 +17,8 @@ import { listSeasonOptions } from "@/server/services/season-service";
 import { listTeamSports, listTeams } from "@/server/services/team-service";
 import { listTrainerOptions } from "@/server/services/trainer-service";
 import { listGymOptions } from "@/server/services/gym-service";
+import { listMatches } from "@/server/services/match-service";
+import type { Outcome } from "@/domain/competitions/record";
 
 import { TeamFormDialog } from "./team-form-dialog";
 import { TeamRowActions } from "./team-row-actions";
@@ -47,7 +40,7 @@ export default async function TeamsPage({
   const tCommon = await getTranslations("common");
   const tList = await getTranslations("list");
   const tGender = await getTranslations("gender");
-  const tRelated = await getTranslations("related");
+  const tMatches = await getTranslations("matches");
 
   const raw = await searchParams;
   const params = parseListParams(raw);
@@ -57,13 +50,33 @@ export default async function TeamsPage({
 
   const canManageTrainers = hasPermission(context, "trainers.read");
 
-  const [result, seasons, sports, trainers, gyms] = await Promise.all([
+  const [result, seasons, sports, trainers, gyms, played] = await Promise.all([
     listTeams(context, params, { seasonId, sport, status }),
     listSeasonOptions(context),
     listTeamSports(context),
     canManageTrainers ? listTrainerOptions(context) : Promise.resolve([]),
     hasPermission(context, "gyms.read") ? listGymOptions(context) : Promise.resolve([]),
+    // Results are their own permission; without it the cards simply carry no record.
+    hasPermission(context, "attendance.read")
+      ? listMatches(context, { only: "PLAYED" })
+      : Promise.resolve([]),
   ]);
+
+  /*
+    Each side's record and its last five, from one query for every played
+    match rather than one per card. Most recent first, as form is read.
+  */
+  const records = new Map<string, { won: number; lost: number; drawn: number; form: Outcome[] }>();
+  for (const match of [...played].sort((a, b) => b.startsAt.localeCompare(a.startsAt))) {
+    const outcome = match.result?.outcome;
+    if (!outcome) continue;
+    const entry = records.get(match.teamId) ?? { won: 0, lost: 0, drawn: 0, form: [] };
+    if (outcome === "WIN") entry.won += 1;
+    else if (outcome === "LOSS") entry.lost += 1;
+    else entry.drawn += 1;
+    if (entry.form.length < 5) entry.form.push(outcome);
+    records.set(match.teamId, entry);
+  }
 
   const canCreate = hasPermission(context, "teams.create");
   const canUpdate = hasPermission(context, "teams.update");
@@ -96,6 +109,7 @@ export default async function TeamsPage({
       <PageHeader
         title={t("title")}
         description={t("subtitle")}
+        eyebrow={t("teamsCount", { count: result.total })}
         action={
           canCreate ? (
             <TeamFormDialog
@@ -159,92 +173,139 @@ export default async function TeamsPage({
         />
       ) : (
         <>
-          <Card className="overflow-x-auto p-0 max-lg:rounded-none max-lg:bg-transparent max-lg:ring-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{tCommon("name")}</TableHead>
-                  <TableHead>{tCommon("sport")}</TableHead>
-                  <TableHead>{tRelated("competitions")}</TableHead>
-                  <TableHead>{tCommon("season")}</TableHead>
-                  <TableHead className="text-right">{t("athletes")}</TableHead>
-                  <TableHead className="text-right">{t("trainers")}</TableHead>
-                  <TableHead>{tCommon("status")}</TableHead>
-                  <TableHead className="sr-only">{tCommon("actions")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {result.rows.map((team) => (
-                  <TableRow key={team.id}>
-                    <TableCell variant="primary">
-                      <div className="flex items-center gap-2">
-                        <span
-                          className="size-2.5 shrink-0 rounded-full"
-                          style={{ backgroundColor: team.color }}
-                          aria-hidden
+          {/*
+            A card per side rather than a table row. What is asked of this page
+            is "how is each team doing", and a card has room for the record and
+            the form beside the squad's size — a row of eight columns did not.
+          */}
+          <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {result.rows.map((team) => {
+              const record = records.get(team.id);
+              const subtitle = [
+                team.age_group,
+                team.gender !== "UNSPECIFIED" ? tGender(team.gender) : null,
+                team.sport,
+              ]
+                .filter(Boolean)
+                .join(" · ");
+              return (
+                <li key={team.id}>
+                  <Card className="relative h-full gap-0 border-t-0 py-0">
+                    {/* The team's own colour, as the calendar shows it. */}
+                    <span
+                      className="absolute inset-x-0 top-0 h-1"
+                      style={{ backgroundColor: team.color }}
+                      aria-hidden
+                    />
+                    <CardContent className="flex h-full flex-col gap-4 py-4">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            {team.status !== "ACTIVE" ? <StatusBadge status={team.status} /> : null}
+                            <span className="label-caps text-muted-foreground">{team.season_name}</span>
+                          </div>
+                          <Link
+                            href={`/teams/${team.id}`}
+                            className="block text-lg leading-tight font-bold tracking-tight text-balance hover:underline"
+                          >
+                            {team.name}
+                          </Link>
+                          <p className="text-xs text-muted-foreground">{subtitle || "—"}</p>
+                        </div>
+                        <TeamRowActions
+                          team={{
+                            id: team.id,
+                            seasonId: team.season_id,
+                            name: team.name,
+                            sport: team.sport,
+                            category: team.category,
+                            ageGroup: team.age_group,
+                            gender: team.gender,
+                            homeGymId: team.home_gym_id,
+                            color: team.color,
+                            notes: team.notes,
+                            status: team.status,
+                          }}
+                          seasons={seasonOptions}
+                          trainers={trainerOptions}
+                          gyms={gymOptions}
+                          canUpdate={canUpdate}
+                          canDelete={canDelete}
                         />
-                        <Link href={`/teams/${team.id}`} className="font-medium hover:underline">
-                          {team.name}
-                        </Link>
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        {[team.age_group, team.gender !== "UNSPECIFIED" ? tGender(team.gender) : null]
-                          .filter(Boolean)
-                          .join(" · ") || "—"}
-                      </div>
-                    </TableCell>
-                    <TableCell data-label={tCommon("sport")} className="text-sm">{team.sport}</TableCell>
-                    {/* Plural on purpose: a league, the phase it came out of, a cup. */}
-                    <TableCell data-label={tRelated("competitions")}>
-                      {team.competitions.length === 0 ? (
-                        <span className="text-sm text-muted-foreground">—</span>
-                      ) : (
-                        <span className="flex flex-wrap gap-1">
+
+                      {/* Plural on purpose: a league, the phase it came out of, a cup. */}
+                      {team.competitions.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
                           {team.competitions.map((competition) => (
-                            <Link key={competition.id} href={`/competitions/${competition.id}`}>
-                              <Badge variant="outline" className="hover:bg-accent">
-                                {competition.name}
-                              </Badge>
+                            <Link
+                              key={competition.id}
+                              href={`/competitions/${competition.id}`}
+                              className="label-caps rounded-full border border-orange-500/40 px-2 py-0.5 text-orange-700 hover:bg-orange-500/10 dark:text-orange-400"
+                            >
+                              {competition.name}
                             </Link>
                           ))}
-                        </span>
-                      )}
-                    </TableCell>
-                    <TableCell data-label={tCommon("season")} className="text-sm text-muted-foreground">
-                      {team.season_name}
-                    </TableCell>
-                    <TableCell data-label={t("athletes")} className="text-right tabular-nums">{team.athlete_count}</TableCell>
-                    <TableCell data-label={t("trainers")} className="text-right tabular-nums">{team.trainer_count}</TableCell>
-                    <TableCell data-label={tCommon("status")}>
-                      <StatusBadge status={team.status} />
-                    </TableCell>
-                    <TableCell variant="actions" className="text-right">
-                      <TeamRowActions
-                        team={{
-                          id: team.id,
-                          seasonId: team.season_id,
-                          name: team.name,
-                          sport: team.sport,
-                          category: team.category,
-                          ageGroup: team.age_group,
-                          gender: team.gender,
-                          homeGymId: team.home_gym_id,
-                          color: team.color,
-                          notes: team.notes,
-                          status: team.status,
-                        }}
-                        seasons={seasonOptions}
-                        trainers={trainerOptions}
-                        gyms={gymOptions}
-                        canUpdate={canUpdate}
-                        canDelete={canDelete}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </Card>
+                        </div>
+                      ) : null}
+
+                      <dl className="grid grid-cols-3 gap-2">
+                        <div className="space-y-1 rounded-md border bg-muted/30 p-2.5">
+                          <dt className="label-caps text-muted-foreground">{t("athletes")}</dt>
+                          <dd className="font-mono text-xl font-bold">{team.athlete_count}</dd>
+                        </div>
+                        <div className="space-y-1 rounded-md border bg-muted/30 p-2.5">
+                          <dt className="label-caps text-muted-foreground">{t("trainers")}</dt>
+                          <dd className="font-mono text-xl font-bold">{team.trainer_count}</dd>
+                        </div>
+                        <div className="space-y-1 rounded-md border bg-muted/30 p-2.5">
+                          <dt className="label-caps text-muted-foreground">{tMatches("record")}</dt>
+                          <dd className="font-mono text-xl font-bold">
+                            {record ? (
+                              <>
+                                {record.won}
+                                <span className="text-muted-foreground">–</span>
+                                {record.lost}
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground">—</span>
+                            )}
+                          </dd>
+                        </div>
+                      </dl>
+
+                      <div className="mt-auto flex items-center justify-between gap-2 border-t pt-3">
+                        <div className="flex gap-1" aria-label={tMatches("form")}>
+                          {record?.form.map((outcome, index) => (
+                            <span
+                              key={index}
+                              title={tMatches(outcome)}
+                              className={
+                                outcome === "WIN"
+                                  ? "flex size-6 items-center justify-center rounded bg-emerald-600 font-mono text-[10px] font-bold text-white"
+                                  : outcome === "LOSS"
+                                    ? "flex size-6 items-center justify-center rounded bg-red-700 font-mono text-[10px] font-bold text-white"
+                                    : "flex size-6 items-center justify-center rounded bg-muted font-mono text-[10px] font-bold"
+                              }
+                            >
+                              {tMatches(outcome).charAt(0)}
+                            </span>
+                          ))}
+                        </div>
+                        <Link
+                          href={`/teams/${team.id}`}
+                          className="label-caps flex items-center gap-1 text-orange-600 hover:underline dark:text-orange-400"
+                        >
+                          {t("openTeam")}
+                          <ArrowRight className="size-3" aria-hidden />
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </li>
+              );
+            })}
+          </ul>
 
           <PaginationBar
             page={result.page}

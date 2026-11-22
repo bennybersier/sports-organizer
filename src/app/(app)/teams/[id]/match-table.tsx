@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
-import { CalendarDays, MapPin, Swords } from "lucide-react";
+import { CalendarDays, ChevronRight, MapPin, Swords } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
@@ -210,6 +210,7 @@ export function TeamMatchTable({
                 <th className="px-3 py-2.5 text-center font-semibold">{t("venue")}</th>
                 <th className="px-3 py-2.5 text-end font-semibold">{tTeams("resultOrTime")}</th>
                 <th className="px-3 py-2.5 text-end font-semibold">{t("state")}</th>
+                <th className="w-8" aria-hidden />
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -217,7 +218,11 @@ export function TeamMatchTable({
                 const state = status(match);
                 const upcomingRow = !isPlayed(match);
                 return (
-                  <tr key={`${match.eventId}:${match.teamId}`} className="hover:bg-muted/30">
+                  // The whole row opens the match: see the match list for how.
+                  <tr
+                    key={`${match.eventId}:${match.teamId}`}
+                    className="group relative cursor-pointer hover:bg-muted/40 has-[a:focus-visible]:bg-muted/40 has-[a:focus-visible]:outline-2 has-[a:focus-visible]:outline-orange-500"
+                  >
                     <td
                       className={cn(
                         "px-3 py-2.5 font-mono whitespace-nowrap",
@@ -227,7 +232,10 @@ export function TeamMatchTable({
                       {day(match.startsAt)}
                     </td>
                     <td className="px-3 py-2.5">
-                      <Link href={href(match)} className="font-medium hover:underline">
+                      <Link
+                        href={href(match)}
+                        className="font-medium after:absolute after:inset-0 after:content-[''] group-hover:underline focus-visible:outline-none"
+                      >
                         {match.opponent}
                       </Link>
                       {match.gymName ? (
@@ -246,6 +254,9 @@ export function TeamMatchTable({
                     <td className="px-3 py-2.5 text-end whitespace-nowrap">{score(match)}</td>
                     <td className="px-3 py-2.5 text-end whitespace-nowrap">
                       <span className={chip(state.tone)}>{state.label}</span>
+                    </td>
+                    <td className="pe-2 text-muted-foreground group-hover:text-orange-500" aria-hidden>
+                      <ChevronRight className="size-4" />
                     </td>
                   </tr>
                 );
