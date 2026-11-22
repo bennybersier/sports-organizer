@@ -12,6 +12,7 @@ import {
   AppBreadcrumb,
   BreadcrumbProvider,
 } from "@/components/layout/app-breadcrumb";
+import { GlobalSearch } from "@/components/layout/global-search";
 import { StaffBanner } from "@/components/layout/staff-banner";
 import {
   getAuthContext,
@@ -102,6 +103,7 @@ export default async function AppLayout({
             <SidebarTrigger className="-ml-1" />
             <Separator orientation="vertical" className="mr-2 h-4" />
             <AppBreadcrumb club={context.tenant.name} />
+            <GlobalSearch permissions={[...context.permissions]} />
           </header>
           {context.isActingAsStaff ? (
             <StaffBanner tenantName={context.tenant.name} />

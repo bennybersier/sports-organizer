@@ -1533,5 +1533,13 @@
     "fouledOut": "in red: fouled out (5 fouls)",
     "matchesCount": "{count, plural, one {# match} other {# matches}}",
     "searchPlaceholder": "Search team, opponent or competition…"
+  },
+  "search": {
+    "open": "Search",
+    "placeholder": "Search athletes, teams, matches…",
+    "searching": "Searching…",
+    "noResults": "Nothing found for “{query}”.",
+    "pages": "Pages",
+    "hint": "Type at least two letters to search athletes, teams, matches, coaches, halls and competitions."
   }
 }

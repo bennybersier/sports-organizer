@@ -1533,5 +1533,13 @@
     "fouledOut": "in rosso: uscito per 5 falli",
     "matchesCount": "{count, plural, one {# partita} other {# partite}}",
     "searchPlaceholder": "Cerca squadra, avversario o competizione…"
+  },
+  "search": {
+    "open": "Cerca",
+    "placeholder": "Cerca atleti, squadre, partite…",
+    "searching": "Ricerca in corso…",
+    "noResults": "Nessun risultato per “{query}”.",
+    "pages": "Pagine",
+    "hint": "Scrivi almeno due lettere per cercare atleti, squadre, partite, allenatori, palestre e competizioni."
   }
 }
