@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -19,8 +20,11 @@ export type TypedSupabaseClient = SupabaseClient<Database>;
  * This is the default client. Reach for `createAdminClient` only when a
  * request genuinely cannot carry a user JWT (background jobs, MCP, secret
  * decryption) — and only after checking permissions in application code.
+ *
+ * One per request: the auth context, the page and its services all share it,
+ * so the session is read from the cookie once rather than per caller.
  */
-export async function createClient(): Promise<TypedSupabaseClient> {
+export const createClient = cache(async (): Promise<TypedSupabaseClient> => {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(
@@ -44,4 +48,4 @@ export async function createClient(): Promise<TypedSupabaseClient> {
       },
     },
   );
-}
+});

@@ -87,10 +87,18 @@ function toReading(value: unknown): StoredReading | null {
   return candidate as StoredReading;
 }
 
-async function view(context: AuthContext, row: MatchSheetRow): Promise<SheetView> {
-  const { data: signed } = await context.db.storage
-    .from(BUCKET)
-    .createSignedUrl(row.storage_path, SIGNED_URL_SECONDS);
+async function view(
+  context: AuthContext,
+  row: MatchSheetRow,
+  /** Already signed by the caller, when it signed a batch at once. */
+  presigned?: string | null,
+): Promise<SheetView> {
+  const signedUrl =
+    presigned !== undefined
+      ? presigned
+      : ((
+          await context.db.storage.from(BUCKET).createSignedUrl(row.storage_path, SIGNED_URL_SECONDS)
+        ).data?.signedUrl ?? null);
 
   return {
     id: row.id,
@@ -102,7 +110,7 @@ async function view(context: AuthContext, row: MatchSheetRow): Promise<SheetView
     readModel: row.read_model,
     failure: row.failure,
     importedAt: row.imported_at,
-    imageUrl: signed?.signedUrl ?? null,
+    imageUrl: signedUrl,
     transcription: toTranscription(row.transcription),
     reading: toReading(row.reading),
   };
@@ -232,7 +240,25 @@ export async function listSheets(
     .order("created_at", { ascending: false });
   if (error) throw fromDatabaseError(error, { resource: "game sheet" });
 
-  return Promise.all((data ?? []).map((row) => view(context, row)));
+  const rows = data ?? [];
+  if (rows.length === 0) return [];
+
+  // One request for every photograph's link, not one each.
+  const { data: signed } = await context.db.storage
+    .from(BUCKET)
+    .createSignedUrls(
+      rows.map((row) => row.storage_path),
+      SIGNED_URL_SECONDS,
+    );
+  const urlByPath = new Map(
+    (signed ?? []).flatMap((entry) =>
+      entry.path && entry.signedUrl ? [[entry.path, entry.signedUrl] as const] : [],
+    ),
+  );
+
+  return Promise.all(
+    rows.map((row) => view(context, row, urlByPath.get(row.storage_path) ?? null)),
+  );
 }
 
 export async function getSheet(context: AuthContext, sheetId: string): Promise<SheetView> {

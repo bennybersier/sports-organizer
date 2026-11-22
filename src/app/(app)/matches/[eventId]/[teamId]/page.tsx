@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
@@ -60,6 +61,9 @@ import { SheetsCard } from "./sheets-card";
  */
 export const maxDuration = 60;
 
+/** Shared by the metadata and the page, so the match is read once. */
+const loadMatch = cache(getMatch);
+
 export async function generateMetadata({
   params,
 }: {
@@ -69,7 +73,7 @@ export async function generateMetadata({
   if (!hasPermission(context, "attendance.read")) return {};
   try {
     const { eventId, teamId } = await params;
-    const match = await getMatch(context, eventId, teamId);
+    const match = await loadMatch(context, eventId, teamId);
     return {
       title:
         match.isHome === false
@@ -110,7 +114,7 @@ export default async function MatchPage({
 
   let match;
   try {
-    match = await getMatch(context, eventId, teamId);
+    match = await loadMatch(context, eventId, teamId);
   } catch (error) {
     if (isAppError(error) && error.code === "NOT_FOUND") notFound();
     throw error;

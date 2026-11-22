@@ -111,6 +111,8 @@ export async function listCalendarItems(
   from: string,
   to: string,
   filters: CalendarFilters = {},
+  /** The published version for this range, when the caller already has it. */
+  knownVersionId?: string | null,
 ): Promise<CalendarItem[]> {
   assertPermission(context, "calendar.read");
 
@@ -118,21 +120,31 @@ export async function listCalendarItems(
   const rangeStart = startOfDayInZone(from, zone).toISOString();
   const rangeEnd = endOfDayInZone(to, zone).toISOString();
 
-  // The published version is what the club sees; drafts live in the organizer.
-  const publishedVersionId = await publishedVersionFor(context, from, to, filters.seasonId);
-
-  const [entries, events, lookups] = await Promise.all([
-    publishedVersionId
-      ? fetchScheduleEntries(context, publishedVersionId, rangeStart, rangeEnd, filters)
-      : Promise.resolve([]),
-    fetchCalendarEvents(context, rangeStart, rangeEnd, filters),
-    fetchLookups(context),
-  ]);
-
-  const teamsByEvent = await eventTeamLinks(
-    context,
-    events.map((event) => event.id),
+  /*
+    The published version is what the club sees; drafts live in the organizer.
+    Only the schedule entries wait on it — events, their team links and the
+    lookups go at once, so the whole read is two round trips deep, not four.
+  */
+  const entriesPromise = (
+    knownVersionId !== undefined
+      ? Promise.resolve(knownVersionId)
+      : publishedVersionFor(context, from, to, filters.seasonId)
+  ).then((versionId) =>
+    versionId ? fetchScheduleEntries(context, versionId, rangeStart, rangeEnd, filters) : [],
   );
+  const eventsPromise = fetchCalendarEvents(context, rangeStart, rangeEnd, filters);
+
+  const [entries, events, lookups, teamsByEvent] = await Promise.all([
+    entriesPromise,
+    eventsPromise,
+    fetchLookups(context),
+    eventsPromise.then((events) =>
+      eventTeamLinks(
+        context,
+        events.map((event) => event.id),
+      ),
+    ),
+  ]);
 
   const items: CalendarItem[] = [];
 
@@ -642,7 +654,7 @@ export async function getAthleteTrainingWeek(
   athleteId: string,
   weekOf?: string,
 ): Promise<TrainingWeek> {
-  return trainingWeekFor(context, await squadsOf(context, athleteId), weekOf);
+  return trainingWeekFor(context, squadsOf(context, athleteId), weekOf);
 }
 
 /** The teams an athlete is currently in. */
@@ -658,27 +670,28 @@ async function squadsOf(context: AuthContext, athleteId: string): Promise<string
 
 async function trainingWeekFor(
   context: AuthContext,
-  teamIds: string[],
+  squads: string[] | Promise<string[]>,
   weekOf?: string,
 ): Promise<TrainingWeek> {
   assertPermission(context, "calendar.read");
 
   const zone = context.tenant.timezone;
+  const nextDate = weekOf ? null : nextTrainingDate(context, squads);
+  const teamIds = await squads;
 
   // Which week, before which schedule: a coach stepping into next season's
   // first week should see next season's schedule, and the week decides that.
-  const anchor = weekOf ?? (await nextTrainingDate(context, teamIds)) ?? todayInZone(zone);
+  const anchor = weekOf ?? (await nextDate) ?? todayInZone(zone);
   const weekStart = startOfWeek(anchor, context.tenant.weekStart);
   const weekEnd = addDays(weekStart, 6);
 
   const publishedId = await publishedVersionFor(context, weekStart, weekEnd);
-  const span = publishedId
-    ? await scheduleSpan(context, publishedId)
-    : { first: null, last: null };
-
   // Training *and* whatever else lands on this team's week — its fixtures
   // above all, which is half of what a coach comes to this page to see.
-  const items = await listCalendarItems(context, weekStart, weekEnd, { teamIds });
+  const [span, items] = await Promise.all([
+    publishedId ? scheduleSpan(context, publishedId) : { first: null, last: null },
+    listCalendarItems(context, weekStart, weekEnd, { teamIds }, publishedId),
+  ]);
 
   const days = Array.from({ length: 7 }, (_, offset) => {
     const date = addDays(weekStart, offset);
@@ -752,15 +765,17 @@ export async function getAthleteTrainingMonth(
   athleteId: string,
   monthOf?: string,
 ): Promise<TrainingMonth> {
-  return trainingMonthFor(context, await squadsOf(context, athleteId), monthOf);
+  return trainingMonthFor(context, squadsOf(context, athleteId), monthOf);
 }
 
 async function trainingMonthFor(
   context: AuthContext,
-  teamIds: string[],
+  squads: string[] | Promise<string[]>,
   monthOf?: string,
 ): Promise<TrainingMonth> {
   assertPermission(context, "calendar.read");
+  const nextDate = monthOf ? null : nextTrainingDate(context, squads);
+  const teamIds = await squads;
 
   const zone = context.tenant.timezone;
   const weekStart = context.tenant.weekStart;
@@ -768,16 +783,17 @@ async function trainingMonthFor(
   // Same rule as the week view: land where the team actually trains rather
   // than on a month that happens to be empty, and then read the schedule that
   // covers that month rather than whichever one comes back first.
-  const anchor = monthOf ?? (await nextTrainingDate(context, teamIds)) ?? todayInZone(zone);
+  const anchor = monthOf ?? (await nextDate) ?? todayInZone(zone);
   const monthStart = startOfMonth(anchor);
   const monthEnd = endOfMonth(anchor);
   const from = startOfWeek(monthStart, weekStart);
   const to = addDays(startOfWeek(monthEnd, weekStart), 6);
 
   const publishedId = await publishedVersionFor(context, from, to);
-  const span = publishedId ? await scheduleSpan(context, publishedId) : { first: null, last: null };
-
-  const items = await listCalendarItems(context, from, to, { teamIds });
+  const [span, items] = await Promise.all([
+    publishedId ? scheduleSpan(context, publishedId) : { first: null, last: null },
+    listCalendarItems(context, from, to, { teamIds }, publishedId),
+  ]);
 
   const month = monthStart.slice(0, 7);
   const dates = eachDay(from, to);
@@ -851,20 +867,25 @@ function defaultAnchor(
 /** The date of the team's next session, so the week shown is never empty. */
 async function nextTrainingDate(
   context: AuthContext,
-  teamIds: string[],
+  squads: string[] | Promise<string[]>,
 ): Promise<string | null> {
-  if (teamIds.length === 0) return null;
   /*
     Every schedule that has not finished yet, not just one. In June a club may
     have this season published and next season's already public, and the team's
     next session could legitimately be in either.
   */
-  const { data: versions } = await context.db
-    .from("schedule_versions")
-    .select("id")
-    .eq("tenant_id", context.tenant.id)
-    .eq("status", "PUBLISHED")
-    .gte("applies_until", todayInZone(context.tenant.timezone));
+  // The versions do not depend on the squads, so an athlete's squads are
+  // read alongside them rather than first.
+  const [teamIds, { data: versions }] = await Promise.all([
+    squads,
+    context.db
+      .from("schedule_versions")
+      .select("id")
+      .eq("tenant_id", context.tenant.id)
+      .eq("status", "PUBLISHED")
+      .gte("applies_until", todayInZone(context.tenant.timezone)),
+  ]);
+  if (teamIds.length === 0) return null;
 
   const versionIds = (versions ?? []).map((version) => version.id);
   if (versionIds.length === 0) return null;

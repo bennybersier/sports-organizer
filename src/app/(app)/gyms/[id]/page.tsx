@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cache } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -25,6 +26,9 @@ import { getGym } from "@/server/services/gym-service";
 import { getGymRelations } from "@/server/services/relations-service";
 import { getAvailabilityAnchorDate } from "@/server/services/season-service";
 
+/** Shared by the metadata and the page, so the hall is read once. */
+const loadGym = cache(getGym);
+
 export async function generateMetadata({
   params,
 }: {
@@ -33,7 +37,7 @@ export async function generateMetadata({
   const context = await requireAuthContext();
   if (!hasPermission(context, "gyms.read")) return {};
   try {
-    const gym = await getGym(context, (await params).id);
+    const gym = await loadGym(context, (await params).id);
     return { title: gym.name };
   } catch {
     return {};
@@ -49,15 +53,6 @@ export default async function GymDetailPage({ params }: { params: Promise<{ id: 
   const tCommon = await getTranslations("common");
   const tRelated = await getTranslations("related");
 
-  let gym;
-  try {
-    gym = await getGym(context, id);
-  } catch (error) {
-    // A missing gym is a 404, not an error screen.
-    if (isAppError(error) && error.code === "NOT_FOUND") notFound();
-    throw error;
-  }
-
   const canEditAvailability = hasPermission(context, "availability.create");
   const canReadAvailability = hasPermission(context, "availability.read");
 
@@ -65,14 +60,24 @@ export default async function GymDetailPage({ params }: { params: Promise<{ id: 
   const canReadTrainers = hasPermission(context, "trainers.read");
 
   const today = new Date().toISOString().slice(0, 10);
-  const [windows, exceptions, seasonStart, relations] = await Promise.all([
-    canReadAvailability ? listAvailability(context, "gym", id) : Promise.resolve([]),
-    canReadAvailability
-      ? listExceptions(context, "gym", id, { from: today })
-      : Promise.resolve([]),
-    getAvailabilityAnchorDate(context),
-    getGymRelations(context, id),
-  ]);
+  // All of it needs only the id, so the hall is read alongside the rest.
+  let loaded;
+  try {
+    loaded = await Promise.all([
+      loadGym(context, id),
+      canReadAvailability ? listAvailability(context, "gym", id) : Promise.resolve([]),
+      canReadAvailability
+        ? listExceptions(context, "gym", id, { from: today })
+        : Promise.resolve([]),
+      getAvailabilityAnchorDate(context),
+      getGymRelations(context, id),
+    ]);
+  } catch (error) {
+    // A missing gym is a 404, not an error screen.
+    if (isAppError(error) && error.code === "NOT_FOUND") notFound();
+    throw error;
+  }
+  const [gym, windows, exceptions, seasonStart, relations] = loaded;
 
   return (
     <div className="flex w-full flex-col gap-6">

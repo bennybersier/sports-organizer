@@ -17,7 +17,7 @@ import { listSeasonOptions } from "@/server/services/season-service";
 import { listTeamSports, listTeams } from "@/server/services/team-service";
 import { listTrainerOptions } from "@/server/services/trainer-service";
 import { listGymOptions } from "@/server/services/gym-service";
-import { listMatches } from "@/server/services/match-service";
+import { listTeamOutcomes } from "@/server/services/match-service";
 import type { Outcome } from "@/domain/competitions/record";
 
 import { TeamFormDialog } from "./team-form-dialog";
@@ -50,7 +50,7 @@ export default async function TeamsPage({
 
   const canManageTrainers = hasPermission(context, "trainers.read");
 
-  const [result, seasons, sports, trainers, gyms, played] = await Promise.all([
+  const [result, seasons, sports, trainers, gyms, outcomes] = await Promise.all([
     listTeams(context, params, { seasonId, sport, status }),
     listSeasonOptions(context),
     listTeamSports(context),
@@ -58,24 +58,22 @@ export default async function TeamsPage({
     hasPermission(context, "gyms.read") ? listGymOptions(context) : Promise.resolve([]),
     // Results are their own permission; without it the cards simply carry no record.
     hasPermission(context, "attendance.read")
-      ? listMatches(context, { only: "PLAYED" })
-      : Promise.resolve([]),
+      ? listTeamOutcomes(context)
+      : Promise.resolve(new Map<string, Outcome[]>()),
   ]);
 
   /*
-    Each side's record and its last five, from one query for every played
+    Each side's record and its last five, from one read for every played
     match rather than one per card. Most recent first, as form is read.
   */
   const records = new Map<string, { won: number; lost: number; drawn: number; form: Outcome[] }>();
-  for (const match of [...played].sort((a, b) => b.startsAt.localeCompare(a.startsAt))) {
-    const outcome = match.result?.outcome;
-    if (!outcome) continue;
-    const entry = records.get(match.teamId) ?? { won: 0, lost: 0, drawn: 0, form: [] };
-    if (outcome === "WIN") entry.won += 1;
-    else if (outcome === "LOSS") entry.lost += 1;
-    else entry.drawn += 1;
-    if (entry.form.length < 5) entry.form.push(outcome);
-    records.set(match.teamId, entry);
+  for (const [teamId, list] of outcomes) {
+    records.set(teamId, {
+      won: list.filter((outcome) => outcome === "WIN").length,
+      lost: list.filter((outcome) => outcome === "LOSS").length,
+      drawn: list.filter((outcome) => outcome !== "WIN" && outcome !== "LOSS").length,
+      form: list.slice(0, 5),
+    });
   }
 
   const canCreate = hasPermission(context, "teams.create");
