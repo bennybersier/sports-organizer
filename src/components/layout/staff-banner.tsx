@@ -25,20 +25,38 @@ export function StaffBanner({ tenantName }: { tenantName: string }) {
     <div
       role="status"
       data-slot="staff-banner"
-      className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-amber-500/40 bg-amber-500/10 px-4 py-2 text-sm text-amber-900 dark:text-amber-200"
+      className="mx-4 mt-4 flex items-center gap-x-3 gap-y-2 rounded-lg border border-orange-500/30 bg-orange-500/5 p-2 text-sm sm:flex-wrap sm:p-3 md:mx-6"
     >
-      <ShieldAlert className="size-4 shrink-0" aria-hidden />
-      <span>
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-orange-500/15 text-orange-600 dark:text-orange-400">
+        <ShieldAlert className="size-4" aria-hidden />
+      </span>
+      {/*
+        One line on a phone: the full sentence wraps into a column of words
+        there and pushes the page a screen down. The short form says who and
+        where; the sidebar chip and the audit log carry the rest.
+      */}
+      <span className="min-w-0 flex-1 truncate sm:hidden">
+        {t.rich("short", {
+          club: tenantName,
+          strong: (chunks) => (
+            <strong className="text-orange-700 dark:text-orange-400">{chunks}</strong>
+          ),
+        })}
+      </span>
+      <span className="hidden min-w-0 flex-1 sm:inline">
         {t.rich("message", {
           club: tenantName,
-          strong: (chunks) => <strong>{chunks}</strong>,
+          strong: (chunks) => (
+            <strong className="text-orange-700 dark:text-orange-400">{chunks}</strong>
+          ),
         })}
       </span>
       <Button
         size="sm"
         variant="outline"
-        className="ml-auto h-7 border-amber-500/40 bg-transparent hover:bg-amber-500/20"
+        className="h-8 shrink-0 border-orange-500/30 bg-transparent hover:bg-orange-500/10 max-sm:size-8 max-sm:px-0"
         disabled={isPending}
+        aria-label={t("leave")}
         onClick={() =>
           startTransition(async () => {
             const result = await leaveTenantAsStaff();
@@ -52,7 +70,7 @@ export function StaffBanner({ tenantName }: { tenantName: string }) {
         }
       >
         {isPending ? <Loader2 className="animate-spin" aria-hidden /> : <LogOut aria-hidden />}
-        {t("leave")}
+        <span className="max-sm:hidden">{t("leave")}</span>
       </Button>
     </div>
   );

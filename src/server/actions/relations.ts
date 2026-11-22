@@ -8,7 +8,12 @@ import { requirePermission } from "@/server/auth/authorization";
 import { uuidSchema } from "@/lib/validation/common";
 import { setAthleteTeams } from "@/server/services/athlete-service";
 import { setTrainerTeams } from "@/server/services/trainer-service";
-import { setTeamAthletes, setTeamTrainers } from "@/server/services/team-service";
+import {
+  setAthleteNumbers,
+  setSquadNumbers,
+  setTeamAthletes,
+  setTeamTrainers,
+} from "@/server/services/team-service";
 
 /**
  * The links between records, changed from whichever page you are looking at.
@@ -90,5 +95,56 @@ export async function setTrainerTeamsAction(input: unknown): Promise<ActionResul
     revalidatePath(`/trainers/${id}`);
     revalidatePath("/teams");
     return { count: relatedIds.length };
+  });
+}
+
+const squadNumbersSchema = z.object({
+  id: uuidSchema,
+  numbers: z
+    .array(
+      z.object({
+        athleteId: uuidSchema,
+        jerseyNumber: z.number().int().min(0).max(999).nullable(),
+      }),
+    )
+    .max(200),
+});
+
+export async function setSquadNumbersAction(input: unknown): Promise<ActionResult<{ changed: number }>> {
+  return runAction(async () => {
+    const context = await requirePermission("teams.update");
+    const { id, numbers } = parseInput(squadNumbersSchema, input);
+    const result = await setSquadNumbers(context, id, numbers);
+    revalidatePath(`/teams/${id}`);
+    revalidatePath("/athletes");
+    revalidatePath("/matches");
+    return result;
+  });
+}
+
+const athleteNumbersSchema = z.object({
+  id: uuidSchema,
+  numbers: z
+    .array(
+      z.object({
+        teamId: uuidSchema,
+        jerseyNumber: z.number().int().min(0).max(999).nullable(),
+      }),
+    )
+    .max(50),
+});
+
+export async function setAthleteNumbersAction(
+  input: unknown,
+): Promise<ActionResult<{ changed: number }>> {
+  return runAction(async () => {
+    const context = await requirePermission("teams.update");
+    const { id, numbers } = parseInput(athleteNumbersSchema, input);
+    const result = await setAthleteNumbers(context, id, numbers);
+    revalidatePath(`/athletes/${id}`);
+    revalidatePath("/athletes");
+    revalidatePath("/teams");
+    revalidatePath("/matches");
+    return result;
   });
 }

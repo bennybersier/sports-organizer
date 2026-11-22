@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { CalendarClock } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 
 import {
   Sidebar,
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/sidebar";
 import { NAVIGATION, type NavSection } from "@/domain/navigation";
 
+import { ClubBrand } from "./club-brand";
 import { TenantSwitcher, type TenantOption } from "./tenant-switcher";
 import { UserMenu, type UserMenuUser } from "./user-menu";
 
@@ -30,11 +31,21 @@ export interface AppSidebarProps {
   user: UserMenuUser;
   /** Permission keys the signed-in user holds in the active club. */
   permissions: string[];
+  /** Platform staff inside a club they don't belong to. See StaffBanner. */
+  isActingAsStaff?: boolean;
 }
 
-export function AppSidebar({ tenants, activeTenantId, user, permissions }: AppSidebarProps) {
+export function AppSidebar({
+  tenants,
+  activeTenantId,
+  user,
+  permissions,
+  isActingAsStaff = false,
+}: AppSidebarProps) {
   const pathname = usePathname();
   const t = useTranslations("nav");
+  const tStaff = useTranslations("staffBanner");
+  const tApp = useTranslations("app");
   const granted = new Set(permissions);
 
   /*
@@ -64,30 +75,32 @@ export function AppSidebar({ tenants, activeTenantId, user, permissions }: AppSi
         ) : (
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton size="lg" asChild>
+              <SidebarMenuButton size="lg" className="h-14" asChild>
                 <Link href="/dashboard" onClick={dismissOnMobile}>
-                  <span className="flex aspect-square size-8 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-                    <CalendarClock className="size-4" aria-hidden />
-                  </span>
-                  <span className="grid flex-1 text-left text-sm leading-tight">
-                    <span className="truncate font-medium">
-                      {tenants[0]?.name ?? "Sport Club Organizer"}
-                    </span>
-                    <span className="truncate text-xs text-muted-foreground">
-                      {tenants[0]?.roleName}
-                    </span>
-                  </span>
+                  <ClubBrand name={tenants[0]?.name ?? tApp("name")} subtitle={tApp("name")} />
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
         )}
+        {/*
+          Repeated from the banner over the page, because the banner scrolls
+          out of sight and this does not.
+        */}
+        {isActingAsStaff ? (
+          <div className="label-caps flex items-center gap-2 rounded-md border border-sidebar-primary/30 bg-sidebar-primary/10 px-2.5 py-2 text-sidebar-primary group-data-[collapsible=icon]:hidden">
+            <ShieldAlert className="size-4 shrink-0" aria-hidden />
+            {tStaff("mode")}
+          </div>
+        ) : null}
       </SidebarHeader>
 
       <SidebarContent>
         {sections.map((section) => (
           <SidebarGroup key={section.labelKey}>
-            <SidebarGroupLabel>{t(section.labelKey)}</SidebarGroupLabel>
+            <SidebarGroupLabel className="label-caps text-sidebar-foreground/50">
+              {t(section.labelKey)}
+            </SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
                 {section.items.map((item) => {
@@ -99,6 +112,7 @@ export function AppSidebar({ tenants, activeTenantId, user, permissions }: AppSi
                         asChild
                         isActive={isActive}
                         tooltip={t(item.titleKey)}
+                        className="h-9 text-sidebar-foreground/80 data-active:bg-sidebar-primary data-active:font-semibold data-active:text-sidebar-primary-foreground data-active:shadow-sm"
                       >
                         <Link
                           href={item.href}
@@ -118,7 +132,7 @@ export function AppSidebar({ tenants, activeTenantId, user, permissions }: AppSi
         ))}
       </SidebarContent>
 
-      <SidebarFooter>
+      <SidebarFooter className="border-t border-sidebar-border">
         <UserMenu user={user} />
       </SidebarFooter>
       <SidebarRail />

@@ -78,6 +78,9 @@ const CONFLICTS = {
 export interface RegisterLine {
   athleteId: string;
   name: string;
+  /** Kept apart for the call-up message, which lists players surname first. */
+  firstName: string;
+  lastName: string;
   jerseyNumber: number | null;
   position: string | null;
   state: AttendanceStateValue;
@@ -96,9 +99,17 @@ export interface RegisterLine {
 export interface RegisterSheet {
   register: AttendanceRegisterRow;
   team: { id: string; name: string; color: string; callUpLimit: number | null; tracksBoxScore: boolean };
-  gym: { id: string; name: string } | null;
-  /** Set for a match: who we are playing and where. */
-  fixture: { opponent: string | null; competition: string | null; isHome: boolean | null } | null;
+  /** `address` is the street and city joined, for telling parents where to go. */
+  gym: { id: string; name: string; address: string | null } | null;
+  /** Set for a match: who we are playing, where, and when. */
+  fixture: {
+    opponent: string | null;
+    competition: string | null;
+    isHome: boolean | null;
+    startsAt: string;
+    /** How long the hall is held before the start — the default meeting time. */
+    bufferBeforeMinutes: number;
+  } | null;
   lines: RegisterLine[];
   /** Whether the caller may change this sheet as it currently stands. */
   editable: boolean;
@@ -353,12 +364,16 @@ export async function getRegisterSheet(
       .eq("tenant_id", context.tenant.id)
       .eq("register_id", registerId),
     register.gym_id
-      ? context.db.from("gyms").select("id, name").eq("id", register.gym_id).maybeSingle()
+      ? context.db
+          .from("gyms")
+          .select("id, name, address_line1, city")
+          .eq("id", register.gym_id)
+          .maybeSingle()
       : Promise.resolve({ data: null }),
     register.event_id
       ? context.db
           .from("calendar_events")
-          .select("opponent, competition, is_home")
+          .select("opponent, competition, is_home, start_at, buffer_before_minutes")
           .eq("id", register.event_id)
           .maybeSingle()
       : Promise.resolve({ data: null }),
@@ -445,9 +460,7 @@ export async function getRegisterSheet(
       : Promise.resolve({ data: [] }),
   ]);
 
-  const nameById = new Map(
-    (athletes ?? []).map((a) => [a.id, `${a.first_name} ${a.last_name}`]),
-  );
+  const athleteById = new Map((athletes ?? []).map((a) => [a.id, a]));
   const linkById = new Map((links ?? []).map((l) => [l.athlete_id, l]));
   const declared = await declaredAbsencesOn(context, athleteIds, register.team_id, day);
 
@@ -472,7 +485,11 @@ export async function getRegisterSheet(
       const absence = declared.get(row.athlete_id);
       return {
         athleteId: row.athlete_id,
-        name: nameById.get(row.athlete_id) ?? "—",
+        name: athleteById.has(row.athlete_id)
+          ? `${athleteById.get(row.athlete_id)!.first_name} ${athleteById.get(row.athlete_id)!.last_name}`
+          : "—",
+        firstName: athleteById.get(row.athlete_id)?.first_name ?? "",
+        lastName: athleteById.get(row.athlete_id)?.last_name ?? "—",
         jerseyNumber: linkById.get(row.athlete_id)?.jersey_number ?? null,
         position: linkById.get(row.athlete_id)?.position ?? null,
         state: row.state,
@@ -497,9 +514,21 @@ export async function getRegisterSheet(
       callUpLimit: register.call_up_limit ?? team!.match_call_up_limit,
       tracksBoxScore: team!.tracks_box_score,
     },
-    gym: gym ?? null,
+    gym: gym
+      ? {
+          id: gym.id,
+          name: gym.name,
+          address: [gym.address_line1, gym.city].filter(Boolean).join(" – ") || null,
+        }
+      : null,
     fixture: event
-      ? { opponent: event.opponent, competition: event.competition, isHome: event.is_home }
+      ? {
+          opponent: event.opponent,
+          competition: event.competition,
+          isHome: event.is_home,
+          startsAt: event.start_at,
+          bufferBeforeMinutes: event.buffer_before_minutes ?? 0,
+        }
       : null,
     lines,
     editable,

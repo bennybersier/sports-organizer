@@ -29,7 +29,7 @@ const QUARTERS = 4;
  * Typing in Sunday's score.
  *
  * Ours first, always, and labelled "Us" and "Them" rather than home and away —
- * see `ScoreBadge` for the same argument. The quarters are optional because a
+ * see the match list for the same argument. The quarters are optional because a
  * coach ringing in from the car park knows 67–59 and nothing else, but when
  * they are filled in they must add up, and the form says so on the field
  * instead of failing the save.

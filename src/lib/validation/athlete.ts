@@ -30,6 +30,16 @@ const baseAthlete = z.object({
   membershipStatus: membershipStateSchema.default("ACTIVE"),
   notes: optionalText(2000),
   teamIds: z.array(uuidSchema).default([]),
+  // Shirt per selected team. A number belongs to the membership, not the person.
+  numbers: z
+    .array(
+      z.object({
+        teamId: uuidSchema,
+        jerseyNumber: z.number().int().min(0).max(999).nullable(),
+      }),
+    )
+    .max(50)
+    .default([]),
 });
 
 export const createAthleteSchema = baseAthlete;

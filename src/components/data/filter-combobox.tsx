@@ -89,9 +89,13 @@ export function FilterCombobox({
 
       <PopoverContent
         align="start"
-        // Matches the trigger so the open list lines up under what opened it,
-        // and never spills past the viewport on a narrow screen.
-        className="w-[min(var(--radix-popover-trigger-width),calc(100vw-2rem))] p-0"
+        /*
+          At least as wide as the trigger, so the list lines up under what
+          opened it — but never narrower than 20rem. A trigger that only has
+          to say "Team" is a word wide, and a list that narrow cut every name
+          in it to a few letters. Still capped at the viewport on a phone.
+        */
+        className="w-[min(max(var(--radix-popover-trigger-width),20rem),calc(100vw-2rem))] p-0"
       >
         <Command>
           <CommandInput placeholder={t("searchPlaceholder")} />
@@ -122,7 +126,9 @@ export function FilterCombobox({
                     )}
                     aria-hidden
                   />
-                  <span className="truncate">{option.label}</span>
+                  {/* Wrapped, not truncated: two names that share their first
+                      twenty letters are told apart by the rest. */}
+                  <span className="min-w-0 break-words whitespace-normal">{option.label}</span>
                 </CommandItem>
               ))}
             </CommandGroup>

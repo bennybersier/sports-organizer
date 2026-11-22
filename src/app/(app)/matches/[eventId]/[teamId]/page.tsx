@@ -2,23 +2,25 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
-import { ArrowLeft, MapPin, Star } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarDays,
+  ClipboardList,
+  FileImage,
+  MapPin,
+  Star,
+  Table2,
+  Users,
+} from "lucide-react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccessDenied } from "@/components/data/access-denied";
-import { PageHeader } from "@/components/data/page-header";
 import { Disclosure } from "@/components/data/disclosure";
+import { PageCrumb } from "@/components/layout/app-breadcrumb";
+import { ShirtNumbersDialog } from "@/components/data/shirt-numbers-dialog";
 import { isAppError } from "@/lib/errors";
 import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
@@ -27,7 +29,6 @@ import { getRegisterSheet } from "@/server/services/attendance-service";
 import { BoxScoreEditor } from "@/components/attendance/box-score-editor";
 import { RegisterSheetEditor } from "@/components/attendance/register-sheet";
 import { RegisterStateActions } from "@/components/attendance/register-state-actions";
-import { SCROLLING_GRID } from "@/components/attendance/scrolling-grid";
 import { listSheets } from "@/server/services/match-sheet-service";
 import { listBoxScores, listSelections } from "@/server/services/performance-service";
 import { getDefaultProvider } from "@/server/services/ai-config-service";
@@ -39,7 +40,10 @@ import { listTrainerOptions } from "@/server/services/trainer-service";
 import { EditMatchButton } from "./edit-match-button";
 import { ResultForm } from "./result-form";
 import { OpenSquadCard } from "./open-squad-card";
-import { OpponentCard } from "./opponent-card";
+import { BoxScoreTable, type BoxScoreRow } from "./box-score-table";
+import { PageTabPanel, PageTabs } from "@/components/data/page-tabs";
+import { Scoreboard, ScoringSplit, ScoringTiles, SheetSummary } from "./match-summary";
+import { OpponentBoxScore, OpponentThreats, readOpponent } from "./opponent-card";
 import { SheetsCard } from "./sheets-card";
 
 /**
@@ -66,7 +70,12 @@ export async function generateMetadata({
   try {
     const { eventId, teamId } = await params;
     const match = await getMatch(context, eventId, teamId);
-    return { title: `${match.teamName} vs ${match.opponent}` };
+    return {
+      title:
+        match.isHome === false
+          ? `${match.opponent} vs ${match.teamName}`
+          : `${match.teamName} vs ${match.opponent}`,
+    };
   } catch {
     return {};
   }
@@ -78,21 +87,25 @@ export async function generateMetadata({
  * Before this page a match's life was split three ways: the fixture in
  * Competitions, the squad and scoresheet in Attendance, the resulting numbers in
  * each athlete's profile. This is the page that holds the match itself — what it
- * finished, the photograph of the sheet, and the numbers that came off it — and
- * links out to the register for the attendance detail rather than duplicating
- * it.
+ * finished, the photograph of the sheet, and the numbers that came off it.
+ *
+ * Laid out as a scoreboard over a set of tabs. The scoreboard is what anybody
+ * opening a match wants first; the tabs hold the work — our box score, theirs,
+ * the sheet being read, and the result and squad being entered.
  */
 export default async function MatchPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ eventId: string; teamId: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const context = await requireAuthContext();
   if (!hasPermission(context, "attendance.read")) return <AccessDenied />;
 
   const { eventId, teamId } = await params;
+  const { tab: requestedTab } = await searchParams;
   const t = await getTranslations("matches");
-  const tAttendance = await getTranslations("attendance");
   const format = await getFormatter();
 
   let match;
@@ -145,10 +158,11 @@ export default async function MatchPage({
     timeZone: context.tenant.timezone,
   };
 
-  const nameById = new Map(squad.map((member) => [member.athleteId, member.name]));
-  // The sheet identifies a scorer by shirt, so the table that comes off it
-  // should read the same way round.
-  const shirtById = new Map(squad.map((member) => [member.athleteId, member.jerseyNumber]));
+  const canReadAthletes = hasPermission(context, "athletes.read");
+  const canRecord = hasPermission(context, "attendance.record");
+  const canEditTeam = hasPermission(context, "teams.update");
+
+  const memberById = new Map(squad.map((member) => [member.athleteId, member]));
   /*
     The starting five, which on a referto are the circled crosses in the E/N.
     column. Worth its own mark in the table: who finished with the points and
@@ -161,25 +175,26 @@ export default async function MatchPage({
   const starterNames = squad
     .filter((member) => starters.has(member.athleteId))
     .map((member) =>
-      member.jerseyNumber !== null ? `${member.jerseyNumber} ${member.name}` : member.name,
+      member.jerseyNumber !== null ? `#${member.jerseyNumber} ${member.name}` : member.name,
     );
-  const canReadAthletes = hasPermission(context, "athletes.read");
-  const canRecord = hasPermission(context, "attendance.record");
-  const subtitle = [
-    format.dateTime(new Date(match.startsAt), {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-    match.gymName,
-    match.competitionRef
-      ? `${match.competitionRef.name} · ${t("matchday", { matchday: match.competitionRef.matchday })}`
-      : match.competition,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+  const rows: BoxScoreRow[] = boxScores.map((row) => {
+    const member = memberById.get(row.athlete_id);
+    return {
+      id: row.id,
+      shirt: member?.jerseyNumber ?? null,
+      name: member?.name ?? "—",
+      // Guarded on athletes.read: a coach who may see a box score does not
+      // necessarily have the athlete register.
+      href: canReadAthletes && member ? `/athletes/${row.athlete_id}` : null,
+      started: starters.has(row.athlete_id),
+      twos: row.two_point_made,
+      threes: row.three_point_made,
+      freeThrows: row.free_throw_made,
+      points: row.points,
+      fouls: row.fouls_committed,
+      fromSheet: row.source === "REFERTO",
+    };
+  });
 
   /*
     A referto gives makes and never attempts, so a REFERTO-sourced row has
@@ -187,241 +202,208 @@ export default async function MatchPage({
     would be a confident lie, so the caveat is shown whenever any row on this
     match came from a sheet.
   */
-  const fromSheet = boxScores.some((row) => row.source === "REFERTO");
+  const fromSheet = rows.some((row) => row.fromSheet);
+
+  // The most recent sheet that has been read, else the most recent at all.
+  const readSheet = sheets.find((sheet) => sheet.reading !== null);
+  const latestSheet = readSheet ?? sheets[0];
+  /*
+    The other side's scorers. Derived from the same sheet, and only ever from a
+    sheet: a result typed in by hand has no opponent detail to show.
+  */
+  const opponent = readOpponent(readSheet);
+
+  const kickoff = format.dateTime(new Date(match.startsAt), {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const played = match.result !== null && match.result.state !== "PENDING";
+  // Home side first, everywhere the two are written side by side.
+  const awayMatch = match.isHome === false;
+  // Our side's name leads to its team page, for whoever may open one.
+  const teamHref = hasPermission(context, "teams.read") ? `/teams/${teamId}` : null;
+  const teamLink = teamHref ? (
+    <Link href={teamHref} className="underline-offset-4 hover:underline">
+      {match.teamName}
+    </Link>
+  ) : (
+    match.teamName
+  );
+  const fixtureTitle = awayMatch
+    ? `${match.opponent} — ${match.teamName}`
+    : `${match.teamName} — ${match.opponent}`;
+
+  /*
+    Which tab opens. Before the match there is nothing to read, so it opens on
+    the result and the squad; afterwards, on the box score.
+  */
+  const tabs = [
+    ...(match.tracksBoxScore
+      ? [
+          {
+            value: "box",
+            label: (
+              <>
+                <Table2 aria-hidden />
+                {match.teamName}
+                {played && match.result?.ourScore != null ? (
+                  <TabCount>{match.result.ourScore}</TabCount>
+                ) : null}
+              </>
+            ),
+          },
+        ]
+      : []),
+    ...(opponent
+      ? [
+          {
+            value: "opponent",
+            label: (
+              <>
+                <Users aria-hidden />
+                {opponent.clubName ?? match.opponent}
+                {played && match.result?.theirScore != null ? (
+                  <TabCount>{match.result.theirScore}</TabCount>
+                ) : null}
+              </>
+            ),
+          },
+        ]
+      : []),
+    ...(match.tracksBoxScore
+      ? [
+          {
+            value: "sheet",
+            label: (
+              <>
+                <FileImage aria-hidden />
+                {t("sheets")}
+                {sheets.length > 0 ? <TabCount>{sheets.length}</TabCount> : null}
+              </>
+            ),
+          },
+        ]
+      : []),
+    {
+      value: "match",
+      label: (
+        <>
+          <ClipboardList aria-hidden />
+          {t("resultAndSquad")}
+        </>
+      ),
+    },
+  ];
+  const fallbackTab = played && match.tracksBoxScore ? "box" : "match";
+  const initialTab =
+    typeof requestedTab === "string" && tabs.some((entry) => entry.value === requestedTab)
+      ? requestedTab
+      : fallbackTab;
 
   return (
     <div className="space-y-6">
-      <Button variant="ghost" size="sm" asChild className="-ml-2">
-        <Link href="/matches">
-          <ArrowLeft aria-hidden />
-          {t("backToMatches")}
-        </Link>
-      </Button>
-
-      <PageHeader
-        title={`${match.teamName} — ${match.opponent}`}
-        description={subtitle}
-        action={
-          <div className="flex flex-wrap items-center gap-2">
-            {/*
-              No link to the register any more: it is this page. Following one
-              would redirect straight back here.
-            */}
-            {canEditEvent ? <EditMatchButton eventId={eventId} options={eventOptions} /> : null}
-          </div>
-        }
-      />
-
-      <div className="flex flex-wrap items-center gap-2">
-        {match.isHome !== null ? (
-          <Badge variant="secondary">{match.isHome ? t("home") : t("away")}</Badge>
-        ) : null}
-        {match.result && match.result.state !== "PENDING" ? (
-          <Badge variant="outline">{t(match.result.state)}</Badge>
-        ) : null}
-        {match.result?.outcome ? (
-          <Badge
-            variant={
-              match.result.outcome === "WIN"
-                ? "default"
-                : match.result.outcome === "DRAW"
-                  ? "secondary"
-                  : "destructive"
-            }
-          >
-            {t(match.result.outcome)}
-          </Badge>
-        ) : null}
-        {match.gymName ? (
-          <span className="flex items-center gap-1 text-sm text-muted-foreground">
-            <MapPin className="size-3.5" aria-hidden />
-            {match.gymName}
-          </span>
-        ) : null}
-        {match.competitionRef ? (
-          <Button variant="link" size="sm" asChild className="h-auto p-0">
-            <Link href={`/competitions/${match.competitionRef.id}`}>
-              {match.competitionRef.name}
-            </Link>
-          </Button>
-        ) : null}
+      <PageCrumb title={fixtureTitle} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <Button variant="ghost" size="sm" asChild className="-ml-2">
+          <Link href="/matches">
+            <ArrowLeft aria-hidden />
+            {t("backToMatches")}
+          </Link>
+        </Button>
+        {canEditEvent ? <EditMatchButton eventId={eventId} options={eventOptions} /> : null}
       </div>
 
-      <ResultForm
-        eventId={eventId}
-        teamId={teamId}
-        result={match.result}
-        editable={match.editable}
-      />
-
-      {match.tracksBoxScore ? (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">{t("boxScore")}</CardTitle>
-            {starterNames.length > 0 ? (
-              <CardDescription>
-                {t("startingFiveAre", { players: starterNames.join(", ") })}
-              </CardDescription>
-            ) : null}
-            {fromSheet ? <CardDescription>{t("fromSheetCaveat")}</CardDescription> : null}
-          </CardHeader>
-          <CardContent>
-            {boxScores.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t("boxScoreEmpty")}</p>
-            ) : (
-              // A grid on a phone too, scrolling sideways: see SCROLLING_GRID.
-              <div className={SCROLLING_GRID}>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-10" aria-label={t("startingFive")} />
-                      <TableHead className="w-12 text-end">{t("shirt")}</TableHead>
-                      <TableHead>{t("player")}</TableHead>
-                      <TableHead className="text-end">{t("twos")}</TableHead>
-                      <TableHead className="text-end">{t("threes")}</TableHead>
-                      <TableHead className="text-end">{t("freeThrows")}</TableHead>
-                      <TableHead className="text-end">{t("points")}</TableHead>
-                      <TableHead className="text-end">{t("fouls")}</TableHead>
-                      <TableHead />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {boxScores
-                      .slice()
-                      .sort((a, b) => b.points - a.points)
-                      .map((row) => (
-                        <TableRow key={row.id}>
-                          <TableCell className="pe-0">
-                            {starters.has(row.athlete_id) ? (
-                              <Star
-                                className="size-3.5 fill-current text-amber-500"
-                                aria-label={t("started")}
-                              />
-                            ) : null}
-                          </TableCell>
-                          {/* The sheet names a scorer by shirt, so this reads the same way round. */}
-                          <TableCell className="text-end tabular-nums text-muted-foreground">
-                            {shirtById.get(row.athlete_id) ?? "—"}
-                          </TableCell>
-                          <TableCell className="font-medium">
-                            {/*
-                              Through to the player's own page, which is where
-                              the season behind this one line is. Guarded on
-                              athletes.read: a coach who may see a box score
-                              does not necessarily have the athlete register.
-                            */}
-                            {canReadAthletes && nameById.has(row.athlete_id) ? (
-                              <Link
-                                href={`/athletes/${row.athlete_id}`}
-                                className="underline-offset-4 hover:underline"
-                              >
-                                {nameById.get(row.athlete_id)}
-                              </Link>
-                            ) : (
-                              (nameById.get(row.athlete_id) ?? "—")
-                            )}
-                          </TableCell>
-                          <TableCell className="text-end tabular-nums">
-                            {row.two_point_made}
-                          </TableCell>
-                          <TableCell className="text-end tabular-nums">
-                            {row.three_point_made}
-                          </TableCell>
-                          <TableCell className="text-end tabular-nums">
-                            {row.free_throw_made}
-                          </TableCell>
-                          <TableCell className="text-end font-semibold tabular-nums">
-                            {row.points}
-                          </TableCell>
-                          <TableCell className="text-end tabular-nums">
-                            {row.fouls_committed}
-                          </TableCell>
-                          <TableCell>
-                            {row.source === "REFERTO" ? (
-                              <Badge variant="outline" className="font-normal">
-                                {t("fromSheet")}
-                              </Badge>
-                            ) : null}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
-        <Alert>
-          <AlertDescription>{t("needsBoxScore")}</AlertDescription>
-        </Alert>
-      )}
-
       {/*
-        The other side's scorers, directly beneath ours so the two can be read
-        against each other — which is the whole reason to want them. Derived
-        from the same sheet, and only ever from a sheet: a result typed in by
-        hand has no opponent detail to show.
+        On a phone this is just the line above the scoreboard — competition,
+        kick-off, hall. The scoreboard names both sides and carries the result,
+        so the title and badges would only say it twice.
       */}
-      {(() => {
-        const read = sheets.find((sheet) => sheet.reading !== null);
-        return read ? <OpponentCard sheet={read} opponentName={match.opponent} /> : null;
-      })()}
+      <Card className="max-sm:overflow-visible max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:py-0 max-sm:shadow-none max-sm:ring-0">
+        <CardContent className="space-y-3 max-sm:space-y-1.5 max-sm:px-0">
+          <div className="flex flex-wrap items-center gap-2">
+            {match.isHome !== null ? (
+              <Badge variant="secondary" className="label-caps max-sm:hidden">
+                {match.isHome ? t("home") : t("away")}
+              </Badge>
+            ) : null}
+            {match.result && match.result.state !== "PENDING" ? (
+              <Badge className="label-caps bg-blue-600 text-white max-sm:hidden">{t(match.result.state)}</Badge>
+            ) : null}
+            {match.result?.outcome ? (
+              <Badge
+                variant={
+                  match.result.outcome === "WIN"
+                    ? "default"
+                    : match.result.outcome === "DRAW"
+                      ? "secondary"
+                      : "destructive"
+                }
+                className="label-caps max-sm:hidden"
+              >
+                {t(match.result.outcome)}
+                {match.result.ourScore !== null && match.result.theirScore !== null
+                  ? awayMatch
+                    ? ` (${match.result.theirScore}–${match.result.ourScore})`
+                    : ` (${match.result.ourScore}–${match.result.theirScore})`
+                  : ""}
+              </Badge>
+            ) : null}
+            {match.competitionRef ? (
+              <Link
+                href={`/competitions/${match.competitionRef.id}`}
+                className="label-caps text-muted-foreground hover:underline"
+              >
+                {match.competitionRef.name} ·{" "}
+                {t("matchday", { matchday: match.competitionRef.matchday })}
+              </Link>
+            ) : match.competition ? (
+              <span className="label-caps text-muted-foreground">
+                {match.competition}
+              </span>
+            ) : null}
+          </div>
 
-      {register ? (
-        <>
-          {/*
-            Folded away by default once the sheet is recorded. Picking the
-            squad is Saturday's job and reading the result is Sunday's; after
-            the match this is twelve rows somebody has already finished with,
-            sitting between the score and the game sheet. It opens on its own
-            while there is still work in it.
-          */}
-          <Disclosure
-            title={tAttendance("squadSelection")}
-            meta={tAttendance("calledNoLimit", {
-              called: register.lines.filter((line) => line.calledUp).length,
-            })}
-            defaultOpen={register.register.state !== "RECORDED"}
-          >
-            <div className="space-y-4">
-              <div className="flex justify-end">
-                <RegisterStateActions
-                  registerId={register.register.id}
-                  state={register.register.state}
-                  canRecord={hasPermission(context, "attendance.record")}
-                  canManage={hasPermission(context, "attendance.manage")}
-                />
-              </div>
-              <RegisterSheetEditor sheet={register} />
-            </div>
-          </Disclosure>
+          <h1 className="max-sm:sr-only text-2xl leading-7 font-bold tracking-[-0.01em] text-balance sm:text-[32px] sm:leading-[38px] sm:tracking-[-0.02em]">
+            {awayMatch ? match.opponent : teamLink}{" "}
+            <span className="text-muted-foreground">—</span>{" "}
+            {awayMatch ? teamLink : match.opponent}
+          </h1>
 
-          {/*
-            Typing the scoresheet in by hand, folded away. The table above is
-            how it is read; this is how it is entered, and most clubs will let
-            the referto import do it rather than open this at all.
-          */}
-          {match.tracksBoxScore && register.editable ? (
-            <Disclosure title={t("enterByHand")}>
-              <BoxScoreEditor
-                registerId={register.register.id}
-                lines={register.lines.filter((line) => line.calledUp)}
-                existing={boxScores}
-                editable={register.editable}
-              />
-            </Disclosure>
-          ) : null}
-        </>
-      ) : (
-        /*
-          No register yet. Rather than sending somebody to another page to make
-          one, the button makes it here — and uploading a sheet does the same,
-          so a club that works off the photograph never has to think about
-          registers at all.
-        */
-        <OpenSquadCard eventId={eventId} teamId={teamId} canRecord={canRecord} />
-      )}
+          <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-muted-foreground max-sm:text-xs">
+            <span className="flex items-center gap-1.5">
+              <CalendarDays className="size-4 text-orange-500" aria-hidden />
+              {kickoff}
+            </span>
+            {match.gymName ? (
+              <span className="flex items-center gap-1.5">
+                <MapPin className="size-4 text-orange-500" aria-hidden />
+                {match.gymName}
+              </span>
+            ) : null}
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className={match.tracksBoxScore ? "lg:col-span-2" : "lg:col-span-3"}>
+          <Scoreboard
+            teamName={match.teamName}
+            teamHref={teamHref}
+            opponent={match.opponent}
+            isHome={match.isHome}
+            result={match.result}
+            kickoff={kickoff}
+          />
+        </div>
+        {match.tracksBoxScore ? (
+          <div className="hidden lg:block">
+            <ScoringSplit rows={rows} />
+          </div>
+        ) : null}
+      </div>
 
       {!match.tracksBoxScore ? (
         <Alert>
@@ -429,20 +411,159 @@ export default async function MatchPage({
         </Alert>
       ) : null}
 
-      {match.tracksBoxScore ? (
-        <SheetsCard
-          eventId={eventId}
-          teamId={teamId}
-          registerId={match.registerId}
-          sheets={sheets}
-          squad={squad}
-          canRecord={hasPermission(context, "attendance.record")}
-          canManage={hasPermission(context, "attendance.manage")}
-          canRead={hasPermission(context, "ai.read")}
-          hasProvider={provider !== null}
-          needsResult={match.result === null || match.result.state === "PENDING"}
-        />
-      ) : null}
+      <PageTabs initial={initialTab} tabs={tabs}>
+        {match.tracksBoxScore ? (
+          <PageTabPanel value="box">
+            <div className="grid items-start gap-6 lg:grid-cols-3">
+              <Card className="lg:col-span-2">
+                <CardHeader>
+                  <CardTitle className="text-lg">
+                    {t("ourBoxScore", { team: match.teamName })}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {starterNames.length > 0 ? (
+                    <div className="flex items-start gap-3 rounded-lg border bg-muted/40 p-3">
+                      <span className="flex size-7 shrink-0 items-center justify-center rounded-full border border-orange-500/50 text-orange-500">
+                        <Star className="size-3.5" aria-hidden />
+                      </span>
+                      <div className="min-w-0 space-y-1">
+                        <p className="label-caps text-orange-600 dark:text-orange-400">
+                          {t("startingFive")}
+                        </p>
+                        <p className="text-sm font-medium">{starterNames.join(", ")}</p>
+                      </div>
+                    </div>
+                  ) : null}
+                  {rows.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">{t("boxScoreEmpty")}</p>
+                  ) : (
+                    <BoxScoreTable rows={rows} />
+                  )}
+                  {fromSheet ? (
+                    <Alert>
+                      <AlertDescription className="text-xs">
+                        {t("fromSheetCaveat")}
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
+                  {/*
+                    Typing the scoresheet in by hand, folded away. Most clubs
+                    will let the referto import do it rather than open this.
+                  */}
+                  {register?.editable ? (
+                    <Disclosure title={t("enterByHand")}>
+                      <BoxScoreEditor
+                        registerId={register.register.id}
+                        lines={register.lines.filter((line) => line.calledUp)}
+                        existing={boxScores}
+                        editable={register.editable}
+                      />
+                    </Disclosure>
+                  ) : null}
+                </CardContent>
+              </Card>
+
+              <div className="space-y-6">
+                <div className="lg:hidden">
+                  <ScoringTiles rows={rows} />
+                </div>
+                <SheetSummary sheet={latestSheet} />
+                {opponent ? (
+                  <OpponentThreats opponent={opponent} opponentName={match.opponent} />
+                ) : null}
+              </div>
+            </div>
+          </PageTabPanel>
+        ) : null}
+
+        {opponent ? (
+          <PageTabPanel value="opponent">
+            <OpponentBoxScore opponent={opponent} opponentName={match.opponent} />
+          </PageTabPanel>
+        ) : null}
+
+        {match.tracksBoxScore ? (
+          <PageTabPanel value="sheet">
+            <SheetsCard
+              eventId={eventId}
+              teamId={teamId}
+              registerId={match.registerId}
+              sheets={sheets}
+              squad={squad}
+              canRecord={canRecord}
+              canManage={hasPermission(context, "attendance.manage")}
+              canRead={hasPermission(context, "ai.read")}
+              hasProvider={provider !== null}
+              needsResult={!played}
+            />
+          </PageTabPanel>
+        ) : null}
+
+        <PageTabPanel value="match">
+          <div className="space-y-6">
+            <ResultForm
+              eventId={eventId}
+              teamId={teamId}
+              result={match.result}
+              editable={match.editable}
+            />
+
+            {register ? (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {/*
+                    Here as well as on the team page: a player added to the
+                    squad this week has no number, and this is where that shows.
+                  */}
+                  {canEditTeam && squad.length > 0 ? (
+                    <ShirtNumbersDialog
+                      teamId={teamId}
+                      members={squad.map((member) => ({
+                        id: member.athleteId,
+                        name: member.name,
+                        jerseyNumber: member.jerseyNumber,
+                      }))}
+                    />
+                  ) : null}
+                  <RegisterStateActions
+                    registerId={register.register.id}
+                    state={register.register.state}
+                    canRecord={canRecord}
+                    canManage={hasPermission(context, "attendance.manage")}
+                  />
+                </div>
+                <RegisterSheetEditor
+                  sheet={register}
+                  callUp={{
+                    clubName: context.tenant.name,
+                    // Signed with a first name, as a coach would.
+                    signature: context.user.fullName?.split(" ")[0] ?? "",
+                    timeZone: context.tenant.timezone,
+                  }}
+                />
+              </div>
+            ) : (
+              /*
+                No register yet. Rather than sending somebody to another page to
+                make one, the button makes it here — and uploading a sheet does
+                the same, so a club that works off the photograph never has to
+                think about registers at all.
+              */
+              <OpenSquadCard eventId={eventId} teamId={teamId} canRecord={canRecord} />
+            )}
+          </div>
+        </PageTabPanel>
+      </PageTabs>
     </div>
+  );
+}
+
+/** The small count beside a tab's label. */
+function TabCount({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="rounded-full bg-black/10 px-1.5 font-mono text-[11px] dark:bg-white/10">
+      {children}
+    </span>
   );
 }

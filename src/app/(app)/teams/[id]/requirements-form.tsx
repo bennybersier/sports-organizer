@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Loader2, Pencil, Target } from "lucide-react";
 
@@ -25,7 +25,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Separator } from "@/components/ui/separator";
 import { MultiSelect, type MultiSelectOption } from "@/components/data/multi-select";
 import { useAction } from "@/hooks/use-action";
 import { useFormDialog } from "@/hooks/use-form-dialog";
@@ -390,10 +389,13 @@ export function RequirementsCard({
   requirement,
   gyms,
   canEdit,
+  children,
 }: {
   requirement: TrainingRequirement;
   gyms: MultiSelectOption[];
   canEdit: boolean;
+  /** Rows at the card's foot — the weekly hours and the exceptions. */
+  children?: ReactNode;
 }) {
   const t = useTranslations("requirements");
   const tCommon = useTranslations("common");
@@ -412,11 +414,28 @@ export function RequirementsCard({
       .map((day) => tWeekdays(WEEKDAY_SHORT_KEYS[day as IsoWeekday]))
       .join(", ");
 
-  /** One read-only fact on the summary card. */
-  const fact = (label: string, value: string) => (
-    <div>
+  /** One read-only constraint: the rule on the left, its value on the right. */
+  const row = (label: string, value: string) => (
+    <div className="flex items-baseline justify-between gap-4 py-1.5">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-sm font-medium">{value || tCommon("none")}</dd>
+      <dd className="text-end font-mono text-sm font-medium">{value || tCommon("none")}</dd>
+    </div>
+  );
+
+  /** One of the four headline figures. */
+  const tile = (label: string, value: string, hint: string, accent = false) => (
+    <div className="min-w-0 space-y-1.5 rounded-md border bg-muted/30 p-3">
+      <p className="label-caps truncate text-muted-foreground">{label}</p>
+      <p
+        className={
+          accent
+            ? "font-mono text-2xl font-bold text-orange-600 dark:text-orange-400"
+            : "font-mono text-2xl font-bold"
+        }
+      >
+        {value}
+      </p>
+      <p className="font-mono text-[11px] text-muted-foreground">{hint}</p>
     </div>
   );
 
@@ -424,8 +443,8 @@ export function RequirementsCard({
     <Card>
       <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-2">
         <div className="space-y-1.5">
-          <CardTitle className="flex items-center gap-2">
-            <Target className="size-4" aria-hidden />
+          <CardTitle className="flex items-center gap-2 text-lg">
+            <Target className="size-4 text-orange-500" aria-hidden />
             {t("title")}
           </CardTitle>
           <CardDescription>{t("subtitle")}</CardDescription>
@@ -446,33 +465,56 @@ export function RequirementsCard({
       </CardHeader>
 
       <CardContent className="space-y-4">
-        <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {fact(t("sessionsPerWeek"), String(requirement.sessionsPerWeek))}
-          {fact(t("durationMinutes"), `${requirement.durationMinutes} ${t("minutes")}`)}
-          {fact(t("priority"), t(`priority${requirement.priority}` as "priority1"))}
-          {fact(t("startsOn"), requirement.startsOn ?? "—")}
-          {fact(t("allowedWeekdays"), dayNames(requirement.allowedWeekdays))}
-          {fact(t("window"), `${requirement.earliestStart} – ${requirement.latestEnd}`)}
-          {fact(t("minDaysBetween"), String(requirement.minDaysBetween))}
-          {fact(t("matchRestDays"), String(requirement.matchRestDays))}
-          {fact(t("allowedGyms"), gymNames(requirement.allowedGymIds))}
-        </dl>
-
-        <Separator />
-
-        <div className="space-y-2">
-          <h3 className="text-sm font-medium">{t("soft")}</h3>
-          <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {fact(t("preferredWeekdays"), dayNames(requirement.preferredWeekdays))}
-            {fact(
-              t("window"),
-              requirement.preferredStart && requirement.preferredEnd
-                ? `${requirement.preferredStart} – ${requirement.preferredEnd}`
-                : "",
-            )}
-            {fact(t("preferredGyms"), gymNames(requirement.preferredGymIds))}
-          </dl>
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          {tile(t("sessionsPerWeek"), String(requirement.sessionsPerWeek), t("hardLabel"))}
+          {tile(
+            t("durationMinutes"),
+            `${requirement.durationMinutes} ${t("minutes")}`,
+            t("hoursHint", { hours: (requirement.durationMinutes / 60).toFixed(1) }),
+          )}
+          {tile(
+            t("priority"),
+            t(`priority${requirement.priority}` as "priority1"),
+            t("priorityTileHint"),
+            true,
+          )}
+          {tile(t("startsOn"), requirement.startsOn ?? "—", t("startsOnTileHint"))}
         </div>
+
+        {/*
+          Hard rules and preferences side by side and never mixed: that split
+          is the whole design of the optimizer, and somebody reading one of its
+          conflict explanations later needs to know already which is which.
+        */}
+        <div className="grid gap-4 lg:grid-cols-2">
+          <div className="rounded-md border p-3">
+            <h3 className="label-caps mb-1 flex items-center gap-1.5 text-orange-600 dark:text-orange-400">
+              {t("hard")}
+            </h3>
+            <dl className="divide-y">
+              {row(t("allowedWeekdays"), dayNames(requirement.allowedWeekdays))}
+              {row(t("window"), `${requirement.earliestStart} – ${requirement.latestEnd}`)}
+              {row(t("minDaysBetween"), String(requirement.minDaysBetween))}
+              {row(t("matchRestDays"), String(requirement.matchRestDays))}
+              {row(t("allowedGyms"), gymNames(requirement.allowedGymIds))}
+            </dl>
+          </div>
+          <div className="rounded-md border p-3">
+            <h3 className="label-caps mb-1 text-emerald-600 dark:text-emerald-400">{t("soft")}</h3>
+            <dl className="divide-y">
+              {row(t("preferredWeekdays"), dayNames(requirement.preferredWeekdays))}
+              {row(
+                t("window"),
+                requirement.preferredStart && requirement.preferredEnd
+                  ? `${requirement.preferredStart} – ${requirement.preferredEnd}`
+                  : "",
+              )}
+              {row(t("preferredGyms"), gymNames(requirement.preferredGymIds))}
+            </dl>
+          </div>
+        </div>
+
+        {children}
       </CardContent>
     </Card>
   );

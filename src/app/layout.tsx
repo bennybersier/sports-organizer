@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getTranslations } from "next-intl/server";
 
@@ -7,6 +8,17 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { ThemeProvider } from "@/components/theme-provider";
 
 import "./globals.css";
+
+/*
+  Inter for the interface, JetBrains Mono for numbers and the small capitals
+  that label them — the pairing the design system specifies. next/font serves
+  both from our own origin, so no visitor's browser ever asks Google for them.
+*/
+const inter = Inter({ subsets: ["latin", "latin-ext"], variable: "--font-inter" });
+const jetBrainsMono = JetBrains_Mono({
+  subsets: ["latin", "latin-ext"],
+  variable: "--font-jetbrains-mono",
+});
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("app");
@@ -20,7 +32,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export const viewport: Viewport = {
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+    { media: "(prefers-color-scheme: dark)", color: "#0b0f17" },
   ],
 };
 
@@ -32,7 +44,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
     <html
       lang={locale}
       suppressHydrationWarning
-      className="h-full antialiased"
+      className={`${inter.variable} ${jetBrainsMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
         <NextIntlClientProvider>

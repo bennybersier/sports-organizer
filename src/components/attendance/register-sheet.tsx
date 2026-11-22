@@ -32,6 +32,7 @@ import {
 import { useAction } from "@/hooks/use-action";
 import { cn } from "@/lib/utils";
 import { saveRegisterAction } from "@/server/actions/attendance";
+import { CallUpMessageDialog } from "@/components/attendance/call-up-message-dialog";
 import type { RegisterSheet, RegisterLine } from "@/server/services/attendance-service";
 import type { AttendanceStateValue } from "@/types/database";
 
@@ -72,7 +73,14 @@ type Draft = Pick<
   "athleteId" | "state" | "reason" | "minutesLate" | "calledUp" | "started" | "benchReason" | "note"
 >;
 
-export function RegisterSheetEditor({ sheet }: { sheet: RegisterSheet }) {
+export function RegisterSheetEditor({
+  sheet,
+  callUp,
+}: {
+  sheet: RegisterSheet;
+  /** What the call-up message needs beyond the sheet. Omitted, no message. */
+  callUp?: { clubName: string; signature: string; timeZone: string };
+}) {
   const t = useTranslations("attendance");
   const router = useRouter();
   const { run, isPending } = useAction();
@@ -189,30 +197,49 @@ export function RegisterSheetEditor({ sheet }: { sheet: RegisterSheet }) {
               </span>
             ) : null}
 
-            {sheet.editable ? (
-              <div className="ms-auto flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={() => setCallUps(() => true)}>
-                  <CheckCheck aria-hidden />
-                  {t("selectAll")}
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setCallUps(() => false)}>
-                  <Eraser aria-hidden />
-                  {t("deselectAll")}
-                </Button>
-                {/* A squad moves by a player or two a week, so last week's is
-                    the sensible starting point — when there was a last week. */}
-                {lastSquad.size > 0 ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setCallUps((athleteId) => lastSquad.has(athleteId))}
-                  >
-                    <History aria-hidden />
-                    {t("sameAsLastGame")}
+            <div className="ms-auto flex flex-wrap gap-2">
+              {callUp && sheet.fixture?.opponent ? (
+                <CallUpMessageDialog
+                  details={{
+                    clubName: callUp.clubName,
+                    opponent: sheet.fixture.opponent,
+                    isHome: sheet.fixture.isHome,
+                    startsAt: sheet.fixture.startsAt,
+                    bufferBeforeMinutes: sheet.fixture.bufferBeforeMinutes,
+                    venue: sheet.gym,
+                    signature: callUp.signature,
+                    timeZone: callUp.timeZone,
+                  }}
+                  players={lines
+                    .filter((line) => line.calledUp)
+                    .map((line) => byId.get(line.athleteId)!)}
+                />
+              ) : null}
+              {sheet.editable ? (
+                <>
+                  <Button variant="outline" size="sm" onClick={() => setCallUps(() => true)}>
+                    <CheckCheck aria-hidden />
+                    {t("selectAll")}
                   </Button>
-                ) : null}
-              </div>
-            ) : null}
+                  <Button variant="outline" size="sm" onClick={() => setCallUps(() => false)}>
+                    <Eraser aria-hidden />
+                    {t("deselectAll")}
+                  </Button>
+                  {/* A squad moves by a player or two a week, so last week's is
+                      the sensible starting point — when there was a last week. */}
+                  {lastSquad.size > 0 ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCallUps((athleteId) => lastSquad.has(athleteId))}
+                    >
+                      <History aria-hidden />
+                      {t("sameAsLastGame")}
+                    </Button>
+                  ) : null}
+                </>
+              ) : null}
+            </div>
           </CardContent>
         </Card>
       ) : (

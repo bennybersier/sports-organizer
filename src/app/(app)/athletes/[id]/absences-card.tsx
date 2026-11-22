@@ -2,11 +2,11 @@
 
 import { useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { CalendarOff, Loader2, Plus, Trash2 } from "lucide-react";
+import { CalendarCheck, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -19,6 +19,8 @@ import {
 import { useAction } from "@/hooks/use-action";
 import { declareAbsenceAction, deleteAbsenceAction } from "@/server/actions/attendance";
 import type { AthleteAvailabilityExceptionRow } from "@/types/database";
+
+import { SectionHeader } from "./section";
 
 /**
  * Absences the club has been told about.
@@ -37,10 +39,14 @@ const REASONS = [
 ] as const;
 
 export function AbsencesCard({
+  index,
+  eyebrow,
   athleteId,
   absences,
   canRecord,
 }: {
+  index: number;
+  eyebrow: string;
   athleteId: string;
   absences: AthleteAvailabilityExceptionRow[];
   canRecord: boolean;
@@ -61,23 +67,22 @@ export function AbsencesCard({
   const invalid = endsOn < startsOn;
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
-        <div className="min-w-0">
-          <CardTitle className="flex items-center gap-2 text-base">
-            <CalendarOff className="size-4" aria-hidden />
-            {t("title")}
-          </CardTitle>
-          <CardDescription>{t("help")}</CardDescription>
-        </div>
-        {canRecord && !adding ? (
-          <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
-            <Plus aria-hidden />
-            {t("add")}
-          </Button>
-        ) : null}
-      </CardHeader>
+    <Card className="h-full">
+      <SectionHeader
+        index={index}
+        eyebrow={eyebrow}
+        title={t("title")}
+        aside={
+          canRecord && !adding ? (
+            <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+              <Plus aria-hidden />
+              {t("add")}
+            </Button>
+          ) : null
+        }
+      />
       <CardContent className="space-y-4">
+        <p className="text-xs text-muted-foreground">{t("help")}</p>
         {adding ? (
           <div className="space-y-3 rounded-md border p-3">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -159,7 +164,10 @@ export function AbsencesCard({
         ) : null}
 
         {absences.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("empty")}</p>
+          <p className="flex items-center gap-2 rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+            <CalendarCheck className="size-4 shrink-0 text-emerald-500" aria-hidden />
+            {t("empty")}
+          </p>
         ) : (
           <ul className="divide-y">
             {absences.map((absence) => {
@@ -167,7 +175,7 @@ export function AbsencesCard({
               return (
                 <li key={absence.id} className="flex items-center gap-3 py-2">
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm">
+                    <p className="font-mono text-sm">
                       {format.dateTime(new Date(`${absence.starts_on}T12:00:00`), {
                         day: "numeric",
                         month: "short",

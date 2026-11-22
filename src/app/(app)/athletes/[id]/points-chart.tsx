@@ -20,11 +20,11 @@ import type { AthleteMatchLine } from "@/server/services/match-service";
  * ## Form and colour
  *
  * One series, trend over time, so: a line, and **no legend** — the title says
- * what is plotted and a box with one swatch would only restate it. The club's
- * design system is deliberately monochrome (every `--chart-*` token is chroma
- * zero), so the mark wears the foreground ink rather than a hue invented for
- * the occasion. With a single series there is no identity to encode and
- * nothing for colour to do.
+ * what is plotted and a box with one swatch would only restate it. The line
+ * wears the design system's court orange, the one accent it reserves for the
+ * figure a page is about, with a faint fill beneath it to give the season a
+ * shape at a glance. The average is the only other mark, in the system's
+ * "positive" mint and labelled in words.
  *
  * The outcome of each match is deliberately *not* coloured into the markers.
  * Win and loss are status, and status colour may never be the only carrier of
@@ -92,6 +92,14 @@ export function PointsChart({ matches }: { matches: AthleteMatchLine[] }) {
   const total = series.reduce((sum, m) => sum + m.points, 0);
   const mean = total / series.length;
   const path = series.map((m, i) => `${i === 0 ? "M" : "L"}${scale.x(i)},${scale.y(m.points)}`).join(" ");
+  // The same line, closed down to the zero axis, for the fill.
+  const area = `${path} L${scale.x(series.length - 1)},${scale.y(0)} L${scale.x(0)},${scale.y(0)} Z`;
+  /*
+    Every point labelled and every date shown while there is room for them —
+    about 44px a match — and only the ends once there is not, where the
+    tooltip and the log beneath carry the rest.
+  */
+  const roomy = scale.innerW / Math.max(series.length - 1, 1) >= 44;
   const last = series.length - 1;
   const shown = active ?? last;
   const current = series[shown];
@@ -112,7 +120,8 @@ export function PointsChart({ matches }: { matches: AthleteMatchLine[] }) {
 
   return (
     <figure className="space-y-1">
-      <figcaption className="flex flex-wrap items-baseline justify-between gap-2">
+      {/* The card around the chart shows the title and the average. */}
+      <figcaption className="sr-only">
         <span className="text-xs font-medium text-muted-foreground">
           {t("stats.pointsPerMatch")}
         </span>
@@ -163,7 +172,7 @@ export function PointsChart({ matches }: { matches: AthleteMatchLine[] }) {
                   y={scale.y(tick)}
                   textAnchor="end"
                   dominantBaseline="middle"
-                  className="fill-muted-foreground text-[10px] tabular-nums"
+                  className="fill-muted-foreground font-mono text-[10px]"
                 >
                   {tick}
                 </text>
@@ -179,10 +188,18 @@ export function PointsChart({ matches }: { matches: AthleteMatchLine[] }) {
               x2={width - M.right}
               y1={scale.y(mean)}
               y2={scale.y(mean)}
-              className="stroke-muted-foreground/50"
+              className="stroke-emerald-500/70"
               strokeWidth={1}
-              strokeDasharray="3 3"
+              strokeDasharray="4 4"
             />
+            <text
+              x={width - M.right}
+              y={scale.y(mean) - 5}
+              textAnchor="end"
+              className="fill-emerald-600 font-mono text-[9px] font-semibold tracking-wider uppercase dark:fill-emerald-400"
+            >
+              {t("stats.averageShort", { value: mean.toFixed(1) })}
+            </text>
 
             {/* Crosshair, snapped to the nearest match. */}
             {active !== null ? (
@@ -196,11 +213,18 @@ export function PointsChart({ matches }: { matches: AthleteMatchLine[] }) {
               />
             ) : null}
 
+            <defs>
+              <linearGradient id="points-area" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#ff7a00" stopOpacity={0.28} />
+                <stop offset="100%" stopColor="#ff7a00" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <path d={area} fill="url(#points-area)" />
             <path
               d={path}
               fill="none"
-              className="stroke-foreground"
-              strokeWidth={2}
+              className="stroke-orange-500"
+              strokeWidth={2.5}
               strokeLinejoin="round"
               strokeLinecap="round"
             />
@@ -219,8 +243,19 @@ export function PointsChart({ matches }: { matches: AthleteMatchLine[] }) {
                   cx={scale.x(i)}
                   cy={scale.y(match.points)}
                   r={i === shown ? R + 1 : R}
-                  className="fill-foreground"
+                  className="fill-card stroke-orange-500"
+                  strokeWidth={2}
                 />
+                {roomy && i !== last ? (
+                  <text
+                    x={scale.x(i)}
+                    y={scale.y(match.points) - 10}
+                    textAnchor="middle"
+                    className="fill-foreground font-mono text-[10px] font-semibold"
+                  >
+                    {match.points}
+                  </text>
+                ) : null}
                 {/* Hit target, bigger than the mark and invisible. */}
                 <rect
                   x={scale.x(i) - HIT / 2}
@@ -237,19 +272,18 @@ export function PointsChart({ matches }: { matches: AthleteMatchLine[] }) {
               x={scale.x(last) + 8}
               y={scale.y(series[last].points)}
               dominantBaseline="middle"
-              className="fill-foreground text-[11px] font-semibold tabular-nums"
+              className="fill-orange-600 font-mono text-[11px] font-bold dark:fill-orange-400"
             >
               {series[last].points}
             </text>
 
-            {/* First and last dates only — the tooltip carries the rest. */}
-            {[0, last].map((i) => (
+            {(roomy ? series.map((_, i) => i) : [0, last]).map((i) => (
               <text
                 key={i}
                 x={scale.x(i)}
                 y={HEIGHT - 8}
-                textAnchor={i === 0 ? "start" : "end"}
-                className="fill-muted-foreground text-[10px]"
+                textAnchor={i === 0 ? "start" : i === last ? "end" : "middle"}
+                className="fill-muted-foreground font-mono text-[10px]"
               >
                 {format.dateTime(new Date(series[i].startsAt), {
                   day: "numeric",

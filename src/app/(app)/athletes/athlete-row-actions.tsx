@@ -23,12 +23,14 @@ export function AthleteRowActions({
   athlete,
   teams,
   currentTeamIds,
+  currentNumbers,
   canUpdate,
   canDelete,
 }: {
   athlete: AthleteFormValues & { id: string; status: string };
   teams: MultiSelectOption[];
   currentTeamIds: string[];
+  currentNumbers: Record<string, number | null>;
   canUpdate: boolean;
   canDelete: boolean;
 }) {
@@ -88,6 +90,7 @@ export function AthleteRowActions({
           athlete={athlete}
           teams={teams}
           currentTeamIds={currentTeamIds}
+          currentNumbers={currentNumbers}
           open={editOpen}
           onOpenChange={setEditOpen}
         />
