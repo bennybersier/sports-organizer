@@ -284,6 +284,7 @@ function toRow(input: CreateAthleteInput) {
     emergency_contact_relation: input.emergencyContactRelation,
     membership_status: input.membershipStatus,
     notes: input.notes,
+    ...(input.publicConsent === undefined ? {} : { public_consent: input.publicConsent }),
   };
 }
 

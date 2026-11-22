@@ -85,7 +85,7 @@ export function PublicPageDialog({
             <div className="space-y-1">
               <p className="label-caps text-muted-foreground">{t("shown")}</p>
               <ul className="space-y-1">
-                {(["shownFixtures", "shownResults", "shownTraining"] as const).map((key) => (
+                {(["shownRoster", "shownFixtures", "shownResults", "shownTraining"] as const).map((key) => (
                   <li key={key} className="flex gap-2">
                     <Check className="mt-0.5 size-4 shrink-0 text-emerald-600" aria-hidden />
                     {t(key)}

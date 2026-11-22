@@ -29,6 +29,12 @@ const baseAthlete = z.object({
   emergencyContactRelation: optionalText(60),
   membershipStatus: membershipStateSchema.default("ACTIVE"),
   notes: optionalText(2000),
+  /*
+    Optional with no default on purpose: a caller that does not send it — an
+    MCP tool, an import — must leave a family's "no" alone rather than reset
+    it. The database default covers a new athlete.
+  */
+  publicConsent: z.boolean().optional(),
   teamIds: z.array(uuidSchema).default([]),
   // Shirt per selected team. A number belongs to the membership, not the person.
   numbers: z
