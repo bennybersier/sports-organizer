@@ -8,7 +8,11 @@ import { cn } from "@/lib/utils";
 const SetTab = createContext<(value: string) => void>(() => {});
 
 /**
- * The match page's sections, one at a time.
+ * A page's sections, one at a time.
+ *
+ * With `stackFrom="lg"` the tabs are a phone's affair only: from that width up
+ * the strip is hidden and every panel shows, one under the other, because a
+ * desktop has the room to show the whole page and a phone does not.
  *
  * Every panel stays mounted and is only hidden. The squad sheet and the result
  * form hold unsaved drafts in component state, and Radix unmounts an inactive
@@ -19,13 +23,16 @@ const SetTab = createContext<(value: string) => void>(() => {});
  * navigation, so a link can open the page on the sheet without switching tabs
  * costing a server round trip.
  */
-export function MatchTabs({
+export function PageTabs({
   initial,
   tabs,
+  stackFrom,
   children,
 }: {
   initial: string;
   tabs: { value: string; label: ReactNode }[];
+  /** From this width up, show every panel and no tabs. */
+  stackFrom?: "lg";
   children: ReactNode;
 }) {
   const [tab, setTab] = useState(initial);
@@ -45,9 +52,15 @@ export function MatchTabs({
         root.current?.scrollIntoView({ behavior: "smooth", block: "start" });
       }}
     >
-      <Tabs ref={root} value={tab} onValueChange={select} className="scroll-mt-4 gap-4">
+      <Tabs
+        ref={root}
+        value={tab}
+        onValueChange={select}
+        data-stack={stackFrom}
+        className="group/page-tabs scroll-mt-4 gap-4 data-[stack=lg]:lg:gap-6"
+      >
         {/* Sideways on a phone rather than wrapping into a second row of tabs. */}
-        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <div className="-mx-4 overflow-x-auto px-4 group-data-[stack=lg]/page-tabs:lg:hidden sm:mx-0 sm:px-0">
           <TabsList
             variant="line"
             className="h-auto! w-max min-w-full gap-1 rounded-lg border bg-card p-1 sm:min-w-0"
@@ -74,9 +87,13 @@ export function MatchTabs({
   );
 }
 
-export function MatchTabPanel({ value, children }: { value: string; children: ReactNode }) {
+export function PageTabPanel({ value, children }: { value: string; children: ReactNode }) {
   return (
-    <TabsContent value={value} forceMount className="data-[state=inactive]:hidden">
+    <TabsContent
+      value={value}
+      forceMount
+      className="data-[state=inactive]:hidden group-data-[stack=lg]/page-tabs:lg:block!"
+    >
       {children}
     </TabsContent>
   );

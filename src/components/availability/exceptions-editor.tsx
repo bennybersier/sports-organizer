@@ -4,9 +4,7 @@ import { useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { CalendarOff, Plus, Trash2 } from "lucide-react";
 
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -20,6 +18,8 @@ import { useAction } from "@/hooks/use-action";
 import { createExceptionAction, deleteExceptionAction } from "@/server/actions/availability";
 import type { AvailabilityExceptionRecord } from "@/server/services/availability-service";
 
+import { SectionShell } from "./section-shell";
+
 /**
  * Date-specific exceptions.
  *
@@ -32,11 +32,14 @@ export function ExceptionsEditor({
   ownerId,
   exceptions,
   canEdit,
+  embedded = false,
 }: {
   domain: "gym" | "trainer" | "team";
   ownerId: string;
   exceptions: AvailabilityExceptionRecord[];
   canEdit: boolean;
+  /** A row inside another card rather than a card of its own. */
+  embedded?: boolean;
 }) {
   const t = useTranslations("availability");
   const tCommon = useTranslations("common");
@@ -52,33 +55,46 @@ export function ExceptionsEditor({
   const [reason, setReason] = useState("");
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <CalendarOff className="size-4" aria-hidden />
-          {t("exceptionsTitle")}
-        </CardTitle>
-        <CardDescription>{t("exceptionsSubtitle")}</CardDescription>
-      </CardHeader>
-
-      <CardContent className="space-y-3">
-        {exceptions.length === 0 && !adding ? (
-          <p className="text-sm text-muted-foreground">{t("noExceptions")}</p>
+    <SectionShell
+      embedded={embedded}
+      icon={CalendarOff}
+      title={t("exceptionsTitle")}
+      description={t("exceptionsSubtitle")}
+      action={
+        canEdit && !adding ? (
+          <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+            <Plus aria-hidden />
+            {t("addException")}
+          </Button>
+        ) : null
+      }
+    >
+        {/* Embedded, the description already says what goes here. */}
+        {exceptions.length === 0 && !adding && !embedded ? (
+          <p className="rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground">
+            {t("noExceptions")}
+          </p>
         ) : null}
 
         {exceptions.length > 0 ? (
           <ul className="divide-y rounded-lg border">
             {exceptions.map((exception) => (
               <li key={exception.id} className="flex flex-wrap items-center gap-3 p-3">
-                <span className="text-sm font-medium tabular-nums">
+                <span className="font-mono text-sm font-medium">
                   {format.dateTime(new Date(`${exception.exceptionDate}T00:00:00`), {
                     dateStyle: "medium",
                   })}
                 </span>
-                <Badge variant={exception.type === "UNAVAILABLE" ? "destructive" : "secondary"}>
+                <span
+                  className={
+                    exception.type === "UNAVAILABLE"
+                      ? "label-caps rounded bg-destructive/15 px-1.5 py-0.5 text-destructive"
+                      : "label-caps rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-700 dark:text-emerald-400"
+                  }
+                >
                   {t(exception.type)}
-                </Badge>
-                <span className="text-sm tabular-nums text-muted-foreground">
+                </span>
+                <span className="font-mono text-sm text-muted-foreground">
                   {exception.startTime && exception.endTime
                     ? `${exception.startTime}–${exception.endTime}`
                     : t("wholeDay")}
@@ -215,13 +231,7 @@ export function ExceptionsEditor({
               </Button>
             </div>
           </div>
-        ) : canEdit ? (
-          <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
-            <Plus aria-hidden />
-            {t("addException")}
-          </Button>
         ) : null}
-      </CardContent>
-    </Card>
+    </SectionShell>
   );
 }

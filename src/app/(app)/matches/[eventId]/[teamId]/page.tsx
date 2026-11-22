@@ -41,7 +41,7 @@ import { EditMatchButton } from "./edit-match-button";
 import { ResultForm } from "./result-form";
 import { OpenSquadCard } from "./open-squad-card";
 import { BoxScoreTable, type BoxScoreRow } from "./box-score-table";
-import { MatchTabPanel, MatchTabs } from "./match-tabs";
+import { PageTabPanel, PageTabs } from "@/components/data/page-tabs";
 import { Scoreboard, ScoringSplit, ScoringTiles, SheetSummary } from "./match-summary";
 import { OpponentBoxScore, OpponentThreats, readOpponent } from "./opponent-card";
 import { SheetsCard } from "./sheets-card";
@@ -411,9 +411,9 @@ export default async function MatchPage({
         </Alert>
       ) : null}
 
-      <MatchTabs initial={initialTab} tabs={tabs}>
+      <PageTabs initial={initialTab} tabs={tabs}>
         {match.tracksBoxScore ? (
-          <MatchTabPanel value="box">
+          <PageTabPanel value="box">
             <div className="grid items-start gap-6 lg:grid-cols-3">
               <Card className="lg:col-span-2">
                 <CardHeader>
@@ -474,17 +474,17 @@ export default async function MatchPage({
                 ) : null}
               </div>
             </div>
-          </MatchTabPanel>
+          </PageTabPanel>
         ) : null}
 
         {opponent ? (
-          <MatchTabPanel value="opponent">
+          <PageTabPanel value="opponent">
             <OpponentBoxScore opponent={opponent} opponentName={match.opponent} />
-          </MatchTabPanel>
+          </PageTabPanel>
         ) : null}
 
         {match.tracksBoxScore ? (
-          <MatchTabPanel value="sheet">
+          <PageTabPanel value="sheet">
             <SheetsCard
               eventId={eventId}
               teamId={teamId}
@@ -497,10 +497,10 @@ export default async function MatchPage({
               hasProvider={provider !== null}
               needsResult={!played}
             />
-          </MatchTabPanel>
+          </PageTabPanel>
         ) : null}
 
-        <MatchTabPanel value="match">
+        <PageTabPanel value="match">
           <div className="space-y-6">
             <ResultForm
               eventId={eventId}
@@ -545,8 +545,8 @@ export default async function MatchPage({
               <OpenSquadCard eventId={eventId} teamId={teamId} canRecord={canRecord} />
             )}
           </div>
-        </MatchTabPanel>
-      </MatchTabs>
+        </PageTabPanel>
+      </PageTabs>
     </div>
   );
 }

@@ -15,7 +15,7 @@ import { SCROLLING_GRID } from "@/components/attendance/scrolling-grid";
 import { readTeam } from "@/domain/referto/reading";
 import type { SheetView } from "@/server/services/match-sheet-service";
 
-import { TabLink } from "./match-tabs";
+import { TabLink } from "@/components/data/page-tabs";
 
 /**
  * How the other side scored, read off the same sheet.

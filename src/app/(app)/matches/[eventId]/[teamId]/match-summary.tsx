@@ -10,7 +10,7 @@ import type { MatchResultSummary } from "@/server/services/match-service";
 import type { SheetView } from "@/server/services/match-sheet-service";
 
 import type { BoxScoreRow } from "./box-score-table";
-import { TabLink } from "./match-tabs";
+import { TabLink } from "@/components/data/page-tabs";
 
 /*
   The summary half of the match page: what the score was, how it was made, and

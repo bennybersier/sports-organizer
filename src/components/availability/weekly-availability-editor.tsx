@@ -5,7 +5,6 @@ import { useTranslations } from "next-intl";
 import { Clock, Pencil, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +22,8 @@ import {
   deleteAvailabilityAction,
 } from "@/server/actions/availability";
 import type { AvailabilityWindow } from "@/server/services/availability-service";
+
+import { SectionShell } from "./section-shell";
 
 /**
  * The weekly availability pattern.
@@ -75,7 +76,11 @@ export function WeeklyAvailabilityEditor({
   windows,
   seasonStart,
   canEdit,
-}: WeeklyAvailabilityProps) {
+  embedded = false,
+}: WeeklyAvailabilityProps & {
+  /** A row inside another card rather than a card of its own. */
+  embedded?: boolean;
+}) {
   const t = useTranslations("availability");
   const tWeekdays = useTranslations("weekdays");
 
@@ -87,43 +92,44 @@ export function WeeklyAvailabilityEditor({
   const days = ISO_WEEKDAYS.filter((weekday) => (byWeekday.get(weekday) ?? []).length > 0);
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
-        <div className="min-w-0">
-          <CardTitle className="flex items-center gap-2">
-            <Clock className="size-4" aria-hidden />
-            {t("weeklyTitle")}
-          </CardTitle>
-          <CardDescription>
-            {isTeam ? t("weeklySubtitleTeam") : t("weeklySubtitle")}
-            {windows.length > 0 ? ` · ${t("weeklyTotal", { hours: weeklyHours(windows) })}` : null}
-          </CardDescription>
-        </div>
-        {canEdit ? (
+    <SectionShell
+      embedded={embedded}
+      icon={Clock}
+      title={t("weeklyTitle")}
+      description={
+        <>
+          {isTeam ? t("weeklySubtitleTeam") : t("weeklySubtitle")}
+          {windows.length > 0 ? ` · ${t("weeklyTotal", { hours: weeklyHours(windows) })}` : null}
+        </>
+      }
+      action={
+        canEdit ? (
           <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
             <Pencil aria-hidden />
             {t("editHours")}
           </Button>
-        ) : null}
-      </CardHeader>
-
-      <CardContent>
+        ) : null
+      }
+    >
         {days.length === 0 ? (
-          <p className="text-sm text-muted-foreground">
-            {isTeam ? t("noWeeklyPatternTeam") : t("noWeeklyPattern")}
-          </p>
+          /* Embedded, the description already says an empty week is fine. */
+          embedded ? null : (
+            <p className="rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground">
+              {isTeam ? t("noWeeklyPatternTeam") : t("noWeeklyPattern")}
+            </p>
+          )
         ) : (
           <ul className="divide-y rounded-lg border">
             {days.map((weekday) => (
               <li key={weekday} className="flex flex-wrap items-center gap-3 p-3">
-                <span className="w-24 shrink-0 text-sm font-medium">
+                <span className="label-caps w-24 shrink-0 text-muted-foreground">
                   {tWeekdays(WEEKDAY_KEYS[weekday])}
                 </span>
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
                   {(byWeekday.get(weekday) ?? []).map((window) => (
                     <span
                       key={window.id}
-                      className="inline-flex items-center rounded-md border bg-muted/40 px-2 py-1 text-sm tabular-nums"
+                      className="inline-flex items-center rounded border-l-2 border-orange-500 bg-orange-500/10 px-2 py-1 font-mono text-sm font-medium text-orange-700 dark:text-orange-400"
                     >
                       {window.startTime}–{window.endTime}
                     </span>
@@ -133,8 +139,6 @@ export function WeeklyAvailabilityEditor({
             ))}
           </ul>
         )}
-      </CardContent>
-
       {canEdit ? (
         <WeeklyAvailabilityDialog
           open={editing}
@@ -145,7 +149,7 @@ export function WeeklyAvailabilityEditor({
           seasonStart={seasonStart}
         />
       ) : null}
-    </Card>
+    </SectionShell>
   );
 }
 
