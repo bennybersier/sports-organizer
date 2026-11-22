@@ -1,5 +1,6 @@
 import "server-only";
 
+import { gymAddress } from "@/server/services/gym-service";
 import { AuthorizationError, ConflictError, NotFoundError, fromDatabaseError } from "@/lib/errors";
 import type { AuthContext } from "@/server/auth/context";
 import { assertPermission, hasPermission } from "@/server/auth/authorization";
@@ -104,7 +105,7 @@ export interface RegisterSheet {
    * one the register was opened in. `address` is the street and city joined,
    * for telling parents where to go.
    */
-  gym: { id: string; name: string; address: string | null } | null;
+  gym: { id: string; name: string; address: string | null; hasStreet: boolean } | null;
   /** Set for a match: who we are playing, where, and when. */
   fixture: {
     opponent: string | null;
@@ -487,7 +488,7 @@ export async function getRegisterSheet(
       if (!gymId) return { data: null };
       const { data } = await context.db
         .from("gyms")
-        .select("id, name, address_line1, city")
+        .select("id, name, address_line1, postal_code, city")
         .eq("id", gymId)
         .maybeSingle();
       return { data };
@@ -554,7 +555,8 @@ export async function getRegisterSheet(
       ? {
           id: gym.id,
           name: gym.name,
-          address: [gym.address_line1, gym.city].filter(Boolean).join(" – ") || null,
+          address: gymAddress(gym),
+          hasStreet: Boolean(gym.address_line1),
         }
       : null,
     fixture: event

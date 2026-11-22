@@ -206,12 +206,7 @@ export function RegisterSheetEditor({
                     isHome: sheet.fixture.isHome,
                     startsAt: sheet.fixture.startsAt,
                     bufferBeforeMinutes: sheet.fixture.bufferBeforeMinutes,
-                    // The match's address: what was typed on it first — the
-                    // only place an away hall is written down — then the
-                    // hall set on the match.
-                    venue: sheet.fixture.location
-                      ? { name: sheet.fixture.location, address: null }
-                      : sheet.gym,
+                    venue: callUpVenue(sheet.gym, sheet.fixture.location),
                     signature: callUp.signature,
                     timeZone: callUp.timeZone,
                   }}
@@ -458,4 +453,20 @@ function toDraft(line: RegisterLine): Draft {
     benchReason: line.benchReason,
     note: line.note,
   };
+}
+
+/**
+ * Where the call-up sends the squad, in the same order as every match page:
+ * a saved hall with a street address wins — it was picked on purpose, and
+ * correcting the hall corrects every match there — and text typed on the
+ * match fills in for a hall with no street on file, or no hall at all.
+ */
+function callUpVenue(
+  gym: { name: string; address: string | null; hasStreet: boolean } | null,
+  typed: string | null,
+): { name: string; address: string | null } | null {
+  const text = typed?.trim() || null;
+  if (gym?.hasStreet) return { name: gym.name, address: gym.address };
+  if (gym) return { name: gym.name, address: text ?? gym.address };
+  return text ? { name: text, address: null } : null;
 }

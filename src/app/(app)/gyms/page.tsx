@@ -127,6 +127,11 @@ export default async function GymsPage({
                         <Link href={`/gyms/${gym.id}`} className="font-medium hover:underline">
                           {gym.name}
                         </Link>
+                        {gym.is_away ? (
+                          <span className="label-caps rounded bg-muted px-1.5 py-0.5 text-muted-foreground">
+                            {t("awayBadge")}
+                          </span>
+                        ) : null}
                       </div>
                     </TableCell>
                     <TableCell data-label={t("location")} className="text-sm text-muted-foreground">
@@ -164,6 +169,7 @@ export default async function GymsPage({
                           capacity: gym.capacity,
                           sharesHall: gym.max_concurrent_teams > 1,
                           sharedOverlapMinutes: gym.max_shared_overlap_minutes,
+                          isAway: gym.is_away,
                           sportTypes: gym.sport_types,
                           equipment: gym.equipment,
                           color: gym.color,

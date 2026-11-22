@@ -259,6 +259,7 @@ export default async function AthleteDetailPage({
                   emergencyContactRelation: athlete.emergency_contact_relation,
                   membershipStatus: athlete.membership_status,
                   notes: athlete.notes,
+                  publicConsent: athlete.public_consent,
                 }}
               />
             </div>

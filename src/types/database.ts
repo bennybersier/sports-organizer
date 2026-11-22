@@ -275,6 +275,8 @@ export interface GymRow extends Timestamps {
   max_concurrent_teams: number;
   /** Longest overlap allowed between any two of them, in minutes. */
   max_shared_overlap_minutes: number;
+  /** An opponent's hall, saved for its address. Never offered for training. */
+  is_away: boolean;
   sport_types: string[];
   equipment: string[];
   color: string | null;
@@ -344,6 +346,8 @@ export interface AthleteRow extends Timestamps {
   emergency_contact_relation: string | null;
   membership_status: MembershipState;
   notes: string | null;
+  /** May be listed (first name, last initial) on the team's parents' page. */
+  public_consent: boolean;
   metadata: Json;
   status: EntityStatus;
   created_by: string | null;

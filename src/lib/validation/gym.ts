@@ -28,18 +28,46 @@ const baseGym = z.object({
    */
   sharesHall: z.union([z.boolean(), z.literal("on"), z.literal("")]).optional()
     .transform((v) => v === true || v === "on"),
+  /*
+    Only meaningful when the hall shares. A hall that does not is stored with
+    0, and the edit form sends that 0 back from its hidden field — so the
+    15–45 range is checked against sharing below, not on the bare number,
+    or no non-sharing hall could ever be saved again.
+  */
   sharedOverlapMinutes: z
-    .union([z.literal(""), z.coerce.number().int().min(15).max(45)])
+    .union([z.literal(""), z.coerce.number().int().min(0).max(45)])
     .optional()
     .transform((v) => (v === "" || v === undefined ? 30 : v)),
+  /*
+    Optional with no default, like an athlete's consent: an update that does
+    not mention it — an MCP tool, say — must not turn an away hall into one the
+    generator would schedule training in. The column default covers creation.
+  */
+  isAway: z.boolean().optional(),
   sportTypes: stringArray,
   equipment: stringArray,
   color: z.union([z.literal(""), hexColorSchema]).optional().transform((v) => v || null),
   notes: optionalText(2000),
 });
 
-export const createGymSchema = baseGym;
-export const updateGymSchema = baseGym.extend({ id: uuidSchema });
+/** The changeover tolerance must be a real one whenever the hall shares. */
+function sharingNeedsOverlap(
+  gym: { sharesHall: boolean; sharedOverlapMinutes: number },
+  ctx: z.RefinementCtx,
+) {
+  if (gym.sharesHall && gym.sharedOverlapMinutes < 15) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["sharedOverlapMinutes"],
+      message: "Choose between 15 and 45 minutes.",
+    });
+  }
+}
+
+export const createGymSchema = baseGym.superRefine(sharingNeedsOverlap);
+export const updateGymSchema = baseGym
+  .extend({ id: uuidSchema })
+  .superRefine(sharingNeedsOverlap);
 
 export type CreateGymInput = z.infer<typeof createGymSchema>;
 export type UpdateGymInput = z.infer<typeof updateGymSchema>;

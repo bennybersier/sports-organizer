@@ -23,7 +23,10 @@ import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -69,9 +72,16 @@ export interface EventFormValues {
   bufferAfterMinutes: number;
 }
 
+/** A hall in the picker. `away` marks an opponent's hall, listed apart. */
+export interface EventGymOption extends MultiSelectOption {
+  away?: boolean;
+  /** The hall's saved address, used for the event when none is typed. */
+  address?: string | null;
+}
+
 export interface EventDialogOptions {
   seasons: MultiSelectOption[];
-  gyms: MultiSelectOption[];
+  gyms: EventGymOption[];
   trainers: MultiSelectOption[];
   teams: MultiSelectOption[];
   /**
@@ -189,6 +199,7 @@ export function NewEventButton({
     above all, which is where a parent driving there needs it. One field,
     placed in the fixture box on a match and under the hall otherwise.
   */
+  const hallAddress = gyms.find((gym) => gym.value === gymId)?.address ?? null;
   const addressField = (
     <div className="grid gap-1">
       <Label htmlFor="event-location">{t("address")}</Label>
@@ -197,8 +208,15 @@ export function NewEventButton({
         value={location}
         maxLength={200}
         onChange={(e) => setLocation(e.target.value)}
-        placeholder={t("addressPlaceholder")}
+        placeholder={hallAddress ?? t("addressPlaceholder")}
       />
+      {/*
+        Not copied into the field: the hall's address is read from the hall,
+        so correcting it once corrects every match played there.
+      */}
+      {hallAddress && !location.trim() ? (
+        <p className="text-xs text-muted-foreground">{t("usesHallAddress")}</p>
+      ) : null}
     </div>
   );
 
@@ -467,11 +485,33 @@ export function NewEventButton({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="none">{t("noGym")}</SelectItem>
-                    {gyms.map((gym) => (
-                      <SelectItem key={gym.value} value={gym.value}>
-                        {gym.label}
-                      </SelectItem>
-                    ))}
+                    {/*
+                      Opponents' halls apart from ours, and only on a fixture:
+                      nothing else is played at somebody else's gym. A hall
+                      already set on an event stays listed so it still shows.
+                    */}
+                    {gyms
+                      .filter((gym) => !gym.away)
+                      .map((gym) => (
+                        <SelectItem key={gym.value} value={gym.value}>
+                          {gym.label}
+                        </SelectItem>
+                      ))}
+                    {gyms.some((gym) => gym.away && (isFixture || gym.value === gymId)) ? (
+                      <>
+                        <SelectSeparator />
+                        <SelectGroup>
+                          <SelectLabel>{t("awayHalls")}</SelectLabel>
+                          {gyms
+                            .filter((gym) => gym.away && (isFixture || gym.value === gymId))
+                            .map((gym) => (
+                              <SelectItem key={gym.value} value={gym.value}>
+                                {gym.label}
+                              </SelectItem>
+                            ))}
+                        </SelectGroup>
+                      </>
+                    ) : null}
                   </SelectContent>
                 </Select>
               </div>

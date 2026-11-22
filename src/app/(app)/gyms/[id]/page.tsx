@@ -93,6 +93,11 @@ export default async function GymDetailPage({ params }: { params: Promise<{ id: 
         description={[gym.address_line1, gym.city].filter(Boolean).join(", ") || undefined}
         action={
           <div className="flex flex-wrap items-center gap-2">
+            {gym.is_away ? (
+              <span className="label-caps rounded bg-muted px-2 py-1 text-muted-foreground">
+                {t("awayBadge")}
+              </span>
+            ) : null}
             <StatusBadge status={gym.status} />
             {hasPermission(context, "gyms.update") ? (
               <GymFormDialog
@@ -108,6 +113,7 @@ export default async function GymDetailPage({ params }: { params: Promise<{ id: 
                   capacity: gym.capacity,
                   sharesHall: gym.max_concurrent_teams > 1,
                   sharedOverlapMinutes: gym.max_shared_overlap_minutes,
+                  isAway: gym.is_away,
                   sportTypes: gym.sport_types,
                   equipment: gym.equipment,
                   color: gym.color,

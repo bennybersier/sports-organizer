@@ -357,7 +357,10 @@
     "updated": "{name} updated.",
     "archived": "{name} archived.",
     "archiveConfirmTitle": "Archive this gym?",
-    "archiveConfirmBody": "Past training sessions that used it are preserved. It won't be offered for new schedules."
+    "archiveConfirmBody": "Past training sessions that used it are preserved. It won't be offered for new schedules.",
+    "isAway": "Away hall (opponent's gym)",
+    "isAwayHint": "Saved for its address, so a match there can just pick it. Never used for training.",
+    "awayBadge": "Away"
   },
   "trainers": {
     "title": "Trainers",
@@ -492,7 +495,9 @@
     "foulsShort": "fls",
     "absencesEyebrow": "Absences",
     "rosterEyebrow": "Roster",
-    "staffEyebrow": "Staff"
+    "staffEyebrow": "Staff",
+    "publicConsent": "Show on the team's parents' page",
+    "publicConsentHint": "As first name and last initial only. Untick if the family hasn't agreed to it."
   },
   "weekdays": {
     "monday": "Monday",
@@ -690,7 +695,9 @@
     "bufferBefore": "Minutes before",
     "bufferAfter": "Minutes after",
     "address": "Address",
-    "addressPlaceholder": "Where it's held, if not one of your halls — e.g. Via Lonato 28, Brescia"
+    "addressPlaceholder": "Where it's held, if not one of your halls — e.g. Via Lonato 28, Brescia",
+    "awayHalls": "Away halls",
+    "usesHallAddress": "Leave empty to use the hall's saved address, shown above."
   },
   "conflicts": {
     "VALID": "Valid",
@@ -1553,7 +1560,7 @@
     "shownResults": "Scores and the season record",
     "shownTraining": "Training for the next two weeks",
     "hidden": "Never on it",
-    "hiddenAthletes": "Players: names, numbers, call-ups, attendance, stats",
+    "hiddenAthletes": "Players' surnames, numbers, call-ups, attendance and stats",
     "hiddenStaff": "Coaches' names and contact details",
     "hiddenNotes": "Internal notes",
     "linkLabel": "Link to the parents' page",
@@ -1572,16 +1579,16 @@
     "goneTitle": "This link doesn't work any more",
     "goneBody": "The club may have replaced it with a new one. Ask the team's coach for the current link.",
     "homeVenue": "Home games",
-    "upcoming": "Next matches",
     "noUpcoming": "No matches scheduled yet.",
     "training": "Training",
     "trainingHint": "The next two weeks.",
     "noTraining": "No training scheduled in the next two weeks.",
     "cancelled": "Cancelled",
-    "results": "Results",
-    "shortWIN": "W",
-    "shortLOSS": "L",
-    "shortDRAW": "D",
-    "footer": "Shared by {club}. Times are local ({timeZone})."
+    "footer": "Shared by {club}. Times are local ({timeZone}).",
+    "roster": "Squad",
+    "shownRoster": "The squad as first name and last initial, for athletes allowed on it",
+    "matches": "Matches",
+    "otherPlayers": "{count, plural, one {# other player} other {# other players}}",
+    "noBoxScore": "No box score for this match."
   }
 }

@@ -8,7 +8,7 @@ import {
   requireAnyPermission,
   requirePermission,
 } from "@/server/auth/authorization";
-import { listGymOptions } from "@/server/services/gym-service";
+import { listGymOptions, toEventGymOption } from "@/server/services/gym-service";
 import { listSeasonOptions } from "@/server/services/season-service";
 import { listTeamOptions } from "@/server/services/team-service";
 import { listTrainerOptions } from "@/server/services/trainer-service";
@@ -178,13 +178,13 @@ export async function getEventDialogOptionsAction(): Promise<ActionResult<EventD
     const context = await requireAnyPermission(["calendar.create", "calendar.update"]);
     const [seasons, gyms, trainers, teams] = await Promise.all([
       hasPermission(context, "seasons.read") ? listSeasonOptions(context) : [],
-      hasPermission(context, "gyms.read") ? listGymOptions(context) : [],
+      hasPermission(context, "gyms.read") ? listGymOptions(context, { includeAway: true }) : [],
       hasPermission(context, "trainers.read") ? listTrainerOptions(context) : [],
       hasPermission(context, "teams.read") ? listTeamOptions(context) : [],
     ]);
     return {
       seasons: seasons.map((season) => ({ value: season.id, label: season.name })),
-      gyms: gyms.map((gym) => ({ value: gym.id, label: gym.name })),
+      gyms: gyms.map(toEventGymOption),
       trainers: trainers.map((trainer) => ({
         value: trainer.id,
         label: `${trainer.first_name} ${trainer.last_name}`,

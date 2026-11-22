@@ -61,20 +61,52 @@ export async function getGym(context: AuthContext, id: string): Promise<GymRow> 
   return data;
 }
 
-/** Active gyms for pickers. */
-export async function listGymOptions(context: AuthContext) {
+/**
+ * Active gyms for pickers.
+ *
+ * Our own halls only, unless `includeAway`: almost every picker is about
+ * where a team can train or play at home, and an opponent's hall is neither.
+ * The match editor is the one that asks for both.
+ */
+export async function listGymOptions(
+  context: AuthContext,
+  { includeAway = false }: { includeAway?: boolean } = {},
+) {
   assertPermission(context, "gyms.read");
 
-  const { data, error } = await context.db
+  let query = context.db
     .from("gyms")
-    .select("id, name, sport_types")
+    .select("id, name, sport_types, is_away, address_line1, postal_code, city")
     .eq("tenant_id", context.tenant.id)
     .eq("status", "ACTIVE")
-    .is("deleted_at", null)
-    .order("name");
+    .is("deleted_at", null);
+  if (!includeAway) query = query.eq("is_away", false);
 
+  const { data, error } = await query.order("name");
   if (error) throw fromDatabaseError(error, { resource: "gym" });
   return data ?? [];
+}
+
+/** "Viale Resistenza 11, 26845 Codogno", or null when nothing is on file. */
+export function gymAddress(gym: {
+  address_line1: string | null;
+  postal_code: string | null;
+  city: string | null;
+}): string | null {
+  const place = [gym.postal_code, gym.city].filter(Boolean).join(" ");
+  return [gym.address_line1, place].filter(Boolean).join(", ") || null;
+}
+
+/** A hall in the event editor's picker: away halls are listed apart. */
+export function toEventGymOption(gym: {
+  id: string;
+  name: string;
+  is_away: boolean;
+  address_line1: string | null;
+  postal_code: string | null;
+  city: string | null;
+}) {
+  return { value: gym.id, label: gym.name, away: gym.is_away, address: gymAddress(gym) };
 }
 
 /** Distinct sports across the club's gyms, for the filter dropdown. */
@@ -107,6 +139,7 @@ function toRow(input: CreateGymInput) {
     equipment: input.equipment,
     color: input.color,
     notes: input.notes,
+    ...(input.isAway === undefined ? {} : { is_away: input.isAway }),
   };
 }
 

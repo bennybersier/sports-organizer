@@ -20,7 +20,7 @@ import { isAppError } from "@/lib/errors";
 import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
 import { listAvailability, listExceptions } from "@/server/services/availability-service";
-import { listGymOptions } from "@/server/services/gym-service";
+import { listGymOptions, toEventGymOption } from "@/server/services/gym-service";
 import { listCompetitionsForTeams } from "@/server/services/competition-service";
 import { getTeamRelations } from "@/server/services/relations-service";
 import { listMatches, teamRecordFrom } from "@/server/services/match-service";
@@ -125,7 +125,11 @@ export default async function TeamDetailPage({
       teamPromise,
       teamPromise.then((found) => getSeason(context, found.season_id)),
       requirementPromise,
-      hasPermission(context, "gyms.read") ? listGymOptions(context) : Promise.resolve([]),
+      // Away halls included for the event editor; filtered out below for
+      // everything that is about where this team trains or plays at home.
+      hasPermission(context, "gyms.read")
+        ? listGymOptions(context, { includeAway: true })
+        : Promise.resolve([]),
       canReadAvailability ? listAvailability(context, "team", id) : Promise.resolve([]),
       canReadAvailability
         ? listExceptions(context, "team", id, { from: today })
@@ -172,7 +176,7 @@ export default async function TeamDetailPage({
     team,
     season,
     requirement,
-    gyms,
+    allGyms,
     windows,
     exceptions,
     trainingWeek,
@@ -217,11 +221,12 @@ export default async function TeamDetailPage({
         }
       : null;
 
+  const gyms = allGyms.filter((gym) => !gym.is_away);
   const gymOptions = gyms.map((gym) => ({ value: gym.id, label: gym.name }));
   const eventOptions = canCreateEvents
     ? {
         seasons: seasons.map((entry) => ({ value: entry.id, label: entry.name })),
-        gyms: gymOptions,
+        gyms: allGyms.map(toEventGymOption),
         trainers: trainers.map((trainer) => ({
           value: trainer.id,
           label: `${trainer.first_name} ${trainer.last_name}`,
