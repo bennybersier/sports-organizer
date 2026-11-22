@@ -17,13 +17,15 @@ import type { GenderCategory, MatchResultState } from "@/types/database";
  * on a noticeboard and nothing that is about a person:
  *
  *   - the team, its season and the club's name
+ *   - the squad, as first name and last initial, for athletes whose family
+ *     has not opted out (`athletes.public_consent`)
  *   - fixtures: when, against whom, home or away, where, and the score
  *   - the team's own record
  *   - when and where it trains, for the next few weeks
  *
- * Deliberately absent: every athlete (names, numbers, call-ups, attendance,
- * box scores, evaluations — these are children), coaches' names and contact
- * details, internal notes on the team, the event or the result, and ids that
+ * Deliberately absent: anything else about an athlete (surnames, shirt
+ * numbers, dates of birth, call-ups, attendance, box scores, evaluations —
+ * these are children), coaches' names and contact details, internal notes on the team, the event or the result, and ids that
  * would mean something to the rest of the app.
  *
  * ## Why the secret-key client
@@ -79,6 +81,8 @@ export interface PublicTeamPage {
     season: string | null;
   };
   homeVenue: PublicVenue | null;
+  /** "Marco R.", alphabetical. Only athletes with publication consent. */
+  roster: string[];
   record: {
     played: number;
     won: number;
@@ -128,7 +132,7 @@ export async function getPublicTeamPage(token: string): Promise<PublicTeamPage |
 
   const tenantId = team.tenant_id;
 
-  const [{ data: tenant }, { data: season }, { data: links }] = await Promise.all([
+  const [{ data: tenant }, { data: season }, { data: links }, { data: squad }] = await Promise.all([
     db
       .from("tenants")
       .select("name, timezone, status, deleted_at")
@@ -145,6 +149,13 @@ export async function getPublicTeamPage(token: string): Promise<PublicTeamPage |
       .select("event_id")
       .eq("tenant_id", tenantId)
       .eq("team_id", team.id),
+    // Current members only: someone who left in January is not in the squad.
+    db
+      .from("athlete_teams")
+      .select("athlete_id")
+      .eq("tenant_id", tenantId)
+      .eq("team_id", team.id)
+      .is("left_at", null),
   ]);
 
   if (!tenant || tenant.status !== "ACTIVE" || tenant.deleted_at !== null) return null;
@@ -156,33 +167,48 @@ export async function getPublicTeamPage(token: string): Promise<PublicTeamPage |
   const trainingUntil = startOfDayInZone(addDays(today, TRAINING_DAYS), zone).toISOString();
   const eventIds = (links ?? []).map((link) => link.event_id);
 
-  const [{ data: events }, { data: results }, { data: versions }] = await Promise.all([
-    eventIds.length > 0
-      ? db
-          .from("calendar_events")
-          .select("id, start_at, end_at, gym_id, location, opponent, is_home, competition")
-          .eq("tenant_id", tenantId)
-          .in("id", eventIds)
-          // Same test as the app's match list: an opponent makes it a match.
-          .not("opponent", "is", null)
-          .neq("status", "CANCELLED")
-      : Promise.resolve({ data: [] }),
-    eventIds.length > 0
-      ? db
-          .from("match_results")
-          .select("event_id, state, our_score, their_score, our_periods, their_periods")
-          .eq("tenant_id", tenantId)
-          .eq("team_id", team.id)
-          .in("event_id", eventIds)
-      : Promise.resolve({ data: [] }),
-    // Only the published schedule: a draft is not what the club is doing.
-    db
-      .from("schedule_versions")
-      .select("id")
-      .eq("tenant_id", tenantId)
-      .eq("status", "PUBLISHED")
-      .gte("applies_until", today),
-  ]);
+  const athleteIds = (squad ?? []).map((row) => row.athlete_id);
+
+  const [{ data: events }, { data: results }, { data: versions }, { data: athletes }] =
+    await Promise.all([
+      eventIds.length > 0
+        ? db
+            .from("calendar_events")
+            .select("id, start_at, end_at, gym_id, location, opponent, is_home, competition")
+            .eq("tenant_id", tenantId)
+            .in("id", eventIds)
+            // Same test as the app's match list: an opponent makes it a match.
+            .not("opponent", "is", null)
+            .neq("status", "CANCELLED")
+        : Promise.resolve({ data: [] }),
+      eventIds.length > 0
+        ? db
+            .from("match_results")
+            .select("event_id, state, our_score, their_score, our_periods, their_periods")
+            .eq("tenant_id", tenantId)
+            .eq("team_id", team.id)
+            .in("event_id", eventIds)
+        : Promise.resolve({ data: [] }),
+      // Only the published schedule: a draft is not what the club is doing.
+      db
+        .from("schedule_versions")
+        .select("id")
+        .eq("tenant_id", tenantId)
+        .eq("status", "PUBLISHED")
+        .gte("applies_until", today),
+      athleteIds.length > 0
+        ? db
+            .from("athletes")
+            // Names only; the surname is cut to an initial below, before
+            // anything reaches the page.
+            .select("first_name, last_name")
+            .eq("tenant_id", tenantId)
+            .in("id", athleteIds)
+            .eq("public_consent", true)
+            .is("deleted_at", null)
+            .neq("status", "ARCHIVED")
+        : Promise.resolve({ data: [] }),
+    ]);
 
   const versionIds = (versions ?? []).map((version) => version.id);
   const { data: sessions } =
@@ -314,6 +340,12 @@ export async function getPublicTeamPage(token: string): Promise<PublicTeamPage |
       season: season?.name ?? null,
     },
     homeVenue: venueOf(team.home_gym_id),
+    roster: (athletes ?? [])
+      .map((athlete) => {
+        const initial = athlete.last_name.trim().charAt(0).toLocaleUpperCase();
+        return initial ? `${athlete.first_name.trim()} ${initial}.` : athlete.first_name.trim();
+      })
+      .sort((a, b) => a.localeCompare(b)),
     record: {
       played: record.played,
       won: record.won,

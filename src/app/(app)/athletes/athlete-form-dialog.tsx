@@ -28,6 +28,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -57,6 +58,8 @@ export interface AthleteFormValues {
   emergencyContactRelation: string | null;
   membershipStatus: string;
   notes: string | null;
+  /** Listed on the team's parents' page. Absent reads as yes, the default. */
+  publicConsent?: boolean;
 }
 
 const GENDERS = ["UNSPECIFIED", "MALE", "FEMALE", "MIXED", "OTHER"] as const;
@@ -77,6 +80,7 @@ const schema = z.object({
   emergencyContactRelation: z.string().trim().max(60).optional(),
   membershipStatus: z.enum(MEMBERSHIP),
   notes: z.string().trim().max(2000).optional(),
+  publicConsent: z.boolean(),
 });
 
 type Values = z.infer<typeof schema>;
@@ -132,6 +136,7 @@ export function AthleteFormDialog({
       emergencyContactRelation: athlete?.emergencyContactRelation ?? "",
       membershipStatus: (athlete?.membershipStatus as (typeof MEMBERSHIP)[number]) ?? "ACTIVE",
       notes: athlete?.notes ?? "",
+      publicConsent: athlete?.publicConsent ?? true,
     },
   });
 
@@ -158,6 +163,7 @@ export function AthleteFormDialog({
           emergencyContactRelation: "",
           membershipStatus: "ACTIVE",
           notes: "",
+          publicConsent: true,
         });
         setTeamIds([]);
         setNumbers({});
@@ -393,6 +399,25 @@ export function AthleteFormDialog({
                         <Textarea rows={2} {...field} />
                       </FormControl>
                       <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="publicConsent"
+                  render={({ field }) => (
+                    <FormItem className="flex items-start gap-2 rounded-lg border p-3">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={(value) => field.onChange(value === true)}
+                        />
+                      </FormControl>
+                      <div className="grid gap-0.5">
+                        <FormLabel className="font-normal">{t("publicConsent")}</FormLabel>
+                        <p className="text-xs text-muted-foreground">{t("publicConsentHint")}</p>
+                      </div>
                     </FormItem>
                   )}
                 />
