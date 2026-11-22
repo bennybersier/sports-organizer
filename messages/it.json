@@ -688,7 +688,9 @@
     "hallHeld": "Palestra occupata prima e dopo",
     "hallHeldHint": "Montaggio, riscaldamento e smontaggio. In questo intervallo non viene programmato alcun allenamento in palestra.",
     "bufferBefore": "Minuti prima",
-    "bufferAfter": "Minuti dopo"
+    "bufferAfter": "Minuti dopo",
+    "address": "Indirizzo",
+    "addressPlaceholder": "Dove si gioca, se non in una vostra palestra — es. Via Lonato 28, Brescia"
   },
   "conflicts": {
     "VALID": "Valido",

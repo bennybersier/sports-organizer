@@ -92,6 +92,8 @@ export async function getEventAction(id: string): Promise<ActionResult<{
   opponent: string | null;
   isHome: boolean | null;
   competition: string | null;
+  location: string | null;
+  description: string | null;
   bufferBeforeMinutes: number;
   bufferAfterMinutes: number;
 }>> {
@@ -114,6 +116,10 @@ export async function getEventAction(id: string): Promise<ActionResult<{
       opponent: event.opponent,
       isHome: event.is_home,
       competition: event.competition,
+      // Both were missing as well, with the same result: saving a match from
+      // its dialog erased the address and the description.
+      location: event.location,
+      description: event.description,
       bufferBeforeMinutes: event.buffer_before_minutes,
       bufferAfterMinutes: event.buffer_after_minutes,
     };

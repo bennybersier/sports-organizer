@@ -33,6 +33,8 @@ export interface MatchListItem {
   isHome: boolean | null;
   competition: string | null;
   gymName: string | null;
+  /** The address, when it is played somewhere other than one of our halls. */
+  location: string | null;
   /** Null until somebody opens one; the sheet lives behind it. */
   registerId: string | null;
   result: MatchResultSummary | null;
@@ -101,7 +103,7 @@ export async function listMatches(
   */
   let eventQuery = context.db
     .from("calendar_events")
-    .select("id, start_at, end_at, gym_id, opponent, is_home, competition")
+    .select("id, start_at, end_at, gym_id, opponent, is_home, competition, location")
     .eq("tenant_id", context.tenant.id)
     .not("opponent", "is", null)
     .neq("status", "CANCELLED")
@@ -210,6 +212,7 @@ export async function listMatches(
       isHome: event.is_home,
       competition: event.competition,
       gymName: event.gym_id ? (gymById.get(event.gym_id) ?? null) : null,
+      location: event.location,
       registerId: registerByKey.get(key(link.event_id, link.team_id)) ?? null,
       result: result ? summarise(result) : null,
       tracksBoxScore: team.tracks_box_score,
@@ -277,7 +280,7 @@ export async function getMatch(
   ] = await Promise.all([
     context.db
       .from("calendar_events")
-      .select("id, start_at, end_at, gym_id, opponent, is_home, competition, status")
+      .select("id, start_at, end_at, gym_id, opponent, is_home, competition, status, location")
       .eq("tenant_id", context.tenant.id)
       .eq("id", eventId)
       .maybeSingle(),
@@ -351,6 +354,7 @@ export async function getMatch(
     isHome: event.is_home,
     competition: event.competition,
     gymName: gym?.name ?? null,
+    location: event.location,
     registerId: register?.id ?? null,
     result: result ? summarise(result) : null,
     tracksBoxScore: team.tracks_box_score,

@@ -206,7 +206,13 @@ export function RegisterSheetEditor({
                     isHome: sheet.fixture.isHome,
                     startsAt: sheet.fixture.startsAt,
                     bufferBeforeMinutes: sheet.fixture.bufferBeforeMinutes,
-                    venue: sheet.gym,
+                    // Our hall when it is one; otherwise the address typed on
+                    // the match, which is where an away game is.
+                    venue:
+                      sheet.gym ??
+                      (sheet.fixture.location
+                        ? { name: sheet.fixture.location, address: null }
+                        : null),
                     signature: callUp.signature,
                     timeZone: callUp.timeZone,
                   }}

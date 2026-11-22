@@ -9,6 +9,7 @@ import {
   ClipboardList,
   FileImage,
   MapPin,
+  Navigation,
   Star,
   Table2,
   Users,
@@ -386,6 +387,22 @@ export default async function MatchPage({
                 <MapPin className="size-4 text-orange-500" aria-hidden />
                 {match.gymName}
               </span>
+            ) : null}
+            {/*
+              The address, straight into a map: the person reading it is
+              usually about to drive there. A plain search link rather than an
+              embedded map — nothing loads until someone asks for directions.
+            */}
+            {match.location ? (
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(match.location)}`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 underline-offset-4 hover:text-foreground hover:underline"
+              >
+                <Navigation className="size-4 text-orange-500" aria-hidden />
+                {match.location}
+              </a>
             ) : null}
           </div>
         </CardContent>

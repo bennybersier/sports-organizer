@@ -57,7 +57,7 @@ export function StatTile({
   tone?: keyof typeof TONES;
 }) {
   return (
-    <div className="min-w-0 space-y-1.5 rounded-md border bg-muted/30 p-3">
+    <div className="h-full min-w-0 space-y-1.5 rounded-md border bg-muted/30 p-3">
       <p className="label-caps truncate text-muted-foreground">{label}</p>
       <p className={cn("font-mono text-3xl leading-none font-bold tracking-tight", TONES[tone])}>
         {value}
