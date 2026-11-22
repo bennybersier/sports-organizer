@@ -492,9 +492,7 @@
     "foulsShort": "fls",
     "absencesEyebrow": "Absences",
     "rosterEyebrow": "Roster",
-    "staffEyebrow": "Staff",
-    "publicConsent": "Show on the team's parents' page",
-    "publicConsentHint": "As first name and last initial only. Untick if the family hasn't agreed to it."
+    "staffEyebrow": "Staff"
   },
   "weekdays": {
     "monday": "Monday",
@@ -1555,7 +1553,7 @@
     "shownResults": "Scores and the season record",
     "shownTraining": "Training for the next two weeks",
     "hidden": "Never on it",
-    "hiddenAthletes": "Players' surnames, numbers, call-ups, attendance and stats",
+    "hiddenAthletes": "Players: names, numbers, call-ups, attendance, stats",
     "hiddenStaff": "Coaches' names and contact details",
     "hiddenNotes": "Internal notes",
     "linkLabel": "Link to the parents' page",
@@ -1584,8 +1582,6 @@
     "shortWIN": "W",
     "shortLOSS": "L",
     "shortDRAW": "D",
-    "footer": "Shared by {club}. Times are local ({timeZone}).",
-    "roster": "Squad",
-    "shownRoster": "The squad as first name and last initial, for athletes allowed on it"
+    "footer": "Shared by {club}. Times are local ({timeZone})."
   }
 }

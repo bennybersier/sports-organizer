@@ -3,7 +3,16 @@
 import { revalidatePath } from "next/cache";
 
 import { runAction, parseInput, type ActionResult } from "@/lib/action";
-import { requirePermission } from "@/server/auth/authorization";
+import {
+  hasPermission,
+  requireAnyPermission,
+  requirePermission,
+} from "@/server/auth/authorization";
+import { listGymOptions } from "@/server/services/gym-service";
+import { listSeasonOptions } from "@/server/services/season-service";
+import { listTeamOptions } from "@/server/services/team-service";
+import { listTrainerOptions } from "@/server/services/trainer-service";
+import type { EventDialogOptions } from "@/app/(app)/calendar/new-event-button";
 import {
   cancelEventSchema,
   createEventSchema,
@@ -154,5 +163,35 @@ export async function checkPlacementAction(input: {
   return runAction(async () => {
     const context = await requirePermission("calendar.read");
     return checkPlacement(context, input);
+  });
+}
+
+/**
+ * The event dialog's pickers, loaded when it opens.
+ *
+ * Pages used to read every season, hall, trainer and team on each visit for a
+ * dialog most visits never open. Each list is gated on its own read
+ * permission and comes back empty without it, as the pages did.
+ */
+export async function getEventDialogOptionsAction(): Promise<ActionResult<EventDialogOptions>> {
+  return runAction(async () => {
+    const context = await requireAnyPermission(["calendar.create", "calendar.update"]);
+    const [seasons, gyms, trainers, teams] = await Promise.all([
+      hasPermission(context, "seasons.read") ? listSeasonOptions(context) : [],
+      hasPermission(context, "gyms.read") ? listGymOptions(context) : [],
+      hasPermission(context, "trainers.read") ? listTrainerOptions(context) : [],
+      hasPermission(context, "teams.read") ? listTeamOptions(context) : [],
+    ]);
+    return {
+      seasons: seasons.map((season) => ({ value: season.id, label: season.name })),
+      gyms: gyms.map((gym) => ({ value: gym.id, label: gym.name })),
+      trainers: trainers.map((trainer) => ({
+        value: trainer.id,
+        label: `${trainer.first_name} ${trainer.last_name}`,
+      })),
+      teams: teams.map((team) => ({ value: team.id, label: team.name })),
+      // What is typed is read on the club's clock, not the browser's.
+      timeZone: context.tenant.timezone,
+    };
   });
 }

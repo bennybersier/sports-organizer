@@ -30,6 +30,9 @@ export async function listTrainers(
 ): Promise<ListResult<TrainerListItem>> {
   assertPermission(context, "trainers.read");
   const { from, to } = paginationRange(params);
+  // A club has a few dozen teams: read them alongside the page rather than
+  // after it, so the cards' team chips cost one round trip, not two.
+  const teamsPromise = tenantTeams(context);
 
   let query = context.db
     .from("trainers")
@@ -64,7 +67,7 @@ export async function listTrainers(
   if (error) throw fromDatabaseError(error, { resource: "trainer" });
 
   const trainers = data ?? [];
-  const teamsByTrainer = await teamsFor(context, trainers.map((t) => t.id));
+  const teamsByTrainer = await teamsFor(context, trainers.map((t) => t.id), teamsPromise);
 
   return buildListResult(
     trainers.map((trainer) => ({
@@ -78,11 +81,26 @@ export async function listTrainers(
   );
 }
 
+/** Every team in the club, by id — small enough to read whole. */
+async function tenantTeams(
+  context: AuthContext,
+): Promise<Map<string, { id: string; name: string; color: string }>> {
+  const { data } = await context.db
+    .from("teams")
+    .select("id, name, color")
+    .eq("tenant_id", context.tenant.id);
+  return new Map((data ?? []).map((team) => [team.id, team]));
+}
+
 /**
  * Current team assignments for a page of trainers, in two queries rather than
  * one per trainer.
  */
-async function teamsFor(context: AuthContext, trainerIds: string[]) {
+async function teamsFor(
+  context: AuthContext,
+  trainerIds: string[],
+  teamsPromise: Promise<Map<string, { id: string; name: string; color: string }>>,
+) {
   const result = new Map<string, { id: string; name: string; color: string }[]>();
   if (trainerIds.length === 0) return result;
 
@@ -93,16 +111,7 @@ async function teamsFor(context: AuthContext, trainerIds: string[]) {
     .in("trainer_id", trainerIds)
     .is("unassigned_at", null);
 
-  const teamIds = [...new Set((links ?? []).map((link) => link.team_id))];
-  if (teamIds.length === 0) return result;
-
-  const { data: teams } = await context.db
-    .from("teams")
-    .select("id, name, color")
-    .eq("tenant_id", context.tenant.id)
-    .in("id", teamIds);
-
-  const byId = new Map((teams ?? []).map((team) => [team.id, team]));
+  const byId = await teamsPromise;
 
   for (const link of links ?? []) {
     const team = byId.get(link.team_id);

@@ -492,9 +492,7 @@
     "foulsShort": "f",
     "absencesEyebrow": "Assenze",
     "rosterEyebrow": "Squadre",
-    "staffEyebrow": "Staff",
-    "publicConsent": "Mostra nella pagina genitori della squadra",
-    "publicConsentHint": "Solo nome e iniziale del cognome. Togli la spunta se la famiglia non ha dato il consenso."
+    "staffEyebrow": "Staff"
   },
   "weekdays": {
     "monday": "Lunedì",
@@ -1555,7 +1553,7 @@
     "shownResults": "Risultati e bilancio della stagione",
     "shownTraining": "Allenamenti delle prossime due settimane",
     "hidden": "Mai visibili",
-    "hiddenAthletes": "Cognomi, numeri, convocazioni, presenze e statistiche dei giocatori",
+    "hiddenAthletes": "Giocatori: nomi, numeri, convocazioni, presenze, statistiche",
     "hiddenStaff": "Nomi e contatti degli allenatori",
     "hiddenNotes": "Note interne",
     "linkLabel": "Link alla pagina genitori",
@@ -1584,8 +1582,6 @@
     "shortWIN": "V",
     "shortLOSS": "P",
     "shortDRAW": "N",
-    "footer": "Condiviso da {club}. Orari locali ({timeZone}).",
-    "roster": "Rosa",
-    "shownRoster": "La rosa con nome e iniziale del cognome, per gli atleti autorizzati"
+    "footer": "Condiviso da {club}. Orari locali ({timeZone})."
   }
 }

@@ -11,12 +11,9 @@ import { cn } from "@/lib/utils";
 import { hasPermission } from "@/server/auth/authorization";
 import { requireAuthContext } from "@/server/auth/context";
 import { listMatches, type MatchListItem } from "@/server/services/match-service";
-import { listGymOptions } from "@/server/services/gym-service";
-import { listSeasonOptions } from "@/server/services/season-service";
-import { listTrainerOptions } from "@/server/services/trainer-service";
-import { NewEventButton } from "@/app/(app)/calendar/new-event-button";
-import { listCompetitionOptions } from "@/server/services/competition-service";
+import { LazyNewEventButton } from "@/app/(app)/calendar/lazy-new-event-button";
 import { listTeamOptions } from "@/server/services/team-service";
+import { listCompetitionOptions } from "@/server/services/competition-service";
 
 export const metadata: Metadata = { title: "Matches" };
 
@@ -55,15 +52,12 @@ export default async function MatchesPage({
     call here would turn a missing filter into a 500.
   */
   const canCreate = hasPermission(context, "calendar.create");
-  const [listed, teams, competitions, seasons, gyms, trainers] = await Promise.all([
+  const [listed, teams, competitions] = await Promise.all([
     listMatches(context, { teamId: team, competitionId: competition, only }),
     hasPermission(context, "teams.read") ? listTeamOptions(context) : Promise.resolve([]),
     hasPermission(context, "competitions.read")
       ? listCompetitionOptions(context)
       : Promise.resolve([]),
-    canCreate ? listSeasonOptions(context) : Promise.resolve([]),
-    canCreate ? listGymOptions(context) : Promise.resolve([]),
-    canCreate ? listTrainerOptions(context) : Promise.resolve([]),
   ]);
 
   /*
@@ -170,17 +164,7 @@ export default async function MatchesPage({
               separate form for one would be a second set of rules about what a
               fixture may hold, and the two would drift apart.
             */
-            <NewEventButton
-              seasons={seasons.map((season) => ({ value: season.id, label: season.name }))}
-              gyms={gyms.map((gym) => ({ value: gym.id, label: gym.name }))}
-              trainers={trainers.map((trainer) => ({
-                value: trainer.id,
-                label: `${trainer.first_name} ${trainer.last_name}`,
-              }))}
-              teams={teams.map((entry) => ({ value: entry.id, label: entry.name }))}
-              timeZone={timeZone}
-              defaultTeamIds={team ? [team] : undefined}
-            />
+            <LazyNewEventButton defaultTeamIds={team ? [team] : undefined} />
           ) : null
         }
       />

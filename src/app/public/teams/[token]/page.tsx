@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
-import { CalendarDays, Dumbbell, MapPin, Trophy, Users } from "lucide-react";
+import { CalendarDays, Dumbbell, MapPin, Trophy } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -172,18 +172,6 @@ export default async function PublicTeamPage({
           </ul>
         )}
       </Section>
-
-      {page.roster.length > 0 ? (
-        <Section icon={<Users aria-hidden />} title={t("roster")}>
-          <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5 text-sm sm:grid-cols-3">
-            {page.roster.map((name, index) => (
-              <li key={index} className="truncate">
-                {name}
-              </li>
-            ))}
-          </ul>
-        </Section>
-      ) : null}
 
       <Section icon={<Trophy aria-hidden />} title={t("results")}>
         {page.past.length === 0 ? (

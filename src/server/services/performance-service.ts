@@ -1,5 +1,7 @@
 import "server-only";
 
+import { cache } from "react";
+
 import { ConflictError, NotFoundError, fromDatabaseError } from "@/lib/errors";
 import type { AuthContext } from "@/server/auth/context";
 import { assertPermission, hasPermission } from "@/server/auth/authorization";
@@ -101,17 +103,32 @@ async function collectFacts(
   const matchIds = (registerRows ?? [])
     .filter((row) => row.occasion === "MATCH" && row.state === "OPEN")
     .map((row) => row.id);
-  const imported = new Set<string>();
-  if (matchIds.length > 0) {
-    const { data: sheetRows, error: sheetError } = await context.db
-      .from("match_sheets")
-      .select("register_id")
+  const registerIds = (registerRows ?? []).map((row) => row.id);
+  if (registerIds.length === 0) return { ...empty, squads };
+
+  // Both need only the register ids, so they go together.
+  const [sheetResult, recordResult] = await Promise.all([
+    matchIds.length > 0
+      ? context.db
+          .from("match_sheets")
+          .select("register_id")
+          .eq("tenant_id", context.tenant.id)
+          .eq("state", "IMPORTED")
+          .in("register_id", matchIds)
+      : Promise.resolve({ data: [] as { register_id: string }[], error: null }),
+    context.db
+      .from("attendance_records")
+      .select("register_id, athlete_id, state, reason, called_up, started, bench_reason")
       .eq("tenant_id", context.tenant.id)
-      .eq("state", "IMPORTED")
-      .in("register_id", matchIds);
-    if (sheetError) throw fromDatabaseError(sheetError, { resource: "game sheet" });
-    for (const row of sheetRows ?? []) imported.add(row.register_id);
+      .in("athlete_id", athleteIds)
+      .in("register_id", registerIds),
+  ]);
+  if (sheetResult.error) {
+    throw fromDatabaseError(sheetResult.error, { resource: "game sheet" });
   }
+  const imported = new Set((sheetResult.data ?? []).map((row) => row.register_id));
+  const { data: recordRows, error: recordError } = recordResult;
+  if (recordError) throw fromDatabaseError(recordError, { resource: "register" });
 
   const registers: RegisterFact[] = (registerRows ?? []).map((row) => ({
     id: row.id,
@@ -121,16 +138,6 @@ async function collectFacts(
     startsAt: row.starts_at,
     hasImportedSheet: imported.has(row.id),
   }));
-
-  if (registers.length === 0) return { ...empty, squads };
-
-  const { data: recordRows, error: recordError } = await context.db
-    .from("attendance_records")
-    .select("register_id, athlete_id, state, reason, called_up, started, bench_reason")
-    .eq("tenant_id", context.tenant.id)
-    .in("athlete_id", athleteIds)
-    .in("register_id", registers.map((register) => register.id));
-  if (recordError) throw fromDatabaseError(recordError, { resource: "register" });
 
   const records: RecordFact[] = (recordRows ?? []).map((row) => ({
     registerId: row.register_id,
@@ -179,14 +186,16 @@ export async function getAthletePerformance(
 ): Promise<AthletePerformance> {
   assertPermission(context, "attendance.read");
 
-  const facts = await collectFacts(context, [athleteId], { seasonId });
-
-  const [evaluations, boxScore] = await Promise.all([
+  // The box scores are read alongside the facts and narrowed to the facts'
+  // matches afterwards, rather than waiting for them before starting.
+  const [facts, evaluations, boxRows] = await Promise.all([
+    collectFacts(context, [athleteId], { seasonId }),
     hasPermission(context, "evaluations.read")
       ? listEvaluations(context, athleteId, seasonId)
       : Promise.resolve([]),
-    boxScoreTotals(context, athleteId, facts.registers),
+    athleteBoxScores(context, athleteId),
   ]);
+  const boxScore = boxScoreTotals(boxRows, facts.registers);
 
   return {
     training: trainingStats(athleteId, facts),
@@ -204,25 +213,35 @@ export async function getAthletePerformance(
  * anything depends on where the row came from — and the summary refuses to
  * average a statistic over games that could not have recorded it.
  */
-async function boxScoreTotals(
-  context: AuthContext,
-  athleteId: string,
+function boxScoreTotals(
+  rows: MatchBoxScoreRow[],
   registers: RegisterFact[],
-): Promise<BoxScoreSummary | null> {
-  const matchIds = registers
-    .filter((register) => register.occasion === "MATCH")
-    .map((register) => register.id);
-  if (matchIds.length === 0) return null;
-
-  const { data } = await context.db
-    .from("match_box_scores")
-    .select("*")
-    .eq("tenant_id", context.tenant.id)
-    .eq("athlete_id", athleteId)
-    .in("register_id", matchIds);
-
-  return summariseBoxScores((data ?? []).map(toFact));
+): BoxScoreSummary | null {
+  const matchIds = new Set(
+    registers.filter((register) => register.occasion === "MATCH").map((register) => register.id),
+  );
+  if (matchIds.size === 0) return null;
+  return summariseBoxScores(rows.filter((row) => matchIds.has(row.register_id)).map(toFact));
 }
+
+/**
+ * Every box score line this athlete has — a few dozen a season at most.
+ *
+ * Request-cached: the athlete page asks for these twice, for the season card
+ * and for the match log, and they are the same rows.
+ */
+export const athleteBoxScores = cache(
+  async (context: AuthContext, athleteId: string): Promise<MatchBoxScoreRow[]> => {
+    // An unreadable box score leaves the card empty rather than failing the
+    // page, as it always has.
+    const { data } = await context.db
+      .from("match_box_scores")
+      .select("*")
+      .eq("tenant_id", context.tenant.id)
+      .eq("athlete_id", athleteId);
+    return data ?? [];
+  },
+);
 
 /** A database row as the summary wants it. */
 function toFact(row: MatchBoxScoreRow): BoxScoreFact {

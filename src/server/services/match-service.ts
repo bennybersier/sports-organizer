@@ -4,6 +4,7 @@ import { ConflictError, NotFoundError, fromDatabaseError } from "@/lib/errors";
 import { assertPermission } from "@/server/auth/authorization";
 import type { AuthContext } from "@/server/auth/context";
 import { AUDIT_ACTIONS, recordAudit } from "@/server/services/audit-service";
+import { athleteBoxScores } from "@/server/services/performance-service";
 import { outcomeOf, teamRecord, type Outcome, type TeamRecord } from "@/domain/competitions/record";
 import type { MatchResultRow, MatchResultState } from "@/types/database";
 import type { SaveResultInput } from "@/lib/validation/match";
@@ -113,19 +114,40 @@ export async function listMatches(
     Narrowing to a competition goes through its fixtures, which are the only
     thing that knows an event belongs to one. `calendar_events.competition` is
     free text typed by a human and is a label, not a key.
-  */
-  if (options.competitionId) {
-    const { data: fixtures, error } = await context.db
-      .from("fixtures")
-      .select("calendar_event_id")
-      .eq("tenant_id", context.tenant.id)
-      .eq("competition_id", options.competitionId)
-      .not("calendar_event_id", "is", null);
-    if (error) throw fromDatabaseError(error, { resource: "competition" });
 
-    const ids = (fixtures ?? [])
-      .map((fixture) => fixture.calendar_event_id)
-      .filter((id): id is string => id !== null);
+    Narrowing to a team goes through its event links first, so one side's
+    matches no longer mean reading every match in the club. Both lookups run
+    together when both are asked for.
+  */
+  const [competitionEventIds, teamEventIds] = await Promise.all([
+    options.competitionId
+      ? context.db
+          .from("fixtures")
+          .select("calendar_event_id")
+          .eq("tenant_id", context.tenant.id)
+          .eq("competition_id", options.competitionId)
+          .not("calendar_event_id", "is", null)
+          .then(({ data: fixtures, error }) => {
+            if (error) throw fromDatabaseError(error, { resource: "competition" });
+            return (fixtures ?? [])
+              .map((fixture) => fixture.calendar_event_id)
+              .filter((id): id is string => id !== null);
+          })
+      : Promise.resolve(null),
+    options.teamId
+      ? context.db
+          .from("calendar_event_teams")
+          .select("event_id")
+          .eq("tenant_id", context.tenant.id)
+          .eq("team_id", options.teamId)
+          .then(({ data: links, error }) => {
+            if (error) throw fromDatabaseError(error, { resource: "event" });
+            return (links ?? []).map((link) => link.event_id);
+          })
+      : Promise.resolve(null),
+  ]);
+  for (const ids of [competitionEventIds, teamEventIds]) {
+    if (ids === null) continue;
     if (ids.length === 0) return [];
     eventQuery = eventQuery.in("id", ids);
   }
@@ -711,13 +733,9 @@ export async function listAthleteMatches(
 ): Promise<AthleteMatchLine[]> {
   assertPermission(context, "attendance.read");
 
-  const { data: lines, error } = await context.db
-    .from("match_box_scores")
-    .select("*")
-    .eq("tenant_id", context.tenant.id)
-    .eq("athlete_id", athleteId);
-  if (error) throw fromDatabaseError(error, { resource: "box score" });
-  if (!lines || lines.length === 0) return [];
+  // The same rows the season card reads, shared within the request.
+  const lines = await athleteBoxScores(context, athleteId);
+  if (lines.length === 0) return [];
 
   const { data: registers } = await context.db
     .from("attendance_registers")

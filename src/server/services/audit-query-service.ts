@@ -3,6 +3,7 @@ import "server-only";
 import { fromDatabaseError } from "@/lib/errors";
 import type { AuthContext } from "@/server/auth/context";
 import { assertPermission } from "@/server/auth/authorization";
+import { AUDIT_ACTIONS } from "@/server/services/audit-service";
 import {
   buildListResult,
   paginationRange,
@@ -86,15 +87,14 @@ export async function listAuditEntries(
   );
 }
 
-/** Distinct actions present, for the filter dropdown. */
+/**
+ * Every action the app records, for the filter dropdown.
+ *
+ * Read from the code's own list rather than the log: sampling a thousand rows
+ * for their distinct actions cost a query on every visit and still missed any
+ * action not among the newest thousand.
+ */
 export async function listAuditActions(context: AuthContext): Promise<string[]> {
   assertPermission(context, "audit_logs.read");
-
-  const { data } = await context.db
-    .from("audit_logs")
-    .select("action")
-    .eq("tenant_id", context.tenant.id)
-    .limit(1000);
-
-  return [...new Set((data ?? []).map((row) => row.action))].sort();
+  return Object.values(AUDIT_ACTIONS).sort();
 }

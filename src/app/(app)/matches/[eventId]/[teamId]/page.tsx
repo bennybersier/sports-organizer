@@ -34,10 +34,6 @@ import { RegisterStateActions } from "@/components/attendance/register-state-act
 import { listSheets } from "@/server/services/match-sheet-service";
 import { listBoxScores, listSelections } from "@/server/services/performance-service";
 import { getDefaultProvider } from "@/server/services/ai-config-service";
-import { listGymOptions } from "@/server/services/gym-service";
-import { listSeasonOptions } from "@/server/services/season-service";
-import { listTeamOptions } from "@/server/services/team-service";
-import { listTrainerOptions } from "@/server/services/trainer-service";
 
 import { EditMatchButton } from "./edit-match-button";
 import { ResultForm } from "./result-form";
@@ -121,12 +117,9 @@ export default async function MatchPage({
     throw error;
   }
 
-  // Everything the shared event dialog needs, loaded only for someone who may
-  // actually change the match.
+  // The edit dialog's pickers are fetched when it opens, not with the page.
   const canEditEvent = hasPermission(context, "calendar.update");
-  const [
-    squad, sheets, boxScores, selections, provider, seasons, gyms, trainers, teams, register,
-  ] = await Promise.all([
+  const [squad, sheets, boxScores, selections, provider, register] = await Promise.all([
     listSquad(context, teamId),
     match.registerId ? listSheets(context, match.registerId) : Promise.resolve([]),
     match.registerId && match.tracksBoxScore
@@ -138,10 +131,6 @@ export default async function MatchPage({
     hasPermission(context, "ai.read")
       ? getDefaultProvider(context).catch(() => null)
       : Promise.resolve(null),
-    canEditEvent ? listSeasonOptions(context) : Promise.resolve([]),
-    canEditEvent ? listGymOptions(context) : Promise.resolve([]),
-    canEditEvent ? listTrainerOptions(context) : Promise.resolve([]),
-    canEditEvent ? listTeamOptions(context) : Promise.resolve([]),
     /*
       The squad sheet itself — who was called up, who started, who turned up.
       This used to be its own page under /attendance, which made a match two
@@ -150,18 +139,6 @@ export default async function MatchPage({
     */
     match.registerId ? getRegisterSheet(context, match.registerId) : Promise.resolve(null),
   ]);
-
-  const eventOptions = {
-    seasons: seasons.map((season) => ({ value: season.id, label: season.name })),
-    gyms: gyms.map((gym) => ({ value: gym.id, label: gym.name })),
-    trainers: trainers.map((trainer) => ({
-      value: trainer.id,
-      label: `${trainer.first_name} ${trainer.last_name}`,
-    })),
-    teams: teams.map((entry) => ({ value: entry.id, label: entry.name })),
-    // What is typed is read on the club's clock, not the browser's.
-    timeZone: context.tenant.timezone,
-  };
 
   const canReadAthletes = hasPermission(context, "athletes.read");
   const canRecord = hasPermission(context, "attendance.record");
@@ -318,7 +295,7 @@ export default async function MatchPage({
             {t("backToMatches")}
           </Link>
         </Button>
-        {canEditEvent ? <EditMatchButton eventId={eventId} options={eventOptions} /> : null}
+        {canEditEvent ? <EditMatchButton eventId={eventId} /> : null}
       </div>
 
       {/*

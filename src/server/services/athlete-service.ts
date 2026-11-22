@@ -34,6 +34,9 @@ export async function listAthletes(
 ): Promise<ListResult<AthleteListItem>> {
   assertPermission(context, "athletes.read");
   const { from, to } = paginationRange(params);
+  // A club has a few dozen teams: read them alongside the page rather than
+  // after it, so the cards' team chips cost one round trip, not two.
+  const teamsPromise = tenantTeams(context);
 
   let query = context.db
     .from("athletes")
@@ -68,7 +71,7 @@ export async function listAthletes(
   if (error) throw fromDatabaseError(error, { resource: "athlete" });
 
   const athletes = data ?? [];
-  const teamsByAthlete = await teamsFor(context, athletes.map((a) => a.id));
+  const teamsByAthlete = await teamsFor(context, athletes.map((a) => a.id), teamsPromise);
 
   return buildListResult(
     athletes.map((athlete) => ({ ...athlete, teams: teamsByAthlete.get(athlete.id) ?? [] })),
@@ -78,13 +81,28 @@ export async function listAthletes(
   );
 }
 
+/** Every team in the club, by id — small enough to read whole. */
+async function tenantTeams(
+  context: AuthContext,
+): Promise<Map<string, { id: string; name: string; color: string }>> {
+  const { data } = await context.db
+    .from("teams")
+    .select("id, name, color")
+    .eq("tenant_id", context.tenant.id);
+  return new Map((data ?? []).map((team) => [team.id, team]));
+}
+
 /**
- * Current team memberships for a page of athletes, in two queries.
+ * Current team memberships for a page of athletes.
  *
- * Fetches the links, then the teams they point at, and stitches them together —
- * rather than a query per athlete.
+ * The links for this page, stitched to the club's teams (read in parallel by
+ * the caller) — rather than a query per athlete.
  */
-async function teamsFor(context: AuthContext, athleteIds: string[]) {
+async function teamsFor(
+  context: AuthContext,
+  athleteIds: string[],
+  teamsPromise: Promise<Map<string, { id: string; name: string; color: string }>>,
+) {
   const result = new Map<string, AthleteListItem["teams"]>();
   if (athleteIds.length === 0) return result;
 
@@ -95,16 +113,7 @@ async function teamsFor(context: AuthContext, athleteIds: string[]) {
     .in("athlete_id", athleteIds)
     .is("left_at", null);
 
-  const teamIds = [...new Set((links ?? []).map((link) => link.team_id))];
-  if (teamIds.length === 0) return result;
-
-  const { data: teams } = await context.db
-    .from("teams")
-    .select("id, name, color")
-    .eq("tenant_id", context.tenant.id)
-    .in("id", teamIds);
-
-  const byId = new Map((teams ?? []).map((team) => [team.id, team]));
+  const byId = await teamsPromise;
 
   for (const link of links ?? []) {
     const team = byId.get(link.team_id);
@@ -284,7 +293,6 @@ function toRow(input: CreateAthleteInput) {
     emergency_contact_relation: input.emergencyContactRelation,
     membership_status: input.membershipStatus,
     notes: input.notes,
-    ...(input.publicConsent === undefined ? {} : { public_consent: input.publicConsent }),
   };
 }
 

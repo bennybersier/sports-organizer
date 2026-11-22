@@ -190,7 +190,6 @@ export default async function AthletesPage({
                           emergencyContactRelation: athlete.emergency_contact_relation,
                           membershipStatus: athlete.membership_status,
                           notes: athlete.notes,
-                          publicConsent: athlete.public_consent,
                           status: athlete.status,
                         }}
                         teams={teamOptions}

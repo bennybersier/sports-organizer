@@ -344,8 +344,6 @@ export interface AthleteRow extends Timestamps {
   emergency_contact_relation: string | null;
   membership_status: MembershipState;
   notes: string | null;
-  /** May be listed (first name, last initial) on the team's parents' page. */
-  public_consent: boolean;
   metadata: Json;
   status: EntityStatus;
   created_by: string | null;
