@@ -152,7 +152,14 @@ export default async function PublicMatchPage({ params }: { params: Params }) {
                       </TableCell>
                       <TableCell className={cn("whitespace-nowrap", pinned)} style={nameStyle}>
                         <span className="flex items-center gap-1.5">
-                          {line.name ?? (
+                          {line.name && line.athleteId ? (
+                            <Link
+                              href={`/public/teams/${token}/players/${line.athleteId}`}
+                              className="underline-offset-4 hover:underline"
+                            >
+                              {line.name}
+                            </Link>
+                          ) : (
                             <span className="text-muted-foreground italic">
                               {t("otherPlayers", { count: line.players })}
                             </span>

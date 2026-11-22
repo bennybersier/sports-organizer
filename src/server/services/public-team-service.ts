@@ -86,7 +86,7 @@ export interface PublicTeamPage {
   };
   homeVenue: PublicVenue | null;
   /** "Marco R.", alphabetical. Only athletes with publication consent. */
-  roster: string[];
+  roster: { athleteId: string; name: string }[];
   record: {
     played: number;
     won: number;
@@ -253,7 +253,7 @@ export async function getPublicTeamPage(token: string): Promise<PublicTeamPage |
             .from("athletes")
             // Names only; the surname is cut to an initial below, before
             // anything reaches the page.
-            .select("first_name, last_name")
+            .select("id, first_name, last_name")
             .eq("tenant_id", tenantId)
             .in("id", athleteIds)
             .eq("public_consent", true)
@@ -381,7 +381,9 @@ export async function getPublicTeamPage(token: string): Promise<PublicTeamPage |
       season: season?.name ?? null,
     },
     homeVenue: venueOf(team.home_gym_id),
-    roster: (athletes ?? []).map(publicName).sort((a, b) => a.localeCompare(b)),
+    roster: (athletes ?? [])
+      .map((athlete) => ({ athleteId: athlete.id, name: publicName(athlete) }))
+      .sort((a, b) => a.name.localeCompare(b.name)),
     record: {
       played: record.played,
       won: record.won,
@@ -409,6 +411,8 @@ export async function getPublicTeamPage(token: string): Promise<PublicTeamPage |
 /* -------------------------------------------------------------------------- */
 
 export interface PublicBoxScoreLine {
+  /** For the link to the player's page. Null on the folded line. */
+  athleteId: string | null;
   /** "Marco R.", or null for the line that folds together opted-out players. */
   name: string | null;
   /** How many players a folded line stands for; 1 otherwise. */
@@ -549,6 +553,7 @@ export async function getPublicMatchPage(
 
   const boxScore: PublicBoxScoreLine[] = [];
   const folded: PublicBoxScoreLine = {
+    athleteId: null,
     name: null,
     players: 0,
     shirt: null,
@@ -568,7 +573,13 @@ export async function getPublicMatchPage(
     };
     const name = named.get(line.athlete_id);
     if (name) {
-      boxScore.push({ name, players: 1, shirt: shirtOf.get(line.athlete_id) ?? null, ...stats });
+      boxScore.push({
+        athleteId: line.athlete_id,
+        name,
+        players: 1,
+        shirt: shirtOf.get(line.athlete_id) ?? null,
+        ...stats,
+      });
     } else {
       folded.players += 1;
       folded.twos += stats.twos;
@@ -612,5 +623,177 @@ export async function getPublicMatchPage(
         : null,
     },
     boxScore,
+  };
+}
+
+/* -------------------------------------------------------------------------- */
+/* One player                                                                 */
+/* -------------------------------------------------------------------------- */
+
+export interface PublicPlayerMatch {
+  eventId: string;
+  startsAt: string;
+  opponent: string;
+  isHome: boolean | null;
+  result: { ourScore: number; theirScore: number; outcome: Outcome } | null;
+  points: number;
+  fouls: number;
+  twos: number;
+  threes: number;
+  freeThrows: number;
+}
+
+export interface PublicPlayerPage {
+  clubName: string;
+  teamName: string;
+  teamColor: string;
+  timeZone: string;
+  /** "Marco R." */
+  name: string;
+  shirt: number | null;
+  /** Most recent first. This team's matches only: the link is the team's. */
+  matches: PublicPlayerMatch[];
+}
+
+/**
+ * A player's own stats on the parents' page, or null.
+ *
+ * Opens only for a current member of the token's team whose family has not
+ * opted out — the same people the squad list names — and only with the
+ * figures a scoresheet records, as on the match page. The athlete id alone
+ * opens nothing: it has to be one of this team's.
+ */
+export async function getPublicPlayerPage(
+  token: string,
+  athleteId: string,
+): Promise<PublicPlayerPage | null> {
+  if (!UUID_SHAPE.test(athleteId)) return null;
+  const team = await teamForToken(token);
+  if (!team) return null;
+
+  const db = createAdminClient();
+  const tenantId = team.tenant_id;
+
+  const [{ data: tenant }, { data: membership }, { data: athlete }, { data: registers }] =
+    await Promise.all([
+      db
+        .from("tenants")
+        .select("name, timezone, status, deleted_at")
+        .eq("id", tenantId)
+        .maybeSingle(),
+      db
+        .from("athlete_teams")
+        .select("jersey_number")
+        .eq("tenant_id", tenantId)
+        .eq("team_id", team.id)
+        .eq("athlete_id", athleteId)
+        .is("left_at", null)
+        .maybeSingle(),
+      db
+        .from("athletes")
+        .select("first_name, last_name, public_consent, status, deleted_at")
+        .eq("tenant_id", tenantId)
+        .eq("id", athleteId)
+        .maybeSingle(),
+      // This team's match registers: a box score line hangs off one.
+      db
+        .from("attendance_registers")
+        .select("id, event_id")
+        .eq("tenant_id", tenantId)
+        .eq("team_id", team.id)
+        .not("event_id", "is", null),
+    ]);
+
+  if (!tenant || tenant.status !== "ACTIVE" || tenant.deleted_at !== null) return null;
+  if (!membership || !athlete) return null;
+  if (!athlete.public_consent || athlete.deleted_at !== null || athlete.status === "ARCHIVED") {
+    return null;
+  }
+
+  const eventByRegister = new Map(
+    (registers ?? [])
+      .filter((row): row is typeof row & { event_id: string } => row.event_id !== null)
+      .map((row) => [row.id, row.event_id]),
+  );
+  const registerIds = [...eventByRegister.keys()];
+
+  const { data: lines } =
+    registerIds.length > 0 && team.tracks_box_score
+      ? await db
+          .from("match_box_scores")
+          .select(
+            "register_id, two_point_made, three_point_made, free_throw_made, points, fouls_committed",
+          )
+          .eq("tenant_id", tenantId)
+          .eq("athlete_id", athleteId)
+          .in("register_id", registerIds)
+      : { data: [] };
+
+  const eventIds = [
+    ...new Set((lines ?? []).map((line) => eventByRegister.get(line.register_id)!)),
+  ];
+  const [{ data: events }, { data: results }] =
+    eventIds.length > 0
+      ? await Promise.all([
+          db
+            .from("calendar_events")
+            .select("id, start_at, opponent, is_home")
+            .eq("tenant_id", tenantId)
+            .in("id", eventIds)
+            .not("opponent", "is", null)
+            .neq("status", "CANCELLED"),
+          db
+            .from("match_results")
+            .select("event_id, our_score, their_score")
+            .eq("tenant_id", tenantId)
+            .eq("team_id", team.id)
+            .in("event_id", eventIds),
+        ])
+      : [{ data: [] }, { data: [] }];
+
+  const eventById = new Map((events ?? []).map((event) => [event.id, event]));
+  const resultByEvent = new Map((results ?? []).map((row) => [row.event_id, row]));
+
+  const matches = (lines ?? [])
+    .flatMap((line): PublicPlayerMatch[] => {
+      const eventId = eventByRegister.get(line.register_id)!;
+      const event = eventById.get(eventId);
+      if (!event || event.opponent === null) return [];
+      const result = resultByEvent.get(eventId);
+      return [
+        {
+          eventId,
+          startsAt: event.start_at,
+          opponent: event.opponent,
+          isHome: event.is_home,
+          result:
+            result && result.our_score !== null && result.their_score !== null
+              ? {
+                  ourScore: result.our_score,
+                  theirScore: result.their_score,
+                  outcome: outcomeOf({
+                    ourScore: result.our_score,
+                    theirScore: result.their_score,
+                  }),
+                }
+              : null,
+          points: line.points,
+          fouls: line.fouls_committed,
+          twos: line.two_point_made,
+          threes: line.three_point_made,
+          freeThrows: line.free_throw_made,
+        },
+      ];
+    })
+    .sort((a, b) => b.startsAt.localeCompare(a.startsAt));
+
+  return {
+    clubName: tenant.name,
+    teamName: team.name,
+    teamColor: team.color,
+    timeZone: tenant.timezone,
+    name: publicName(athlete),
+    shirt: membership.jersey_number,
+    matches,
   };
 }

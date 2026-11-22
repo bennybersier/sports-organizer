@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { cache } from "react";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
-import { Dumbbell, Users } from "lucide-react";
+import Link from "next/link";
+import { ChevronRight, Dumbbell, Users } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -263,9 +264,15 @@ export default async function PublicTeamPage({
             </CardHeader>
             <CardContent>
               <ul className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-3 lg:grid-cols-2">
-                {page.roster.map((name, index) => (
-                  <li key={index} className="truncate rounded-md border bg-muted/20 px-3 py-2">
-                    {name}
+                {page.roster.map((player) => (
+                  <li key={player.athleteId}>
+                    <Link
+                      href={`/public/teams/${token}/players/${player.athleteId}`}
+                      className="flex items-center justify-between gap-2 rounded-md border bg-muted/20 px-3 py-2 hover:bg-muted/50"
+                    >
+                      <span className="truncate">{player.name}</span>
+                      <ChevronRight className="size-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                    </Link>
                   </li>
                 ))}
               </ul>
